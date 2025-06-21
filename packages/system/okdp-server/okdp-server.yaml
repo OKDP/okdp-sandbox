@@ -158,4 +158,5 @@ modules:
 roles:
   - okdp-server
 dependencies: |
-  [] 
+  - ingress
+  - keycloak

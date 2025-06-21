@@ -88,5 +88,5 @@ modules:
 
 roles:
   - okdp-ui
-dependencies:
-  - ingress 
+dependencies: |
+  - okdp-server
