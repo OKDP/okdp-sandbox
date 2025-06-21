@@ -2,18 +2,8 @@
 
 This guide provides detailed instructions for configuring local DNS resolution for the OKDP sandbox environment.
 
-## Option 1: Manual /etc/hosts Configuration
 
-Add the following entries to your `/etc/hosts` file for each service that will be deployed:
-```
-127.0.0.1 keycloak.okdp.sandbox kad.okdp.sandbox okdp-server.okdp.sandbox okdp-ui.okdp.sandbox 
-```
-
-**Important**: Always use a single line for all hostnames pointing to 127.0.0.1. Having multiple lines with the same IP address (127.0.0.1) can cause DNS resolution problems.
-
-**Note**: You will need to manually add DNS entries for each additional service deployed through the frontend.
-
-## Option 2: Local DNS Server Configuration (Recommended)
+## Option 1: Local DNS Server Configuration (Recommended)
 
 The sandbox deploys a DNS server exposed on port 30053. Configure your local resolver to point to `localhost:30053` for the `okdp.sandbox` domain.
 
@@ -75,6 +65,18 @@ nslookup okdp-ui.okdp.sandbox
 # Should resolve to 127.0.0.1
 
 ```
+
+## Option 2: Manual /etc/hosts Configuration
+
+Add the following entries to your `/etc/hosts` file for each service that will be deployed:
+```
+127.0.0.1 keycloak.okdp.sandbox kad.okdp.sandbox okdp-server.okdp.sandbox okdp-ui.okdp.sandbox 
+```
+
+**Important**: Always use a single line for all hostnames pointing to 127.0.0.1. Having multiple lines with the same IP address (127.0.0.1) can cause DNS resolution problems.
+
+**Note**: You will need to manually add DNS entries for each additional service deployed through the frontend.
+
 
 ## Troubleshooting
 

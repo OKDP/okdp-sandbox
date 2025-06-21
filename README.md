@@ -89,10 +89,11 @@ kubectl get releases -A --watch
 
 Enable access to OKDP services through DNS resolution for the `okdp.sandbox` domain:
 
-- **Option 1**: Manual `/etc/hosts` configuration (simple but requires manual updates)
-- **Option 2**: Local DNS server configuration (recommended, automatic for all services)
+- **Option 1 (Recommended)**: Local DNS server configuration (recommended, automatic for all services)
+- **Option 2**: Manual `/etc/hosts` configuration (simple but requires manual updates)
 
-📋 **See [dns-configuration.md](dns-configuration.md) for detailed setup instructions for your operating system.**
+
+📋 **See [dns-configuration.md](docs/dns-configuration.md) for detailed setup instructions for your operating system.**
 
 ### 5. SSL Certificate
 
