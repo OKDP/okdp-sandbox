@@ -1,0 +1,62 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: kubocd-controller
+  namespace: flux-system
+spec:
+  interval: 1m
+  layerSelector:
+    mediaType: "application/vnd.cncf.helm.chart.content.v1.tar+gzip"
+    operation: copy
+  url: oci://quay.io/kubocd/charts/kubocd-ctrl
+  ref:
+    semver: "= v0.2.1"
+
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kubocd-controller
+  namespace: flux-system
+spec:
+  interval: 1m
+  serviceAccountName: kustomize-controller
+  targetNamespace: kubocd
+  storageNamespace: flux-system
+  releaseName: kubocd-ctrl
+  timeout: 5m
+  install:
+    createNamespace: true
+    remediation:
+      retries: 30
+      remediateLastFailure: true
+  upgrade:
+    remediation:
+      retries: 30
+      remediateLastFailure: true
+  chartRef:
+    kind: OCIRepository
+    name: kubocd-controller
+    namespace: flux-system
+  values:
+    image:
+      repository: quay.io/kubocd/kubocd
+      pullPolicy: Always
+    extraNamespaces:
+      - name: kubocd-system
+    config:
+      clusterRoles:
+        - storage
+      defaultContexts:
+        - name: default
+          namespace: kubocd-system
+    controller:
+      enabled: true
+      replicaCount: 1
+      logger:
+        mode: dev
+        level: info
+      metrics:
+        enabled: false
+        secured: false 

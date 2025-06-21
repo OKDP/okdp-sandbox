@@ -1,0 +1,134 @@
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Context
+metadata:
+  name: default
+  namespace: kubocd-system
+spec:
+  context:
+    ingress:
+      suffix: okdp.sandbox
+      className: nginx
+
+    certificateIssuers:
+      selfSigned:
+        name: default-issuer
+        
+    storageClass:
+      data: standard
+      workspace: standard
+
+    okdp:
+      packageRepository: quay.io/okdp/sandbox-packages
+      clusters:
+        - id: sandbox
+          name: "OKDP Sandbox Cluster"
+          env: dev
+          auth:
+            inCluster: true
+      catalogs:
+        - id: Dataviz
+          name: "Dataviz catalog"
+          description: "Dataviz packages"
+          packages:
+            - name: superset
+        - id: Notebook
+          name: "Notebooks catalog"
+          description: "Notebooking packages"
+          packages:
+            - name: jupyterhub
+        - id: Spark
+          name: "Spark packages"
+          description: "Spark packages"
+          packages:
+            - name: spark-history-server
+        - id: Storage
+          name: "Storage catalog"
+          description: "Storage packages"
+          packages:
+            - name: minio
+
+    keycloak:
+      realm:
+        name: master
+        displayName: "OKDP internal Realm"
+        accessTokenLifespan: 3600
+      users:
+        - username: usera
+          email: usera@okdp.io
+          firstName: usera
+          lastName: usera
+          password: usera
+          roles: [teama]
+        - username: userb
+          email: userb@okdp.io
+          firstName: userb
+          lastName: userb
+          password: userb
+          roles: [teamb]
+        - username: adm
+          email: adm@okdp.io
+          firstName: adm
+          lastName: adm
+          password: adm
+          roles: [admins]
+      groups:
+        - name: teama
+        - name: teamb
+        - name: admins
+      roles:
+        - name: teama
+        - name: teamb
+        - name: admins
+      clients:
+        - clientId: public-oidc-client
+          name: public-oidc-client
+          publicClient: true
+          redirectUris:
+            - "https://okdp-server.{{ .Context.ingress.suffix }}/swagger/oauth2-redirect.html"
+            - "https://okdp-ui.{{ .Context.ingress.suffix }}/index.html"
+            - "https://okdp-ui.{{ .Context.ingress.suffix }}/silent-refresh.html"
+          webOrigins:
+            - "https://okdp-server.{{ .Context.ingress.suffix }}"
+            - "https://okdp-ui.{{ .Context.ingress.suffix }}"
+        - clientId: confidential-oidc-client
+          name: confidential-oidc-client
+          secret: secret1
+          publicClient: false
+          redirectUris:
+            - "https://*"
+          webOrigins:
+            - "https://*"
+          defaultClientScopes:
+            - web-origins
+            - acr
+            - roles
+            - profile
+            - groups
+            - basic
+            - email
+          optionalClientScopes:
+            - address
+            - phone
+            - organization
+            - offline_access
+            - microprofile-jwt
+      clientScopes:
+        - name: groups
+          description: "Groups scope"
+          protocol: openid-connect
+          attributes:
+            include.in.token.scope: "false"
+            display.on.consent.screen: "true"
+          protocolMappers:
+            - name: roles_map_to_groups
+              protocol: openid-connect
+              protocolMapper: oidc-usermodel-realm-role-mapper
+              config:
+                access.token.claim: "true"
+                claim.name: groups
+                id.token.claim: "true"
+                introspection.token.claim: "true"
+                jsonType.label: String
+                lightweight.claim: "true"
+                multivalued: "true"
+                userinfo.token.claim: "true"
