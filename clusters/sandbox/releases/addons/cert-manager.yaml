@@ -1,0 +1,38 @@
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Release
+metadata:
+  name: cert-manager
+  namespace: kubocd-system
+spec:
+  description: "Certificate management for Kubernetes with trust-manager and issuers"
+  package:
+    repository: quay.io/okdp/sandbox-packages/cert-manager
+    tag: 1.17.1-p03
+    interval: 30m
+  parameters:
+    trust:
+      enabled: true
+      bundle:
+        name: certs-bundle
+        target:
+          configMap:
+            enabled: true
+            key: "root-certs.pem"
+          secret:
+            enabled: false
+    issuers:
+      enabled: true
+      selfSignedClusterIssuers:
+        - name: default-issuer
+          certificate:
+            commonName: "OKDP Sandbox Self-Signed CA"
+            organization: "OKDP"
+            country: "FR"
+            validity: "8760h"
+            algorithm: "ECDSA"
+            size: 256
+  contexts:
+    - name: default
+      namespace: kubocd-system
+  targetNamespace: cert-manager
+  createNamespace: true 

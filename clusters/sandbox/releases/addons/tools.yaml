@@ -1,0 +1,21 @@
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Release
+metadata:
+  name: tools
+  namespace: kubocd-system
+spec:
+  description: "Miscellaneous Kubernetes tools for cluster management"
+  package:
+    repository: quay.io/okdp/sandbox-packages/tools
+    tag: 1.0.0-p01
+    interval: 30m
+  parameters:
+    namespace: kube-tools
+    reloader:
+      enabled: true
+    replicator:
+      enabled: true
+    secretGenerator:
+      enabled: true
+  targetNamespace: kube-tools
+  createNamespace: true 

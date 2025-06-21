@@ -1,0 +1,18 @@
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Release
+metadata:
+  name: dns-server
+  namespace: kubocd-system
+spec:
+  createNamespace: true
+  description: DNS Server - Lightweight DNS server for local development
+  package:
+    interval: 30m
+    repository: quay.io/okdp/sandbox-packages/dns-server
+    tag: 1.0.0-p02
+    timeout: 5m
+  targetNamespace: dns-server
+  parameters:
+    domain: okdp.sandbox
+    target: 127.0.0.1
+    nodePort: 30053 

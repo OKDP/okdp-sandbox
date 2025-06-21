@@ -1,0 +1,16 @@
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Release
+metadata:
+  name: coredns-patch
+  namespace: kubocd-system
+spec:
+  description: "CoreDNS configuration patch for local domain resolution"
+  package:
+    repository: quay.io/okdp/sandbox-packages/coredns-patch
+    tag: 1.0.0-p01
+    interval: 30m
+  parameters:
+    ingressSuffix: "okdp.sandbox"
+    ingressService: "ingress-nginx-main-controller.ingress-nginx.svc.cluster.local"
+  targetNamespace: kube-system
+  createNamespace: false 

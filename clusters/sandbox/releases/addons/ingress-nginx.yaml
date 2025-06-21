@@ -1,0 +1,17 @@
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Release
+metadata:
+  name: ingress-nginx
+  namespace: kubocd-system
+spec:
+  description: "NGINX Ingress Controller for HTTP/HTTPS routing"
+  package:
+    repository: quay.io/okdp/sandbox-packages/ingress-nginx
+    tag: 4.12.1-p03
+    interval: 30m
+  parameters:
+    mode: "nodePort"
+    httpPort: 30080
+    httpsPort: 30443
+  targetNamespace: ingress-nginx
+  createNamespace: true 
