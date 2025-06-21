@@ -7,7 +7,7 @@ spec:
   description: "Certificate management for Kubernetes with trust-manager and issuers"
   package:
     repository: quay.io/okdp/sandbox-packages/cert-manager
-    tag: 1.17.1-p03
+    tag: 1.17.1-p04
     interval: 30m
   parameters:
     trust:
@@ -19,7 +19,7 @@ spec:
             enabled: true
             key: "root-certs.pem"
           secret:
-            enabled: false
+            enabled: true
     issuers:
       enabled: true
       selfSignedClusterIssuers:

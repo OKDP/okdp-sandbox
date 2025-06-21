@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: cert-manager
-tag: 1.17.1-p03
+tag: 1.17.1-p04
 protected: true
 schema:
   parameters:
@@ -97,6 +97,7 @@ modules:
     values: |
       {{ toYaml .Parameters.issuers }}
       bundle:
+        enabled: true
         name: {{ .Parameters.trust.bundle.name }}
         target:
           configMap:
