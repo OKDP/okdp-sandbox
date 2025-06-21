@@ -1,0 +1,14 @@
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Release
+metadata:
+  name: okdp-ui
+  namespace: kubocd-system
+spec:
+  createNamespace: true
+  description: OKDP UI - Frontend web interface for the Open Kubernetes Data Platform
+  package:
+    interval: 30m
+    repository: quay.io/okdp/sandbox-packages/okdp-ui
+    tag: 0.2.0-snapshot-p01
+    timeout: 5m
+  targetNamespace: okdp-ui 

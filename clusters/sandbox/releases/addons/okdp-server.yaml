@@ -1,0 +1,14 @@
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Release
+metadata:
+  name: okdp-server
+  namespace: kubocd-system
+spec:
+  createNamespace: true
+  description: OKDP Server - API backend for the Open Kubernetes Data Platform
+  package:
+    interval: 30m
+    repository: quay.io/okdp/sandbox-packages/okdp-server
+    tag: 0.2.0-snapshot-p06
+    timeout: 5m
+  targetNamespace: okdp-server 
