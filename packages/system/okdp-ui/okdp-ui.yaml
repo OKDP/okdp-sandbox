@@ -1,0 +1,92 @@
+apiVersion: v1alpha1
+name: okdp-ui
+tag: 0.2.0-snapshot-p01
+protected: false
+description: |
+  OKDP UI - Frontend web interface for the Open Kubernetes Data Platform
+usage:
+  text: |
+    OKDP UI provides the web interface for the OKDP platform.
+    Access the UI at https://okdp-ui.{{ .Context.ingress.suffix }}
+modules:
+  - name: main
+    timeout: 5m
+    source:
+      oci:
+        repository: quay.io/okdp/charts/okdp-ui
+        tag: 0.2.0-snapshot
+    values: |
+      replicaCount: 1
+
+      image:
+        repository: quay.io/okdp/okdp-ui
+        pullPolicy: Always
+        tag: 0.2.0
+
+      ui:
+        auth:
+          provider: oauth2
+          oauth2:
+            issuer: https://keycloak.{{ .Context.ingress.suffix }}/realms/master
+            redirectUri: https://okdp-ui.{{ .Context.ingress.suffix }}/index.html
+            silentRefreshRedirectUri: https://okdp-ui.{{ .Context.ingress.suffix }}/silent-refresh.html
+            clientId: public-oidc-client
+            responseType: code
+            scope: openid profile email offline_access roles
+            showDebugInformation: true
+        okdpApi:
+          apiUrl: https://okdp-server.{{ .Context.ingress.suffix }}/api/v1
+          swaggerUrl: https://okdp-server.{{ .Context.ingress.suffix }}/swagger
+        submission:
+          mode: kubernetes
+        catalogs:
+          services:
+            - all
+          kad:
+            - all
+
+      service:
+        type: ClusterIP
+        port: 4200
+
+      ingress:
+        enabled: true
+        className: "nginx"
+        annotations:
+          cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+          nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+          nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+          nginx.ingress.kubernetes.io/use-regex: "true"          
+        tls:
+          - secretName: okdp-ui-tls
+            hosts:
+              - okdp-ui.{{ .Context.ingress.suffix }}
+        hosts:
+          - host: okdp-ui.{{ .Context.ingress.suffix }}
+            paths:
+            - path: "/"
+              pathType: ImplementationSpecific
+              backend:
+                service:
+                  name: okdp-ui-main
+                  port:
+                    number: 4200
+      resources: {}
+
+      livenessProbe:
+        httpGet:
+          path: /
+          port: http
+        initialDelaySeconds: 60
+        periodSeconds: 30
+        timeoutSeconds: 10
+
+      readinessProbe:
+        httpGet:
+          path: /
+          port: http
+
+roles:
+  - okdp-ui
+dependencies:
+  - ingress 

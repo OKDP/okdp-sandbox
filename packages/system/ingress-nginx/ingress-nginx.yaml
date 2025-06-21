@@ -1,0 +1,71 @@
+apiVersion: v1alpha1
+name: ingress-nginx
+tag: 4.12.1-p03
+protected: false
+description: |
+  NGINX Ingress Controller for Kubernetes with support for multiple deployment modes
+usage:
+  text: |
+    NGINX Ingress Controller provides HTTP and HTTPS routing to services in Kubernetes.
+    Supports multiple deployment modes:
+    - nodePort: Exposes services via NodePort (default for Kind clusters)
+    - hostPort: Uses host networking for direct port binding
+    - metallb: Uses MetalLB LoadBalancer for external access
+schema:
+  parameters:
+    properties:
+      mode: 
+        type: string
+        enum: ["nodePort", "hostPort", "metallb"]
+        default: "nodePort"
+        description: "Deployment mode for the ingress controller"
+      endpoint:
+        type: string
+        description: "Endpoint IP for metallb mode"
+      httpPort:
+        type: integer
+        default: 30080
+        description: "HTTP port for nodePort mode"
+      httpsPort:
+        type: integer
+        default: 30443
+        description: "HTTPS port for nodePort mode"
+modules:
+  - name: main
+    timeout: 3m
+    source:
+      helmRepository:
+        url: https://kubernetes.github.io/ingress-nginx
+        chart: ingress-nginx
+        version: 4.12.1
+    values: |
+      controller:
+        allowSnippetAnnotations: "true"
+        extraArgs:
+          enable-ssl-passthrough: true
+        admissionWebhooks:
+          enabled: true
+        {{- if eq .Parameters.mode "metallb" }}
+        service:
+          annotations:
+            metallb.universe.tf/loadBalancerIPs: {{ .Parameters.endpoint }}
+            metallb.universe.tf/allow-shared-ip: "ingress"
+        {{- end }}
+        {{- if eq .Parameters.mode "hostPort" }}
+        hostNetwork: true
+        hostPort:
+          enabled: true
+        service:
+          enabled: false
+        {{- end }}
+        {{- if eq .Parameters.mode "nodePort" }}
+        service:
+          type: NodePort
+          nodePorts:
+            http: "{{ .Parameters.httpPort }}"
+            https: "{{ .Parameters.httpsPort }}"
+        {{- end }}
+roles:
+  - ingress
+dependencies: |
+  [] 

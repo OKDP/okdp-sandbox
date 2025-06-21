@@ -1,0 +1,98 @@
+apiVersion: v1alpha1
+name: tools
+tag: 1.0.0-p01
+protected: false
+description: |
+  Miscellaneous Kubernetes tools including reloader, replicator and secret-generator
+usage:
+  text: |
+    Tools package provides useful utilities for Kubernetes clusters:
+    - Reloader: Automatically restarts pods when ConfigMaps/Secrets change
+    - Replicator: Replicates secrets/configmaps between namespaces
+    - Secret Generator: Automatically generates secrets
+schema:
+  parameters:
+    properties:
+      namespace: { type: string, default: "kube-tools" }
+      reloader:
+        properties:
+          enabled: { type: boolean, default: true }
+      replicator:
+        properties:
+          enabled: { type: boolean, default: true }
+      secretGenerator:
+        properties:
+          enabled: { type: boolean, default: true }
+modules:
+  - name: reloader
+    enabled: "{{ .Parameters.reloader.enabled }}"
+    timeout: 2m
+    source:
+      helmRepository:
+        url: https://stakater.github.io/stakater-charts
+        chart: reloader
+        version: 1.0.72
+    values: |
+      reloader:
+        deployment:
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          containerSecurityContext:
+            capabilities:
+              drop:
+                - ALL
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+
+  - name: replicator
+    enabled: "{{ .Parameters.replicator.enabled }}"
+    timeout: 2m
+    source:
+      helmRepository:
+        url: https://helm.mittwald.de
+        chart: kubernetes-replicator
+        version: 2.9.2
+    values: |
+      podSecurityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      securityContext:
+        capabilities:
+          drop:
+            - ALL
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+      livenessProbe:
+        initialDelaySeconds: 10
+      readinessProbe:
+        initialDelaySeconds: 10
+
+  - name: secret-generator
+    enabled: "{{ .Parameters.secretGenerator.enabled }}"
+    timeout: 2m
+    source:
+      helmRepository:
+        url: https://helm.mittwald.de
+        chart: kubernetes-secret-generator
+        version: 3.4.0
+    values: |
+      fullnameOverride: secret-generator
+      podSecurityContext:
+        fsGroup: 2000
+        seccompProfile:
+          type: RuntimeDefault
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 1000
+roles:
+  - tools
+dependencies: |
+  [] 

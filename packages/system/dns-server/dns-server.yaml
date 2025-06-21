@@ -1,0 +1,60 @@
+apiVersion: v1alpha1
+name: dns-server
+tag: 1.0.0-p02
+protected: false
+description: |
+  DNS Server - Lightweight DNS server for local development
+  Redirects *.okdp.sandbox to localhost for local development
+usage:
+  text: |
+    DNS Server provides local DNS resolution for development.
+    Configure your local resolver to point to this DNS server.
+    Exposed on NodePort for external access.
+schema:
+  parameters:
+    properties:
+      domain: { type: string, default: "okdp.sandbox" }
+      target: { type: string, default: "127.0.0.1" }
+      nodePort: { type: integer, default: 30053 }
+  context:
+    properties:
+      ingress:
+        required: true
+        properties:
+          suffix: { type: string, required: true }
+modules:
+  - name: main
+    timeout: 5m
+    source:
+      local:
+        path: ./chart
+    values: |
+      replicaCount: 1
+      
+      image:
+        repository: 4km3/dnsmasq
+        tag: 2.90-r3
+        pullPolicy: IfNotPresent
+      
+      config:
+        domain: {{ .Parameters.domain }}
+        target: {{ .Parameters.target }}
+      
+      service:
+        type: NodePort
+        port: 53
+        nodePort: {{ .Parameters.nodePort }}
+        protocol: UDP
+      
+      resources:
+        requests:
+          memory: 32Mi
+          cpu: 50m
+        limits:
+          memory: 64Mi
+          cpu: 100m
+
+roles:
+  - dns-server
+dependencies: |
+  [] 

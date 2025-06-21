@@ -1,0 +1,41 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: coredns-config-sa
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coredns-config-role
+  namespace: kube-system
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "update", "patch"]
+    resourceNames: ["coredns"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch"]
+    resourceNames: ["coredns"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: coredns-config-rolebinding
+  namespace: kube-system
+subjects:
+  - kind: ServiceAccount
+    name: coredns-config-sa
+    namespace: kube-system
+roleRef:
+  kind: Role
+  name: coredns-config-role
+  apiGroup: rbac.authorization.k8s.io 

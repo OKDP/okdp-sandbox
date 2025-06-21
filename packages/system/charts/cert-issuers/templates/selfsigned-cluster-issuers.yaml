@@ -1,0 +1,96 @@
+{{- range .Values.selfSignedClusterIssuers }}
+{{- include "cert-issuers.validateSelfSignedIssuer" . }}
+{{- $certConfig := include "cert-issuers.certificateConfig" . | fromYaml }}
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .name }}-self
+  labels:
+    {{- include "cert-issuers.labels" $ | nindent 4 }}
+    cert-issuers.okdp.io/type: "self-signed-bootstrap"
+    cert-issuers.okdp.io/issuer-name: {{ .name | quote }}
+  annotations:
+    cert-issuers.okdp.io/managed-by: "cert-issuers-chart"
+    cert-issuers.okdp.io/version: {{ $.Chart.Version | quote }}
+spec:
+  selfSigned: {}
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .name }}
+  namespace: {{ include "cert-issuers.certificateNamespace" $ }}
+  labels:
+    {{- include "cert-issuers.labels" $ | nindent 4 }}
+    cert-issuers.okdp.io/type: "ca-certificate"
+    cert-issuers.okdp.io/issuer-name: {{ .name | quote }}
+  annotations:
+    cert-issuers.okdp.io/managed-by: "cert-issuers-chart"
+    cert-issuers.okdp.io/version: {{ $.Chart.Version | quote }}
+spec:
+  isCA: true
+  commonName: {{ $certConfig.commonName | quote }}
+  {{- if $certConfig.organization }}
+  subject:
+    organizationalUnits:
+      - {{ $certConfig.organization | quote }}
+    {{- if $certConfig.country }}
+    countries:
+      - {{ $certConfig.country | quote }}
+    {{- end }}
+  {{- end }}
+  secretName: {{ .name }}
+  duration: {{ $certConfig.validity }}
+  renewBefore: "720h"  # 30 days before expiry
+  privateKey:
+    algorithm: {{ $certConfig.algorithm }}
+    {{- if eq $certConfig.algorithm "ECDSA" }}
+    size: {{ $certConfig.size }}
+    {{- else }}
+    size: {{ $certConfig.size }}
+    {{- end }}
+  issuerRef:
+    name: {{ .name }}-self
+    kind: ClusterIssuer
+    group: cert-manager.io
+
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "cert-issuers.labels" $ | nindent 4 }}
+    cert-issuers.okdp.io/type: "ca"
+    cert-issuers.okdp.io/issuer-name: {{ .name | quote }}
+  annotations:
+    cert-issuers.okdp.io/managed-by: "cert-issuers-chart"
+    cert-issuers.okdp.io/version: {{ $.Chart.Version | quote }}
+    cert-issuers.okdp.io/depends-on: {{ .name }}-self
+spec:
+  ca:
+    secretName: {{ .name }}
+
+{{- if $.Values.replication.enabled }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .name }}-ca
+  namespace: {{ include "cert-issuers.certificateNamespace" $ }}
+  labels:
+    {{- include "cert-issuers.labels" $ | nindent 4 }}
+    cert-issuers.okdp.io/type: "ca-public"
+    cert-issuers.okdp.io/issuer-name: {{ .name | quote }}
+  annotations:
+    cert-issuers.okdp.io/managed-by: "cert-issuers-chart"
+    cert-issuers.okdp.io/version: {{ $.Chart.Version | quote }}
+    {{- include "cert-issuers.replicationAnnotations" (list $ .name) | nindent 4 }}
+type: Opaque
+data:
+  ca.crt: ""  # Will be populated by cert-manager
+{{- end }}
+
+{{- end }} 

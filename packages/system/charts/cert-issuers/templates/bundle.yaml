@@ -1,0 +1,52 @@
+{{- if .Values.bundle.enabled }}
+{{- if or .Values.bundle.target.secret.enabled .Values.bundle.target.configMap.enabled }}
+---
+apiVersion: trust.cert-manager.io/v1alpha1
+kind: Bundle
+metadata:
+  name: {{ .Values.bundle.name }}
+  labels:
+    {{- include "cert-issuers.labels" . | nindent 4 }}
+    cert-issuers.okdp.io/type: "trust-bundle"
+  annotations:
+    cert-issuers.okdp.io/managed-by: "cert-issuers-chart"
+    cert-issuers.okdp.io/version: {{ .Chart.Version | quote }}
+spec:
+  sources:
+    {{- if .Values.bundle.useDefaultCAs }}
+    - useDefaultCAs: true
+    {{- end }}
+    {{- range .Values.caClusterIssuers }}
+    - secret:
+        name: {{ .name }}
+        key: "tls.crt"
+    {{- end }}
+    {{- range .Values.selfSignedClusterIssuers }}
+    - secret:
+        name: {{ .name }}
+        key: "tls.crt"
+    {{- end }}
+  target:
+    {{- if .Values.bundle.target.configMap.enabled }}
+    configMap:
+      key: {{ .Values.bundle.target.configMap.key }}
+    {{- end }}
+    {{- if .Values.bundle.target.secret.enabled }}
+    secret:
+      key: {{ .Values.bundle.target.secret.key }}
+    {{- end }}
+    {{- if or .Values.bundle.target.additionalFormats.jks.enabled .Values.bundle.target.additionalFormats.pkcs12.enabled }}
+    additionalFormats:
+      {{- if .Values.bundle.target.additionalFormats.jks.enabled }}
+      jks:
+        key: {{ .Values.bundle.target.additionalFormats.jks.key }}
+      {{- end }}
+      {{- if .Values.bundle.target.additionalFormats.pkcs12.enabled }}
+      pkcs12:
+        key: {{ .Values.bundle.target.additionalFormats.pkcs12.key }}
+      {{- end }}
+    {{- end }}
+    namespaceSelector:
+      {{- toYaml .Values.bundle.namespaceSelector | nindent 6 }}
+{{- end }}
+{{- end }} 

@@ -1,0 +1,34 @@
+apiVersion: v1alpha1
+name: coredns-patch
+tag: 1.0.0-p01
+protected: false
+description: |
+  CoreDNS configuration patch to resolve local domain names to ingress controller
+usage:
+  text: |
+    CoreDNS Patch configures CoreDNS to automatically resolve domain names 
+    matching the ingress suffix pattern to the ingress controller.
+    This enables local development with custom domain names.
+schema:
+  parameters:
+    properties:
+      ingressSuffix: { type: string, default: "okdp.sandbox" }
+      ingressService: { type: string, default: "ingress-nginx-controller.ingress-nginx.svc.cluster.local" }
+modules:
+  - name: main
+    timeout: 5m
+    source:
+      local:
+        path: ../charts/coredns-patch/0.1.0
+    values: |
+      ingressSuffix: "{{ .Parameters.ingressSuffix }}"
+      ingressService: "{{ .Parameters.ingressService }}"
+      job:
+        image: bitnami/kubectl:latest
+        restartPolicy: OnFailure
+        nodeSelector:
+          kubernetes.io/os: linux
+roles:
+  - coredns
+dependencies: |
+  [] 

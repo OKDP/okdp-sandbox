@@ -1,0 +1,31 @@
+apiVersion: v1alpha1
+name: kubocd-webhooks
+tag: v0.2.1-p01
+protected: true
+description: |
+  Second stage of kubocd deployment.
+schema:
+  parameters:
+    properties:
+      replicaCount: { type: integer, default: 2 }
+modules:
+  - name: main
+    source:
+      oci:
+        repository: quay.io/kubocd/charts/kubocd-wh
+        tag: v0.2.1
+    values: |
+      image:
+        {{ $redirection := imageRedirect "quay.io/kubocd/kubocd" . }}
+        repository: {{ $redirection.repository }}
+        pullPolicy: Always
+      webhook:
+        replicaCount: {{ .Parameters.replicaCount }}
+        logger:
+          mode: dev
+          level: debug
+        metrics:
+          enabled: false
+          secured: false
+dependencies:
+  - certManager 

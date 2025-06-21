@@ -1,0 +1,184 @@
+apiVersion: v1alpha1
+name: keycloak
+tag: 24.4.11-p04
+protected: false
+description: |
+  Keycloak identity and access management for Kubernetes
+usage:
+  text: |
+    Keycloak provides centralized authentication and authorization.
+    Access the admin console at https://keycloak.{{ .Context.ingress.suffix }}
+    Default admin credentials: admin/admin
+schema:
+  parameters:
+    properties:
+      adminUser:
+        type: string
+        default: "admin"
+        description: "Keycloak admin username"
+      adminPassword:
+        type: string
+        default: "admin"
+        description: "Keycloak admin password"
+      postgresPassword:
+        type: string
+        default: "2peivenu98"
+        description: "PostgreSQL password"
+      postgresUser:
+        type: string
+        default: "bn_keycloak"
+        description: "PostgreSQL username"
+      postgresDbPassword:
+        type: string
+        default: "fqTFx6lvxC"
+        description: "PostgreSQL database password"
+modules:
+  - name: main
+    timeout: 5m
+    source:
+      oci:
+        repository: registry-1.docker.io/bitnamicharts/keycloak
+        tag: 24.4.11
+    values: |
+      ingress:
+        enabled: true
+        ingressClassName: "nginx"
+        annotations:
+          nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+          nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+          cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+        tls: true
+        hostname: keycloak.{{ .Context.ingress.suffix }}
+      
+      auth:
+        adminUser: "{{ .Parameters.adminUser }}"
+        adminPassword: "{{ .Parameters.adminPassword }}"
+
+      postgresql:
+        enabled: true
+        auth:
+          postgresPassword: "{{ .Parameters.postgresPassword }}"
+          username: "{{ .Parameters.postgresUser }}"
+          password: "{{ .Parameters.postgresDbPassword }}"
+
+      keycloakConfigCli:
+        enabled: true
+        configuration:
+          master.json: |
+            {
+              "realm": "{{ .Context.keycloak.realm.name }}",
+              "enabled": true,
+              "displayName": "{{ .Context.keycloak.realm.displayName }}",
+              "users": [
+                {{- range $index, $user := .Context.keycloak.users }}
+                {{- if $index }},{{ end }}
+                {
+                  "username": "{{ $user.username }}",
+                  "enabled": true,
+                  "emailVerified": true,
+                  "email": "{{ $user.email }}",
+                  "firstName": "{{ $user.firstName }}",
+                  "lastName": "{{ $user.lastName }}",
+                  "credentials": [
+                    {
+                      "type": "password",
+                      "value": "{{ $user.password }}"
+                    }
+                  ],
+                  "realmRoles": {{ toJson $user.roles }}
+                }
+                {{- end }}
+              ],
+              "groups": [
+                {{- range $index, $group := .Context.keycloak.groups }}
+                {{- if $index }},{{ end }}
+                {
+                  "name": "{{ $group.name }}"
+                }
+                {{- end }}
+              ],
+              "roles": {
+                "realm": [
+                  {{- range $index, $role := .Context.keycloak.roles }}
+                  {{- if $index }},{{ end }}
+                  {
+                    "name": "{{ $role.name }}"
+                  }
+                  {{- end }}
+                ]
+              },
+              "clients": [
+                {{- range $index, $client := .Context.keycloak.clients }}
+                {{- if $index }},{{ end }}
+                {
+                  "clientId": "{{ $client.clientId }}",
+                  "name": "{{ $client.name }}",
+                  {{- if $client.publicClient }}
+                  "publicClient": {{ $client.publicClient }},
+                  {{- else }}
+                  "secret": "{{ $client.secret }}",
+                  {{- end }}
+                  "redirectUris": [
+                    {{- range $uriIndex, $uri := $client.redirectUris }}
+                    {{- if $uriIndex }},{{ end }}
+                    "{{ $uri | replace "{{ .Context.ingress.suffix }}" $.Context.ingress.suffix }}"
+                    {{- end }}
+                  ],
+                  "webOrigins": [
+                    {{- range $originIndex, $origin := $client.webOrigins }}
+                    {{- if $originIndex }},{{ end }}
+                    "{{ $origin | replace "{{ .Context.ingress.suffix }}" $.Context.ingress.suffix }}"
+                    {{- end }}
+                  ]
+                  {{- if $client.defaultClientScopes }},
+                  "defaultClientScopes": {{ toJson $client.defaultClientScopes }}
+                  {{- end }}
+                  {{- if $client.optionalClientScopes }},
+                  "optionalClientScopes": {{ toJson $client.optionalClientScopes }}
+                  {{- end }}
+                }
+                {{- end }}
+              ],
+              "clientScopes": [
+                {{- range $index, $scope := .Context.keycloak.clientScopes }}
+                {{- if $index }},{{ end }}
+                {
+                  "id": "{{ $scope.name }}-scope-id",
+                  "name": "{{ $scope.name }}",
+                  "description": "{{ $scope.description }}",
+                  "protocol": "{{ $scope.protocol }}",
+                  "attributes": {
+                    {{- $attrKeys := keys $scope.attributes | sortAlpha }}
+                    {{- range $attrIndex, $key := $attrKeys }}
+                    {{- if $attrIndex }},{{ end }}
+                    "{{ $key }}": "{{ index $scope.attributes $key }}"
+                    {{- end }}
+                  },
+                  "protocolMappers": [
+                    {{- range $mapperIndex, $mapper := $scope.protocolMappers }}
+                    {{- if $mapperIndex }},{{ end }}
+                    {
+                      "id": "{{ $mapper.name }}-mapper-id",
+                      "name": "{{ $mapper.name }}",
+                      "protocol": "{{ $mapper.protocol }}",
+                      "protocolMapper": "{{ $mapper.protocolMapper }}",
+                      "consentRequired": false,
+                      "config": {
+                        {{- $configKeys := keys $mapper.config | sortAlpha }}
+                        {{- range $configIndex, $key := $configKeys }}
+                        {{- if $configIndex }},{{ end }}
+                        "{{ $key }}": "{{ index $mapper.config $key }}"
+                        {{- end }}
+                      }
+                    }
+                    {{- end }}
+                  ]
+                }
+                {{- end }}
+              ],
+              "accessTokenLifespan": {{ .Context.keycloak.realm.accessTokenLifespan }}
+            }
+roles:
+  - keycloak
+dependencies: |
+  - ingress

@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dns-server.fullname" . }}
+  labels:
+    {{- include "dns-server.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: dns-udp
+      protocol: {{ .Values.service.protocol }}
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
+      nodePort: {{ .Values.service.nodePort }}
+      {{- end }}
+      name: dns-udp
+    - port: {{ .Values.service.port }}
+      targetPort: dns-tcp
+      protocol: TCP
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
+      nodePort: {{ add .Values.service.nodePort 1 }}
+      {{- end }}
+      name: dns-tcp
+  selector:
+    {{- include "dns-server.selectorLabels" . | nindent 4 }} 

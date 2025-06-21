@@ -1,0 +1,161 @@
+apiVersion: v1alpha1
+name: okdp-server
+tag: 0.2.0-snapshot-p06
+protected: false
+description: |
+  OKDP Server - API backend for the Open Kubernetes Data Platform
+usage:
+  text: |
+    OKDP Server provides the API backend for the OKDP platform.
+    Access the API at https://okdp-server.{{ .Context.ingress.suffix }}
+    Swagger UI available at https://okdp-server.{{ .Context.ingress.suffix }}/swagger
+modules:
+  - name: main
+    timeout: 5m
+    source:
+      oci:
+        repository: quay.io/okdp/charts/okdp-server
+        tag: 0.2.0-snapshot
+    values: |
+      configuration:
+        clusters:
+          {{- range .Context.okdp.clusters }}
+          - id: {{ .id }}
+            name: {{ .name | quote }}
+            env: {{ .env }}
+            auth:
+              inCluster: {{ .auth.inCluster }}
+          {{- end }}
+        
+        catalog:
+          {{- range .Context.okdp.catalogs }}
+          - id: {{ .id }}
+            name: {{ .name | quote }}
+            description: {{ .description | quote }}
+            repoUrl: {{ $.Context.okdp.packageRepository }}
+            packages:
+              {{- range .packages }}
+              - name: {{ .name }}
+              {{- end }}
+          {{- end }}
+
+        server:
+          listenAddress: 0.0.0.0
+          port: 8090
+          mode: debug
+
+        logging:
+          level: "debug"
+          format: "console"
+
+        security:
+          authN:
+            provider: ["bearer"]
+            bearer:
+              issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+              jwksURL: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/certs"
+              rolesAttributePath: "realm_access.roles"
+              groupsAttributePath: "realm_access.groups"
+              skipIssuerCheck: false
+              skipSignatureCheck: true
+          authZ:
+            provider: "inline"
+            inline:
+              policy: |
+                p, role:viewers, /api/v1/users/myprofile, *
+                p, role:viewers, *, *
+
+                g, role:admins, role:developers
+                g, role:developers, role:viewers
+              model: |
+                [request_definition]
+                r = sub, obj, act
+
+                [policy_definition]
+                p = sub, obj, act
+
+                [role_definition]
+                g = _, _
+
+                [policy_effect]
+                e = some(where (p.eft == allow))
+
+                [matchers]
+                m = g(r.sub, p.sub) && keyMatch(r.obj, p.obj) && (r.act == p.act || p.act == "*")
+          cors:
+            allowedOrigins: ["*"]
+            allowedMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
+            allowedHeaders: ["Origin", "Accept", "Authorization", "Content-Length", "Content-Type"]
+            exposedHeaders: ["Content-Length"]
+            allowCredentials: true
+            maxAge: 3600
+          headers:
+            X-Frame-Options: "DENY"
+            X-Content-Type-Options: nosniff
+
+        swagger:
+          securitySchemes:
+            oauth2:
+              type: oauth2
+              flows:
+                authorizationCode:
+                  authorizationUrl: https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/auth
+                  tokenUrl: https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/token
+                  scopes:
+                    openid: OpenId Authentication
+                    email: User Email
+                    profile: User Profile
+                    roles: User Roles
+          security:
+            - oauth2: [openid, email, profile, roles]
+
+      swagger-ui:
+        enabled: true
+        configuration:
+          extraEnv:
+            - name: BASE_URL
+              value: /swagger
+            - name: URLS
+              value: |
+                [{ url: 'https://okdp-server.{{ .Context.ingress.suffix }}/api/v1/api-docs', name: 'OKDP Server' }]
+            - name: OAUTH_CLIENT_ID
+              value: public-oidc-client
+            - name: OAUTH_SCOPES
+              value: "openid profile email roles"
+            - name: OAUTH_USE_PKCE
+              value: "true"
+            - name: CORS_ENABLED
+              value: "true"
+        ingress:
+          enabled: true
+          className: "nginx"
+          annotations:
+            cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+          tls:
+          - secretName: okdp-server-swagger-tls
+            hosts:
+            - okdp-server.{{ .Context.ingress.suffix }}
+          hosts:
+            - host: okdp-server.{{ .Context.ingress.suffix }}
+              paths:
+                - path: /swagger
+                  pathType: Prefix
+
+      ingress:
+        enabled: true
+        className: "nginx"
+        annotations:
+          cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+        tls:
+        - secretName: okdp-server-tls
+          hosts:
+          - okdp-server.{{ .Context.ingress.suffix }}
+        hosts:
+          - host: okdp-server.{{ .Context.ingress.suffix }}
+            paths:
+              - path: /
+                pathType: Prefix
+roles:
+  - okdp-server
+dependencies: |
+  [] 
