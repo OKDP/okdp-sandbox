@@ -77,6 +77,11 @@ kubectl apply -f clusters/sandbox/flux/kubocd.yaml
 # Deploy OKDP
 kubectl apply -f clusters/sandbox/default-context.yaml
 kubectl apply -f clusters/sandbox/releases/addons
+
+# Wait for all releases to be deployed
+kubectl get releases -A --watch
+# Wait until all releases show STATUS=READY (press Ctrl+C to exit watch)
+# Alternative: kubectl wait --for=condition=ready release --all --all-namespaces --timeout=600s
 ```
 
 
