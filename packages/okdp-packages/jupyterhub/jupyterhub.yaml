@@ -1,0 +1,161 @@
+apiVersion: v1alpha1
+name: jupyterhub
+tag: 5.0.0-p03
+protected: false
+description: |
+  JupyterHub - Multi-user interactive development environment for data science and machine learning.
+  Provides secure, scalable Jupyter notebook access with integrated authentication, resource management,
+  and pre-configured Spark-enabled notebooks for big data analytics.
+usage:
+  text: |
+    JupyterHub provides multi-user Jupyter notebook environment with OAuth authentication.
+    Access the hub at https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+schema:
+  parameters:
+    properties:
+      allowedRoles: { type: string, default: "admins", description: "Allowed roles for JupyterHub access" }
+  context:
+    properties:
+      certificateIssuers:
+        required: true
+        properties:
+          selfSigned:
+            properties:
+              name: { type: string, required: true }
+      ingress:
+        required: true
+        properties:
+          suffix: { type: string, required: true }
+      storageClass:
+        required: true
+        properties:
+          workspace: { type: string, required: true }
+modules:
+  - name: main
+    timeout: 10m
+    source:
+      helmRepository:
+        url: https://hub.jupyter.org/helm-chart/
+        chart: jupyterhub
+        version: 3.3.7
+    values: |
+      # Fix resource naming conflicts by using release name as prefix
+      fullnameOverride: "{{ .Release.metadata.name }}"
+      nameOverride: "{{ .Release.metadata.name }}"
+      
+      hub:
+        config:
+          Authenticator:
+            auto_login: true
+          GenericOAuthenticator:
+            client_id: confidential-oidc-client
+            client_secret: secret1
+            oauth_callback_url: https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}/hub/oauth_callback
+            authorize_url: https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/auth
+            token_url: https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/token
+            userdata_url: https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/userinfo
+            validate_server_cert: false
+            login_service: keycloak
+            claim_groups_key: groups
+            userdata_params:
+              state: state
+            admin_groups:
+              - "{{ .Parameters.allowedRoles }}"
+            allowed_groups:
+              - "{{ .Parameters.allowedRoles }}"
+            username_key: preferred_username
+            scope:
+            - openid
+            - groups
+          JupyterHub:
+            authenticator_class: generic-oauth
+        networkPolicy:
+          enabled: false
+        extraConfig:
+          extraConfig01.py: |
+            c.KubeSpawner.delete_grace_period = 120
+            c.ServerApp.allow_root = True
+        image:
+          pullPolicy: Always
+          pullSecrets: []
+          name: quay.io/jupyterhub/k8s-hub
+          tag: "3.3.7"
+        db:
+          type: sqlite-pvc
+          pvc:
+            storage: 1Gi
+            storageClassName: "{{ .Context.storageClass.workspace }}"
+      
+      rbac:
+        create: true
+      
+      cull:
+        enabled: false
+      
+      proxy:
+        service:
+          type: ClusterIP
+      
+      ingress:
+        enabled: true
+        annotations:
+          nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+          cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+        ingressClassName: nginx
+        hosts:
+          - "{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}"
+        tls:
+          - secretName: {{ .Release.metadata.name }}-tls
+            hosts:
+              - {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+      
+      scheduling:
+        userScheduler:
+          enabled: false
+        userPlaceholder:
+          enabled: false
+      
+      singleuser:
+        # Fix user pod naming conflicts by prefixing with release name
+        podNameTemplate: "{{ .Release.metadata.name }}-{username}{servername}"
+        
+        image:
+          name: ghcr.io/kubotal/spark-notebook
+          tag: "2024-05-27-001"
+      
+        storage:
+          homeMountPath: "/home/{username}"
+          dynamic:
+            storageClass: standard
+            # Fix PVC naming conflicts by prefixing with release name
+            pvcNameTemplate: "{{ .Release.metadata.name }}-claim-{username}{servername}"
+            volumeNameTemplate: "{{ .Release.metadata.name }}-volume-{username}{servername}"
+          type: dynamic
+        cloudMetadata:
+          blockWithIptables: false
+        uid: 0
+        fsGid: 0
+        extraEnv:
+          NB_USER: "$(JUPYTERHUB_USER)"
+          NB_UID: "1001"
+          NB_GID: "100"
+          CHOWN_HOME: "yes"
+          CHOWN_HOME_OPTS: "-R"
+          JUPYTER_ENABLE_LAB: "yes"
+          EDITOR: "vim"
+          GIT_SSL_NO_VERIFY: "false"
+        extraPodConfig:
+          automount_service_account_token: false
+          terminationGracePeriodSeconds: 120
+        networkPolicy:
+          enabled: false
+      prePuller:
+        hook:
+          enabled: false
+        continuous:
+          enabled: false
+
+roles:
+  - notebooks
+dependencies:
+  - ingress 

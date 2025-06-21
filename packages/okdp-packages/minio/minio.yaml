@@ -1,0 +1,165 @@
+apiVersion: v1alpha1
+name: minio
+tag: 5.4.0-p16
+protected: false
+description: |
+  MinIO - Enterprise-grade object storage for modern data infrastructure.
+  High-performance, S3-compatible storage designed for cloud-native applications, data lakes,
+  and AI/ML workloads.
+usage:
+  text: |
+    MinIO provides S3-compatible object storage for your applications.
+    Access the console at https://{{ .Release.metadata.name }}-console.{{ .Context.ingress.suffix }}
+    API endpoint: https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+schema:
+  parameters:
+    properties:
+      rootUser: { type: string, required: true }
+      rootPassword: { type: string, required: true }
+      driveSize: { type: string, required: true, pattern: "^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$" }
+      drivesPerNode: { type: integer, enum: [ 1, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56 ], default: 1 }
+      replicas: { type: integer, enum: [ 1, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56 ], default: 1 }
+  context:
+    properties:
+      certificateIssuers:
+        required: true
+        properties:
+          selfSigned:
+            properties:
+              name: { type: string, required: true }
+      storageClass:
+        required: true
+        properties:
+          data: { type: string, required: true }
+      ingress:
+        required: true
+        properties:
+          suffix: { type: string, required: true }
+modules:
+  - name: main
+    timeout: 5m
+    source:
+      helmRepository:
+        url: https://charts.min.io/
+        chart: minio
+        version: 5.4.0
+    values: |
+      nameOverride: "{{ .Release.metadata.name }}"
+      fullnameOverride: "{{ .Release.metadata.name }}"
+
+      image:
+        repository: quay.io/minio/minio
+        tag: RELEASE.2024-12-18T13-15-44Z
+        pullPolicy: IfNotPresent
+
+      mode: {{ if ne .Parameters.replicas 1.0 }}distributed{{else}}standalone{{end}}
+
+      # Authentication
+      rootUser: {{ .Parameters.rootUser }}
+      rootPassword: {{ .Parameters.rootPassword }}
+
+      # OIDC Configuration
+      environment:
+        MINIO_IDENTITY_OPENID_CONFIG_URL: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/.well-known/openid-configuration"
+        MINIO_IDENTITY_OPENID_CLIENT_ID: "confidential-oidc-client"
+        MINIO_IDENTITY_OPENID_CLIENT_SECRET: "secret1"
+        MINIO_IDENTITY_OPENID_DISPLAY_NAME: "Keycloak SSO"
+        MINIO_IDENTITY_OPENID_SCOPES: "openid,profile,email,groups"
+        MINIO_IDENTITY_OPENID_REDIRECT_URI: "https://{{ .Release.metadata.name }}-console.{{ .Context.ingress.suffix }}/oauth_callback"
+        MINIO_IDENTITY_OPENID_CLAIM_NAME: "groups"
+        MINIO_IDENTITY_OPENID_CLAIM_PREFIX: ""
+        MINIO_BROWSER_REDIRECT_URL: "https://{{ .Release.metadata.name }}-console.{{ .Context.ingress.suffix }}"
+
+      # Custom CA certificates mount
+      extraVolumes:
+        - name: keycloak-ca
+          configMap:
+            name: keycloak-ca-cert
+      
+      extraVolumeMounts:
+        - name: keycloak-ca
+          mountPath: /etc/ssl/certs/keycloak-ca.crt
+          subPath: ca.crt
+          readOnly: true
+
+      # Storage configuration
+      persistence:
+        enabled: true
+        storageClass: {{ .Context.storageClass.data }}
+        size: {{ .Parameters.driveSize }}
+        accessMode: ReadWriteOnce
+
+      drivesPerNode: {{ .Parameters.drivesPerNode }}
+      replicas: {{ .Parameters.replicas }}
+      pools: 1
+
+      # TLS configuration
+      tls:
+        enabled: true
+        certSecret: {{ .Release.metadata.name }}-tls
+        publicCrt: tls.crt
+        privateKey: tls.key
+
+      # Service configuration
+      service:
+        type: ClusterIP
+        port: "9000"
+
+      # Console service
+      consoleService:
+        type: ClusterIP
+        port: "9001"
+
+      # Ingress for API
+      ingress:
+        enabled: true
+        ingressClassName: "nginx"
+        annotations:
+          nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+          nginx.ingress.kubernetes.io/proxy-body-size: "130m"
+          cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+        path: /
+        hosts:
+          - {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+        tls:
+          - secretName: {{ .Release.metadata.name }}-tls
+            hosts:
+              - {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+
+      # Console ingress
+      consoleIngress:
+        enabled: true
+        ingressClassName: "nginx"
+        annotations:
+          nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+          nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+          nginx.ingress.kubernetes.io/proxy-body-size: "130m"
+          cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+        path: /
+        hosts:
+          - {{ .Release.metadata.name }}-console.{{ .Context.ingress.suffix }}
+        tls:
+          - secretName: {{ .Release.metadata.name }}-console-tls
+            hosts:
+              - {{ .Release.metadata.name }}-console.{{ .Context.ingress.suffix }}
+
+      # Resources
+      resources:
+        requests:
+          memory: 200Mi
+          cpu: 100m
+        limits:
+          memory: 1Gi
+          cpu: 500m
+
+      # Security context
+      securityContext:
+        enabled: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+
+roles:
+  - minio
+dependencies: |
+  [] 

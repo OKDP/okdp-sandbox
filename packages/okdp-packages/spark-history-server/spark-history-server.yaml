@@ -1,0 +1,104 @@
+apiVersion: v1alpha1
+name: spark-history-server
+tag: 3.5.1-p01
+protected: false
+description: |
+  Spark History Server - Monitoring and debugging interface for Apache Spark applications.
+  Provides detailed execution metrics, job timelines, and performance insights for completed Spark jobs.
+  Essential tool for optimizing Spark workloads and troubleshooting data processing pipelines.
+usage:
+  text: |
+    Spark History Server provides a web UI for viewing completed Spark applications.
+    Access the UI at https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+schema:
+  parameters:
+    properties:
+      eventLogDir: { type: string, required: true, default: "s3a://", description: "S3 path for Spark event logs, typically s3a://<bucket>/eventLogs" }
+      s3_endpoint: { type: string, required: true, description: "S3 endpoint URL" }
+      accessKey: { type: string, required: true, description: "S3 access key" }
+      secretKey: { type: string, required: true, description: "S3 secret key" }
+      adminGroups: { type: string, default: "", description: "Comma separated list of admin groups" }
+  context:
+    properties:
+      certificateIssuers:
+        required: true
+        properties:
+          selfSigned:
+            properties:
+              name: { type: string, required: true }
+      ingress:
+        required: true
+        properties:
+          suffix: { type: string, required: true }
+modules:
+  - name: main
+    timeout: 5m
+    source:
+      oci:
+        repository: quay.io/sergealexandre/spark-history-server/chart/spark-history-server
+        tag: 1.0.0
+    values: |
+      ingress:
+        enabled: true
+        ingressClassName: "nginx"
+        annotations:
+          nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+          cert-manager.io/cluster-issuer: {{ .Context.certificateIssuers.selfSigned.name }}
+        hosts:
+          - host: {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+            paths:
+              - path: /
+                pathType: Prefix
+        tls:
+          - hosts:
+              - {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+            secretName: {{ .Release.metadata.name }}-tls
+      
+      config:
+        spark.hadoop.fs.s3a.endpoint: {{ .Parameters.s3_endpoint }}
+        spark.hadoop.fs.s3a.connection.ssl.enabled: true
+        spark.history.fs.logDirectory: {{ .Parameters.eventLogDir }}
+        spark.hadoop.fs.s3a.impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+        spark.hadoop.fs.s3a.path.style.access: true
+        spark.ui.filters: io.okdp.spark.authc.OidcAuthFilter
+        spark.user.groups.mapping: io.okdp.spark.authz.OidcGroupMappingServiceProvider
+        spark.history.ui.acls.enable: true
+        spark.io.okdp.spark.authc.OidcAuthFilter.param.issuer-uri: https://keycloak.{{ .Context.ingress.suffix }}/realms/master
+        spark.io.okdp.spark.authc.OidcAuthFilter.param.redirect-uri: https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}/home
+        spark.io.okdp.spark.authc.OidcAuthFilter.param.scope: openid+profile+email+offline_access+groups
+        spark.io.okdp.spark.authc.OidcAuthFilter.param.cookie-max-age-minutes: 480
+        spark.io.okdp.spark.authc.OidcAuthFilter.param.cookie-cipher-secret-key: FC5E81345CED0E256DC42E410362FF6E
+        spark.io.okdp.spark.authc.OidcAuthFilter.param.cookie-is-secure: true
+        spark.io.okdp.spark.authc.OidcAuthFilter.param.user-id: email # Or sub
+        # Members of this group will have access to all jobs.
+        spark.history.ui.admin.acls.groups: {{ .Parameters.adminGroups }}
+      
+      extraEnvs:
+        - name: AWS_ACCESS_KEY_ID
+          value: {{ .Parameters.accessKey }}
+        - name: AWS_SECRET_ACCESS_KEY
+          value: {{ .Parameters.secretKey }}
+        # Disable Certificate Checking
+        - name: SPARK_HISTORY_OPTS
+          value: "-Dcom.amazonaws.sdk.disableCertChecking=true"
+        - name: JAVA_TOOL_OPTIONS
+          value: "-Djavax.net.ssl.trustStore=/cacerts/bundle.p12 -Djavax.net.ssl.trustStorePassword="
+        - name: AUTH_CLIENT_ID
+          value: "confidential-oidc-client"
+        - name: AUTH_CLIENT_SECRET
+          value: "secret1"
+      
+      extraVolumes:
+        - name: cacerts
+          configMap:
+            name: certs-bundle
+      
+      extraVolumeMounts:
+        - name: cacerts
+          mountPath: /cacerts
+
+roles:
+  - spark
+dependencies:
+#  - keycloak
+  - ingress 
