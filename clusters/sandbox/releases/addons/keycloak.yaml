@@ -1,0 +1,20 @@
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Release
+metadata:
+  name: keycloak
+  namespace: kubocd-system
+spec:
+  createNamespace: true
+  description: Keycloak identity and access management
+  package:
+    interval: 30m
+    repository: quay.io/okdp/sandbox-packages/keycloak
+    tag: 24.4.11-p04
+    timeout: 1m
+  parameters:
+    adminPassword: admin
+    adminUser: admin
+    postgresDbPassword: fqTFx6lvxC
+    postgresPassword: 2peivenu98
+    postgresUser: bn_keycloak
+  targetNamespace: keycloak 

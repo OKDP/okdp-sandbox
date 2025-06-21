@@ -1,0 +1,15 @@
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Release
+metadata:
+  name: kubocd-webhooks
+  namespace: kubocd-system
+spec:
+  description: Second stage of kubocd installation
+  package:
+    repository: quay.io/okdp/sandbox-packages/kubocd-webhooks
+    tag: v0.2.1-p01
+    interval: 30m
+  parameters:
+    replicaCount: 1
+  targetNamespace: kubocd
+  createNamespace: true 
