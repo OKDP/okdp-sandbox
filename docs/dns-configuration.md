@@ -57,6 +57,13 @@ The sandbox deploys a DNS server exposed on port 53 (standard DNS port). Configu
 # Add DNS server for the domain
 netsh interface ip set dns "Local Area Connection" static 127.0.0.1
 # Note: You may need to adjust "Local Area Connection" to match your network interface name
+
+# Alternative: Configure DNS for specific interface
+# First, list available interfaces
+Get-NetAdapter | Where-Object {$_.Status -eq "Up"}
+
+# Then set DNS for the specific interface (replace "Ethernet" with your interface name)
+Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "127.0.0.1"
 ```
 
 ## Verification
@@ -110,8 +117,8 @@ Add the following entries to your `/etc/hosts` file for each service that will b
 
 #### Windows
 - Ensure the Kind cluster is running: `kind get clusters`
-- Check that port 53 is properly mapped: `docker ps | grep okdp-sandbox`
-- Verify the DNS service is running in the cluster: `kubectl get svc -A | grep dns`
+- Check that port 53 is properly mapped: `docker ps | findstr okdp-sandbox`
+- Verify the DNS service is running in the cluster: `kubectl get svc -A | findstr dns`
 
 ### DNS Resolution Still Not Working
 - Clear DNS cache:
