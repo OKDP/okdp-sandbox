@@ -2,12 +2,17 @@
 
 This guide provides detailed instructions for configuring local DNS resolution for the OKDP sandbox environment.
 
+**Note**: The sandbox uses different DNS ports depending on your operating system:
+- **Linux/macOS (Shell)**: Port 30053
+- **Windows (PowerShell)**: Port 53 (standard DNS port)
 
 ## Option 1: Local DNS Server Configuration (Recommended)
 
+### Linux/macOS Configuration (Shell)
+
 The sandbox deploys a DNS server exposed on port 30053. Configure your local resolver to point to `localhost:30053` for the `okdp.sandbox` domain.
 
-### macOS Configuration
+#### macOS Configuration
 
 ```bash
 sudo mkdir -p /etc/resolver
@@ -15,7 +20,7 @@ echo "nameserver 127.0.0.1" | sudo tee /etc/resolver/okdp.sandbox
 echo "port 30053" | sudo tee -a /etc/resolver/okdp.sandbox
 ```
 
-### Linux with systemd-resolved
+#### Linux with systemd-resolved
 
 ```bash
 sudo mkdir -p /etc/systemd/resolved.conf.d
@@ -28,21 +33,23 @@ sudo mv /tmp/okdp-sandbox.conf /etc/systemd/resolved.conf.d/
 sudo systemctl restart systemd-resolved
 ```
 
-### Linux with NetworkManager
+#### Linux with NetworkManager
 
 ```bash
 nmcli connection modify "$(nmcli -t -f NAME connection show --active | head -n1)" ipv4.dns-search "okdp.sandbox" ipv4.dns "127.0.0.1:30053"
 sudo systemctl restart NetworkManager
 ```
 
-### Linux with dnsmasq
+#### Linux with dnsmasq
 
 ```bash
 echo "server=/okdp.sandbox/127.0.0.1#30053" | sudo tee -a /etc/dnsmasq.conf
 sudo systemctl restart dnsmasq
 ```
 
-### Windows
+### Windows Configuration (PowerShell)
+
+The sandbox deploys a DNS server exposed on port 53 (standard DNS port). Configure your local resolver to point to `localhost:53` for the `okdp.sandbox` domain.
 
 1. Open PowerShell as Administrator
 2. Run the following commands:
@@ -50,9 +57,18 @@ sudo systemctl restart dnsmasq
 # Add DNS server for the domain
 netsh interface ip set dns "Local Area Connection" static 127.0.0.1
 # Note: You may need to adjust "Local Area Connection" to match your network interface name
+
+# Alternative: Configure DNS for specific interface
+# First, list available interfaces
+Get-NetAdapter | Where-Object {$_.Status -eq "Up"}
+
+# Then set DNS for the specific interface (replace "Ethernet" with your interface name)
+Set-DnsClientServerAddress -InterfaceAlias "Ethernet" -ServerAddresses "127.0.0.1"
 ```
 
 ## Verification
+
+### Linux/macOS Verification
 
 To verify that DNS resolution is working correctly:
 
@@ -60,10 +76,22 @@ To verify that DNS resolution is working correctly:
 # Test with dig
 dig @127.0.0.1 -p 30053 okdp-ui.okdp.sandbox
 
-# Test DNS resolution (Linux/Windows)
+# Test DNS resolution
 nslookup okdp-ui.okdp.sandbox
 # Should resolve to 127.0.0.1
+```
 
+### Windows Verification
+
+To verify that DNS resolution is working correctly:
+
+```powershell
+# Test with nslookup
+nslookup okdp-ui.okdp.sandbox
+
+# Test with PowerShell
+Resolve-DnsName okdp-ui.okdp.sandbox
+# Should resolve to 127.0.0.1
 ```
 
 ## Option 2: Manual /etc/hosts Configuration
@@ -81,9 +109,16 @@ Add the following entries to your `/etc/hosts` file for each service that will b
 ## Troubleshooting
 
 ### DNS Server Not Responding
+
+#### Linux/macOS
 - Ensure the Kind cluster is running: `kind get clusters`
 - Check that port 30053 is properly mapped: `docker ps | grep okdp-sandbox`
 - Verify the DNS service is running in the cluster: `kubectl get svc -A | grep dns`
+
+#### Windows
+- Ensure the Kind cluster is running: `kind get clusters`
+- Check that port 53 is properly mapped: `docker ps | findstr okdp-sandbox`
+- Verify the DNS service is running in the cluster: `kubectl get svc -A | findstr dns`
 
 ### DNS Resolution Still Not Working
 - Clear DNS cache:
@@ -95,3 +130,4 @@ Add the following entries to your `/etc/hosts` file for each service that will b
 - **macOS**: `sudo rm /etc/resolver/okdp.sandbox`
 - **Linux (systemd-resolved)**: `sudo rm /etc/systemd/resolved.conf.d/okdp-sandbox.conf && sudo systemctl restart systemd-resolved`
 - **Linux (NetworkManager)**: Reset network configuration through NetworkManager
+- **Windows**: Reset network adapter settings through Network & Internet settings
