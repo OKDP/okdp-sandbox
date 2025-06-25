@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: cert-manager
-tag: 1.17.1-p04
+tag: 1.17.1-p05
 protected: true
 schema:
   parameters:
@@ -106,6 +106,10 @@ modules:
           secret:
             enabled: {{ .Parameters.trust.bundle.target.secret.enabled }}
             key: {{ .Parameters.trust.bundle.target.secret.key }}
+          additionalFormats:
+            pkcs12:
+              enabled: true
+              key: "bundle.p12"
     dependsOn: |
       - main
       {{ if and .Parameters.trust.enabled }}

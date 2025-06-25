@@ -90,8 +90,8 @@ modules:
       
       extraVolumes:
         - name: cacerts
-          configMap:
-            name: certs-bundle
+          secret:
+            secretName: certs-bundle
       
       extraVolumeMounts:
         - name: cacerts
