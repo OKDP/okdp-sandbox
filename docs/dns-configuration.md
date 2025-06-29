@@ -77,7 +77,7 @@ To verify that DNS resolution is working correctly:
 dig @127.0.0.1 -p 30053 okdp-ui.okdp.sandbox
 
 # Test DNS resolution
-nslookup okdp-ui.okdp.sandbox
+nslookup -port=30053 okdp-ui.okdp.sandbox 127.0.0.1
 # Should resolve to 127.0.0.1
 ```
 
