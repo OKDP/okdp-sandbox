@@ -23,6 +23,13 @@ OKDP Sandbox provides a ready-to-use data platform environment that includes:
 
 ## Prerequisites
 
+### System Requirements
+
+- **Minimum**: 16GB RAM and 4 CPUs
+- **Docker/Podman allocation**: 8GB RAM and 2 CPUs minimum
+
+### Software Dependencies
+
 - [Docker](https://docs.docker.com/get-docker/)
 - [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
