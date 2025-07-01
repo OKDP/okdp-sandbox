@@ -36,14 +36,14 @@ OKDP Sandbox provides a ready-to-use data platform environment that includes:
 **Shell:**
 ```bash
 # Clone the repository
-git clone https://github.com/okdp/okdp-sandbox-draft.git
+git clone https://github.com/okdp/okdp-sandbox.git
 cd okdp-sandbox
 ```
 
 **PowerShell:**
 ```powershell
 # Clone the repository
-git clone https://github.com/okdp/okdp-sandbox-draft.git
+git clone https://github.com/okdp/okdp-sandbox.git
 cd okdp-sandbox
 ```
 
