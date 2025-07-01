@@ -11,7 +11,7 @@ usage:
     Swagger UI available at https://okdp-server.{{ .Context.ingress.suffix }}/swagger
 modules:
   - name: main
-    timeout: 5m
+    timeout: 10m
     source:
       oci:
         repository: quay.io/okdp/charts/okdp-server

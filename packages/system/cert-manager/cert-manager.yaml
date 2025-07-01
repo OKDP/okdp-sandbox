@@ -55,7 +55,7 @@ schema:
               name: { type: string, required: true }
 modules:
   - name: main
-    timeout: 4m
+    timeout: 10m
     source:
       helmRepository:
         url: https://charts.jetstack.io
@@ -68,7 +68,7 @@ modules:
         {{ $redirection := imageRedirect "quay.io/jetstack/cert-manager-controller" . }}
         repository: {{ $redirection.repository }}
   - name: trust
-    timeout: 2m
+    timeout: 10m
     enabled: "{{ .Parameters.trust.enabled }}"
     source:
       helmRepository:
@@ -90,7 +90,7 @@ modules:
       - main
   - name: issuers
     enabled: "{{ .Parameters.issuers.enabled }}"
-    timeout: 2m
+    timeout: 10m
     source:
       local:
         path: ../charts/cert-issuers

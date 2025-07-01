@@ -9,6 +9,7 @@ spec:
     repository: quay.io/okdp/sandbox-packages/kubocd-webhooks
     tag: v0.2.1-p01
     interval: 30m
+    timeout: 10m
   parameters:
     replicaCount: 1
   targetNamespace: kubocd

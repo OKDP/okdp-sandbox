@@ -32,7 +32,7 @@ schema:
         description: "HTTPS port for nodePort mode"
 modules:
   - name: main
-    timeout: 3m
+    timeout: 10m
     source:
       helmRepository:
         url: https://kubernetes.github.io/ingress-nginx

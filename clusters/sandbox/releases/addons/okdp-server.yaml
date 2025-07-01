@@ -10,5 +10,5 @@ spec:
     interval: 30m
     repository: quay.io/okdp/sandbox-packages/okdp-server
     tag: 0.2.0-snapshot-p06
-    timeout: 5m
+    timeout: 10m
   targetNamespace: okdp-server 

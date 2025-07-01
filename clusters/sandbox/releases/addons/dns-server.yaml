@@ -10,7 +10,7 @@ spec:
     interval: 30m
     repository: quay.io/okdp/sandbox-packages/dns-server
     tag: 1.0.0-p02
-    timeout: 5m
+    timeout: 10m
   targetNamespace: dns-server
   parameters:
     domain: okdp.sandbox

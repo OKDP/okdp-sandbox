@@ -9,6 +9,7 @@ spec:
     repository: quay.io/okdp/sandbox-packages/coredns-patch
     tag: 1.0.0-p01
     interval: 30m
+    timeout: 10m
   parameters:
     ingressSuffix: "okdp.sandbox"
     ingressService: "ingress-nginx-main-controller.ingress-nginx.svc.cluster.local"

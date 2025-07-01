@@ -10,7 +10,7 @@ usage:
     Access the UI at https://okdp-ui.{{ .Context.ingress.suffix }}
 modules:
   - name: main
-    timeout: 5m
+    timeout: 10m
     source:
       oci:
         repository: quay.io/okdp/charts/okdp-ui

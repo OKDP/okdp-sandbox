@@ -34,7 +34,7 @@ schema:
         description: "PostgreSQL database password"
 modules:
   - name: main
-    timeout: 5m
+    timeout: 10m
     source:
       oci:
         repository: registry-1.docker.io/bitnamicharts/keycloak

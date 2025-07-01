@@ -9,6 +9,7 @@ spec:
     repository: quay.io/okdp/sandbox-packages/ingress-nginx
     tag: 4.12.1-p03
     interval: 30m
+    timeout: 10m
   parameters:
     mode: "nodePort"
     httpPort: 30080

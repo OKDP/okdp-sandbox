@@ -25,7 +25,7 @@ spec:
   targetNamespace: kubocd
   storageNamespace: flux-system
   releaseName: kubocd-ctrl
-  timeout: 5m
+  timeout: 10m
   install:
     createNamespace: true
     remediation:

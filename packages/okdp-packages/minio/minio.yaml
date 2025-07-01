@@ -37,7 +37,7 @@ schema:
           suffix: { type: string, required: true }
 modules:
   - name: main
-    timeout: 5m
+    timeout: 10m
     source:
       helmRepository:
         url: https://charts.min.io/

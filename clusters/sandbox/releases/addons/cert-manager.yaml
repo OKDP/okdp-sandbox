@@ -9,6 +9,7 @@ spec:
     repository: quay.io/okdp/sandbox-packages/cert-manager
     tag: 1.17.1-p05
     interval: 30m
+    timeout: 10m
   parameters:
     trust:
       enabled: true

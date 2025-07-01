@@ -16,7 +16,7 @@ schema:
       ingressService: { type: string, default: "ingress-nginx-controller.ingress-nginx.svc.cluster.local" }
 modules:
   - name: main
-    timeout: 5m
+    timeout: 10m
     source:
       local:
         path: ../charts/coredns-patch/0.1.0
