@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: okdp-server
-tag: 0.2.0-snapshot-p06
+tag: 0.3.0
 protected: false
 description: |
   OKDP Server - API backend for the Open Kubernetes Data Platform
@@ -15,7 +15,7 @@ modules:
     source:
       oci:
         repository: quay.io/okdp/charts/okdp-server
-        tag: 0.2.0-snapshot
+        tag: 0.3.0
     values: |
       configuration:
         clusters:
