@@ -1,0 +1,171 @@
+apiVersion: v1alpha1
+name: trinodb
+tag: 1.0.0-p01
+protected: false
+description: |
+  Apache Trino - Distributed SQL query engine designed for large-scale data processing across multiple data sources.
+  High-performance, in-memory query engine that enables fast, interactive analytics on diverse data systems.
+  Supports querying data from multiple databases, data warehouses, and big data platforms in a single query.
+usage:
+  text: |
+    Apache Trino provides distributed SQL query engine designed for large-scale data processing.
+    Access the UI at https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+schema:
+  parameters:
+    properties:
+      numWorkers: { type: integer, default: 3, description: "Number of workers" }
+  context:
+    properties:
+      certificateIssuers:
+        required: true
+        properties:
+          selfSigned:
+            properties:
+              name: { type: string, required: true }
+      ingress:
+        required: true
+        properties:
+          suffix: { type: string, required: true }
+modules:
+  - name: main
+    timeout: 10m
+    source:
+      helmRepository:
+        url: https://trinodb.github.io/charts/
+        chart: trino
+        version: v1.39.1
+    values: |
+      coordinator:
+        resources:
+          requests:
+            cpu: "2"
+            memory: "8Gi"
+          limits:
+            cpu: "2"
+            memory: "8Gi"
+        additionalVolumes:
+          - name: generated-files
+            emptyDir: {}
+          - name: cacerts
+            secret:
+              secretName: certs-bundle
+          - name: trino-tls
+            secret:
+              secretName: {{ .Release.metadata.name }}-tls
+        additionalVolumeMounts:
+          - name: generated-files
+            mountPath: /etc/trino/generated
+            readOnly: false
+          - name: cacerts
+            mountPath: /cacerts
+          - name: trino-tls
+            mountPath: /trino-tls
+        additionalJVMConfig:
+          - "-Djavax.net.ssl.trustStore=/cacerts/bundle.p12"
+          - "-Djavax.net.ssl.trustStorePassword="
+
+
+      worker:
+        resources:
+          requests:
+            cpu: "2"
+            memory: "2Gi"
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+        additionalVolumes:
+          - name: generated-files
+            emptyDir: {}
+          - name: cacerts
+            secret:
+              secretName: certs-bundle
+          - name: trino-tls
+            secret:
+              secretName: {{ .Release.metadata.name }}-tls
+        additionalVolumeMounts:
+          - name: generated-files
+            mountPath: /etc/trino/generated
+            readOnly: false
+          - name: cacerts
+            mountPath: /cacerts
+          - name: trino-tls
+            mountPath: /trino-tls
+        additionalJVMConfig:
+          - "-Djavax.net.ssl.trustStore=/cacerts/bundle.p12"
+          - "-Djavax.net.ssl.trustStorePassword="
+
+      ingress:
+        enabled: true
+        className: nginx
+        annotations:
+          cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+          nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+          nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+          nginx.ingress.kubernetes.io/use-regex: "true"  
+          nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+          nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+          nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        hosts:
+          - host: {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+            paths:
+              - path: /
+                pathType: Prefix
+        tls:
+          - hosts:
+              - {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+            secretName: {{ .Release.metadata.name }}-tls
+
+      server:
+        workers: {{ .Parameters.numWorkers }}
+        node:
+          environment: sandbox
+        config:
+          coordinator: "true"
+          node-scheduler.include-coordinator: "true"
+          discovery-server.enabled: "true"
+          path: /etc/trino
+          https:
+            enabled: true
+            port: 8443
+            keystore:
+              path: "/etc/trino/generated/tls.pem"
+        coordinatorExtraConfig: |
+          http-server.process-forwarded=true
+          web-ui.authentication.type=oauth2
+          http-server.authentication.oauth2.issuer=https://keycloak.{{ .Context.ingress.suffix }}/realms/master
+          http-server.authentication.oauth2.client-id=confidential-oidc-client
+          http-server.authentication.oauth2.client-secret=secret1
+          http-server.authentication.oauth2.auth-url=https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/auth
+          http-server.authentication.oauth2.token-url=https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/token
+          http-server.authentication.oauth2.scopes=openid,email,profile,groups
+          deprecated.http-server.authentication.oauth2.groups-field=groups
+
+
+      initContainers:
+        coordinator:
+          - name: init-coordinator-coordinator
+            image: busybox:1.36
+            imagePullPolicy: IfNotPresent
+            command: ['sh', '-c', "cat /trino-tls/tls.crt /trino-tls/tls.key > /etc/trino/generated/tls.pem"]
+            volumeMounts:
+              - name: trino-tls
+                mountPath: "/trino-tls"
+              - name: generated-files
+                readOnly: false
+                mountPath: "/etc/trino/generated"
+        worker:
+          - name: init-coordinator-worker
+            image: busybox:1.36
+            imagePullPolicy: IfNotPresent
+            command: ['sh', '-c', "cat /trino-tls/tls.crt /trino-tls/tls.key > /etc/trino/generated/tls.pem"]
+            volumeMounts:
+              - name: trino-tls
+                mountPath: "/trino-tls"
+              - name: generated-files
+                readOnly: false
+                mountPath: "/etc/trino/generated"
+
+roles:
+  - Interactive-query
+dependencies:
+  - ingress 
