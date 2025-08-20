@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: okdp-ui
-tag: 0.3.0
+tag: 0.2.0-snapshot-p01
 protected: false
 description: |
   OKDP UI - Frontend web interface for the Open Kubernetes Data Platform
@@ -14,14 +14,14 @@ modules:
     source:
       oci:
         repository: quay.io/okdp/charts/okdp-ui
-        tag: 0.3.0
+        tag: 0.2.0-snapshot
     values: |
       replicaCount: 1
 
       image:
         repository: quay.io/okdp/okdp-ui
         pullPolicy: Always
-        tag: 0.3.0
+        tag: 0.2.0
 
       ui:
         auth:
