@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: okdp-ui
-tag: 0.4.0
+tag: 0.4.1
 protected: false
 description: |
   OKDP UI - Frontend web interface for the Open Kubernetes Data Platform
@@ -21,7 +21,7 @@ modules:
       image:
         repository: quay.io/okdp/okdp-ui
         pullPolicy: Always
-        tag: 0.4.0
+        tag: 0.4.1
 
       ui:
         auth:
@@ -44,6 +44,11 @@ modules:
             - all
           kad:
             - all
+        
+        kadCatalogsInfo:
+          interactivequery: 
+            displayName: "Interactive Query"
+            menuIcon: "fa-solid fa-database"
 
       service:
         type: ClusterIP
