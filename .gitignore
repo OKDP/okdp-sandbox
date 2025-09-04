@@ -39,3 +39,6 @@ temp/
 *.backup
 *.bak 
 okdp-sandbox-ca.crt
+
+# Local overrides
+local/
