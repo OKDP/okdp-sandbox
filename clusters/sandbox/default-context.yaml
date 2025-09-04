@@ -46,6 +46,11 @@ spec:
           description: "Storage packages"
           packages:
             - name: minio
+        - id: Interactive-query
+          name: "Interactive-query catalog"
+          description: "Interactive-query packages"
+          packages:
+            - name: trinodb
 
     keycloak:
       realm:
