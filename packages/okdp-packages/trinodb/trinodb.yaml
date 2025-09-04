@@ -38,8 +38,8 @@ modules:
       coordinator:
         resources:
           requests:
-            cpu: "2"
-            memory: "8Gi"
+            cpu: "500m"
+            memory: "1Gi"
           limits:
             cpu: "2"
             memory: "8Gi"
@@ -68,8 +68,8 @@ modules:
       worker:
         resources:
           requests:
-            cpu: "2"
-            memory: "2Gi"
+            cpu: "500m"
+            memory: "1Gi"
           limits:
             cpu: "2"
             memory: "2Gi"
