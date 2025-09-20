@@ -9,7 +9,7 @@ spec:
   package:
     interval: 30m
     repository: quay.io/okdp/sandbox-packages/keycloak
-    tag: 24.4.11-p04
+    tag: 24.4.11-p05
     timeout: 10m
   parameters:
     adminPassword: admin
