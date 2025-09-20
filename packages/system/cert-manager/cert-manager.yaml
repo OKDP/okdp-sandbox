@@ -67,6 +67,9 @@ modules:
       image:
         {{ $redirection := imageRedirect "quay.io/jetstack/cert-manager-controller" . }}
         repository: {{ $redirection.repository }}
+      webhook:
+        extraArgs:
+          - "--dynamic-serving-leaf-duration=2160h"    # 90 days validity instead of 7 days
   - name: trust
     timeout: 10m
     enabled: "{{ .Parameters.trust.enabled }}"
