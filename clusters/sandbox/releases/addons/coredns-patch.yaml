@@ -7,7 +7,7 @@ spec:
   description: "CoreDNS configuration patch for local domain resolution"
   package:
     repository: quay.io/okdp/sandbox-packages/coredns-patch
-    tag: 1.0.0-p01
+    tag: 1.0.0-p02
     interval: 30m
     timeout: 10m
   parameters:

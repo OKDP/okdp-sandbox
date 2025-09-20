@@ -45,16 +45,17 @@ spec:
                 kubectl create configmap coredns --from-file=Corefile=/tmp/new-corefile -n kube-system --dry-run=client -o yaml | kubectl apply -f -
                 
                 echo "CoreDNS configuration updated"
+          
+                # Restart CoreDNS
+                echo "Restarting CoreDNS deployment..."
+                kubectl rollout restart deployment coredns -n kube-system
+                
+                # Wait for rollout to complete
+                kubectl rollout status deployment coredns -n kube-system --timeout=300s
+                
+                echo "CoreDNS patch completed successfully"
               fi
               
-              # Restart CoreDNS
-              echo "Restarting CoreDNS deployment..."
-              kubectl rollout restart deployment coredns -n kube-system
-              
-              # Wait for rollout to complete
-              kubectl rollout status deployment coredns -n kube-system --timeout=300s
-              
-              echo "CoreDNS patch completed successfully"
       restartPolicy: {{ .Values.job.restartPolicy }}
       nodeSelector:
         {{- toYaml .Values.job.nodeSelector | nindent 8 }} 
