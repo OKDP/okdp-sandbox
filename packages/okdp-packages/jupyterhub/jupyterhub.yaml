@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: jupyterhub
-tag: 5.0.0-p03
+tag: 5.0.0-p04
 protected: false
 description: |
   JupyterHub - Multi-user interactive development environment for data science and machine learning.
@@ -120,8 +120,8 @@ modules:
         podNameTemplate: "{{ .Release.metadata.name }}-{username}{servername}"
         
         image:
-          name: ghcr.io/kubotal/spark-notebook
-          tag: "2024-05-27-001"
+          name: quay.io/okdp/jupyter/all-spark-notebook
+          tag: "spark-3.5.1-python-3.11-java-17-scala-2.12-2025-05-19"
       
         storage:
           homeMountPath: "/home/{username}"
