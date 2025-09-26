@@ -1,0 +1,74 @@
+
+#
+# Copyright 2025 okdp.io
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+name: ci 
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+
+      - "**/**"
+  
+      - "!README.md"
+      - "!**/README.md"
+      - "!docs/**"
+
+  push:
+    branches:
+      - '**'
+    paths:
+      - ".github/workflows/**"
+      - ".github/actions/**"
+
+      - "**/**"
+
+      - "!README.md"
+      - "!**/README.md"
+      - "!docs/**"
+
+  workflow_dispatch:
+  
+permissions:
+  packages: write
+  contents: write
+
+# https://docs.github.com/en/actions/using-jobs/using-concurrency
+concurrency:
+  # Only cancel in-progress jobs or runs for the current workflow - matches against branch & tags
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+
+  kubocd-packages-ci:
+    uses: ./.github/workflows/kubocd-package-template.yml
+    with:
+      ci_registry: "ghcr.io"
+      registry: "quay.io"
+      publish_to_registry: "false"
+      oci_package_prefix: "sandbox-packages"
+      runs-on: "ubuntu-latest"
+
+
