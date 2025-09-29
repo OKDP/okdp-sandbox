@@ -108,6 +108,11 @@ jobs:
         with:
           version: '2.6.4'
 
+      - name: Install yq 🛠️
+        run: |
+          sudo wget -O /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
       - name: Deploy Flux (Basic Mode)
         if: inputs.publish_to_registry == 'false'
         run: flux install
@@ -161,6 +166,16 @@ jobs:
           KCD_OCI_GHCR_IO_USER: ${{ github.actor }}
           KCD_OCI_GHCR_IO_SECRET: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Create CI registry secret for KuboCD (kubocd-system namespace) 🔐
+        if: inputs.publish_to_registry == 'false'
+        run: |
+          kubectl create secret docker-registry ci-registry-secret \
+            --docker-server=${{ inputs.ci_registry }} \
+            --docker-username="${{ github.actor }}" \
+            --docker-password="${{ secrets.GITHUB_TOKEN }}" \
+            --docker-email="${{ github.actor }}@users.noreply.github.com" \
+            -n kubocd-system
+
       # Deploy and test installation
       - name: Deploy and test releases on Kind cluster 🚀
         if: inputs.publish_to_registry == 'false'
@@ -177,19 +192,28 @@ jobs:
 
           for release in $KUBOCD_RELEASES; do
             echo "Applying releases in $release"
-            # Replace ${{ inputs.registry }} with ${{ inputs.ci_registry }} on the fly and apply
-            find "$release" -type f \( -name "*.yaml" -o -name "*.yml" \) | while read rel; do 
-                sed "s|${{ inputs.registry }}/$OWNER/${{ inputs.oci_package_prefix }}|${{ inputs.ci_registry }}/$OWNER/${{ inputs.oci_package_prefix }}|g" \
-                "$rel" | kubectl apply -f -
+            find "$release" -type f \( -name "*.yaml" -o -name "*.yml" \) | while read rel; do
+              # Update repository path and add secretRef
+              yq eval "
+                .spec.package.repository |= sub(\"${{ inputs.registry }}/$OWNER/${{ inputs.oci_package_prefix }}\",\"${{ inputs.ci_registry }}/$OWNER/${{ inputs.oci_package_prefix }}\") |
+                .spec.package.secretRef = {\"name\": \"ci-registry-secret\"}
+              " "$rel" | kubectl apply -f -
             done
           done
 
       - name: Test the releases deployment ✅
         if: inputs.publish_to_registry == 'false'
         run: |
-          echo "Wait until all releases are ready"
           kubectl get events -A -w &
-          kubectl wait --for=condition=Ready release --all --all-namespaces --timeout=600s
+          (while true; do
+            echo "Wait until all KuboCD releases are ready ..."
+            echo "************************************** Releases status **************************************"
+            kubectl get release -A
+            echo "**************************************** Pods status ****************************************"
+            kubectl get po -A
+            sleep 15
+          done) &
+          kubectl wait --for=jsonpath='{.status.phase}'=READY release --all -A --timeout=600s
   
       - name: Build and push KuboCD packages into public registry (${{ inputs.registry }})
         if: inputs.publish_to_registry == 'true'
