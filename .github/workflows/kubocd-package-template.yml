@@ -77,17 +77,17 @@ jobs:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_ROBOT_TOKEN }}
 
-      - name: Set CI Github container registry namespace (${{ inputs.ci_registry }})
+      - name: Set CI Github container registry namespace (${{ inputs.ci_registry }}) 📦
         if: inputs.publish_to_registry == 'false'
         run:  |
           echo "OWNER=${GITHUB_REPOSITORY_OWNER@L}" >> $GITHUB_ENV
           echo "REGISTRY=${{ inputs.ci_registry }}" >> $GITHUB_ENV
         shell: bash
 
-      - name: Set public container registry namespace (${{ inputs.registry }})
+      - name: Set public container registry namespace (${{ inputs.registry }}) 📦
         if: inputs.publish_to_registry == 'true'
         run:  |
-          echo "OWNER=${GITHUB_REPOSITORY_OWNER@L}/jupyter" >> $GITHUB_ENV
+          echo "OWNER=${GITHUB_REPOSITORY_OWNER@L}" >> $GITHUB_ENV
           echo "REGISTRY=${{ inputs.registry }}" >> $GITHUB_ENV
         shell: bash
 
@@ -109,11 +109,12 @@ jobs:
           version: '2.6.4'
 
       - name: Install yq 🛠️
+        if: inputs.publish_to_registry == 'false'
         run: |
           sudo wget -O /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
 
-      - name: Deploy Flux (Basic Mode)
+      - name: Deploy Flux (Basic Mode) 🚀
         if: inputs.publish_to_registry == 'false'
         run: flux install
       
@@ -149,12 +150,12 @@ jobs:
           kubocd version
 
       # Build and push packages
-      - name: Find KuboCD packages
+      - name: Find KuboCD packages 🔎
         run: |
           KUBOCD_PACKAGES=$(find packages -type f \( -name "*.yaml" -o -name "*.yml" \) -exec grep -l '^modules:' {} \; | tr '\n' ' ')
           echo "KUBOCD_PACKAGES=$KUBOCD_PACKAGES" >> $GITHUB_ENV
 
-      - name: Build and push KuboCD packages into CI registry (${{ inputs.ci_registry }})
+      - name: Build and push KuboCD packages into CI registry (${{ inputs.ci_registry }}) 📦
         if: inputs.publish_to_registry == 'false'
         run: |
           for package in ${KUBOCD_PACKAGES}
@@ -215,7 +216,7 @@ jobs:
           done) &
           kubectl wait --for=jsonpath='{.status.phase}'=READY release --all -A --timeout=600s
   
-      - name: Build and push KuboCD packages into public registry (${{ inputs.registry }})
+      - name: Build and push KuboCD packages into public registry (${{ inputs.registry }}) 📦
         if: inputs.publish_to_registry == 'true'
         run: |
           for package in ${KUBOCD_PACKAGES}
