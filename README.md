@@ -1,13 +1,16 @@
-<p align="center">
-    <img width="400px" height=auto src="https://okdp.io/logos/okdp-inverted.png" />
-</p>
-
-# OKDP Sandbox
-
+[![ci](https://github.com/okdp/okdp-sandbox/actions/workflows/ci.yml/badge.svg)](https://github.com/okdp/okdp-sandbox/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/okdp/okdp-sandbox)](https://github.com/okdp/okdp-sandbox/releases/latest)
 [![Kubernetes](https://img.shields.io/badge/kubernetes-1.28+-blue.svg)](https://kubernetes.io/)
 [![Flux](https://img.shields.io/badge/flux-latest-purple.svg)](https://fluxcd.io/)
+
 [![Kind](https://img.shields.io/badge/kind-latest-orange.svg)](https://kind.sigs.k8s.io/)
 [![KuboCD](https://img.shields.io/badge/kubocd-v0.2.1-green.svg)](https://github.com/kubocd/kubocd)
+[![License Apache2](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
+<a href="https://okdp.io">
+  <img src="https://okdp.io/logos/okdp-notext.svg" height="20px" style="margin: 0 2px;" />
+</a>
+
+# OKDP Sandbox
 
 A complete sandbox environment for testing and evaluating OKDP (Open Kubernetes Data Platform) components.
 
