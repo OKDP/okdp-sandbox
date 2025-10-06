@@ -33,10 +33,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-defaults:
-  run:
-    shell: bash
-
 jobs:
   release-please:
     runs-on: ubuntu-latest
@@ -53,6 +49,7 @@ jobs:
   publish:
     needs: [release-please]
     uses: ./.github/workflows/kubocd-package-template.yml
+    if: github.repository_owner == 'OKDP' && needs.release-please.outputs.release_created == 'true'
     with:
       ci_registry: "ghcr.io"
       registry: "quay.io"
