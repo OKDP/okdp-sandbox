@@ -54,7 +54,6 @@ jobs:
     steps:
 
       - name: Checkout Repo ⚡️
-        if: inputs.publish_to_registry == 'false'
         uses: actions/checkout@v4
 
       # - name: Free up disk space 📦
