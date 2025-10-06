@@ -59,4 +59,5 @@ jobs:
       publish_to_registry: "true"
       oci_package_prefix: "sandbox-packages"
       runs-on: "ubuntu-latest"
+    secrets: inherit
       
