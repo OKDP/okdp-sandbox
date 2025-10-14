@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: superset
-tag: 4.0.0-p02
+tag: 4.0.0-p03
 protected: false
 description: |
   Apache Superset - Enterprise business intelligence platform for modern data teams.
@@ -30,10 +30,9 @@ modules:
   - name: main
     timeout: 10m
     source:
-      helmRepository:
-        url: https://okdp.github.io/charts/
-        chart: superset
-        version: v0.12.10-rc.1
+      oci:
+        repository: quay.io/okdp/charts/superset
+        tag: 0.12.10-1.0
     values: |
       okdp:
         # Superset configuration
