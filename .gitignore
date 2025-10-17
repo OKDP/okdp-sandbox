@@ -42,3 +42,4 @@ okdp-sandbox-ca.crt
 
 # Local overrides
 local/
+.tmp/
