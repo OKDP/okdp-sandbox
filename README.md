@@ -191,9 +191,19 @@ kubectl apply -f clusters/sandbox/flux/kubocd.yaml
 
 Deploy the sandbox default context:
 
-> 💡 **The KuboCD Context** is a centralized, declarative and environment-aware configuration layer that provides user defined shared variables (ingress suffixes, storage classes, certificate issuers, catalogs, and authentication settings, etc) to all the components, ensuring consistent deployment.
+> 💡 **The KuboCD Context** is a centralized, reusable, declarative and environment-aware configuration layer that provides user defined shared parameters (ingress suffixes, storage classes, certificate issuers, catalogs, and authentication settings, etc) to all the components, ensuring consistent deployment.
 >
-> During deployment, KuboCD automatically resolves and injects these context variables into the target Kubernetes components across the cluster (cluster-wide), ensuring that each component is deployed with a consistent configuration.
+> During deployment, KuboCD automatically resolves and injects these context variables into the target Kubernetes components across the cluster (cluster-wide), ensuring that every component is deployed with a consistent configuration.
+>
+> During a Context update, changes are automatically propagated only to the affected components, which are then reconciled to align with the desired configuration.
+> 
+> For example, the **Context** enables defining **different configurations for different environments**:
+> - `sandbox` for experimentation
+> - `dev` for internal testing  
+> - `prod` for stable production environments 
+> - `org` (or `global`) for the organization-wide configuration that provides defaults to other environments.
+>
+> Each environment can **define, override or extend** one or more contexts while preserving a unified, declarative deployment model.
 
 
 ```sh
