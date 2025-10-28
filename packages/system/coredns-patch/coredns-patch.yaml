@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: coredns-patch
-tag: 1.0.0-p02
+tag: 1.0.0-p03
 protected: false
 description: |
   CoreDNS configuration patch to resolve local domain names to ingress controller
@@ -12,8 +12,13 @@ usage:
 schema:
   parameters:
     properties:
-      ingressSuffix: { type: string, default: "okdp.sandbox" }
       ingressService: { type: string, default: "ingress-nginx-controller.ingress-nginx.svc.cluster.local" }
+  context:
+    properties:
+      ingress:
+        required: true
+        properties:
+          suffix: { type: string, required: true }
 modules:
   - name: main
     timeout: 10m
@@ -21,7 +26,7 @@ modules:
       local:
         path: ../charts/coredns-patch/0.1.0
     values: |
-      ingressSuffix: "{{ .Parameters.ingressSuffix }}"
+      ingressSuffix: "{{ .Context.ingress.suffix }}"
       ingressService: "{{ .Parameters.ingressService }}"
       job:
         image: quay.io/okdp/sandbox-images/kubectl:latest
