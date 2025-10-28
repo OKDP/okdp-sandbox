@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: dns-server
-tag: 1.0.0-p02
+tag: 1.0.0-p03
 protected: false
 description: |
   DNS Server - Lightweight DNS server for local development
@@ -13,7 +13,6 @@ usage:
 schema:
   parameters:
     properties:
-      domain: { type: string, default: "okdp.sandbox" }
       target: { type: string, default: "127.0.0.1" }
       nodePort: { type: integer, default: 30053 }
   context:
@@ -37,7 +36,7 @@ modules:
         pullPolicy: IfNotPresent
       
       config:
-        domain: {{ .Parameters.domain }}
+        domain: {{ .Context.ingress.suffix }}
         target: {{ .Parameters.target }}
       
       service:
