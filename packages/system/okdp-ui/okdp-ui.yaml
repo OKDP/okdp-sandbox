@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: okdp-ui
-tag: 0.4.1
+tag: 0.4.1-p01
 protected: false
 description: |
   OKDP UI - Frontend web interface for the Open Kubernetes Data Platform
@@ -41,15 +41,16 @@ modules:
           mode: kubernetes
         catalogs:
           services:
-            - all
+            {{ toYaml .Context.okdp.services | nindent 6 }}
           kad:
             - all
         
         kadCatalogsInfo:
-          interactivequery: 
-            displayName: "Interactive Query"
-            menuIcon: "fa-solid fa-database"
-
+          {{ toYaml .Context.okdp.kadCatalogsInfo | nindent 4 }}
+        
+        kadServicesInfo:
+          {{ toYaml .Context.okdp.kadServicesInfo | nindent 4 }}
+      
       service:
         type: ClusterIP
         port: 4200
@@ -93,5 +94,5 @@ modules:
 
 roles:
   - okdp-ui
-dependencies: |
+dependencies:
   - okdp-server
