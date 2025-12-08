@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: jupyterhub
-tag: 5.0.0-p05
+tag: 4.3.1-p01
 protected: false
 description: |
   JupyterHub - Multi-user interactive development environment for data science and machine learning.
@@ -9,10 +9,13 @@ description: |
 usage:
   text: |
     JupyterHub provides multi-user Jupyter notebook environment with OAuth authentication.
-    Access the hub at https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+    Access the hub at {{ .Context.jupyter.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
 schema:
   parameters:
     properties:
+      cloneExamples: { type: boolean, default: true, description: "Whether to clone OKDP examples" }
+      bucket: { type: string, default: "okdp", description: "S3 bucket name to expose in the Jupyter S3 browser" }
+      startTimeout: { type: integer, default: 600, description: "Maximum number of seconds JupyterHub will wait for a user’s server to become reachable" }
       allowedRoles: { type: string, default: "admins", description: "Allowed roles for JupyterHub access" }
   context:
     properties:
@@ -37,26 +40,49 @@ modules:
       helmRepository:
         url: https://hub.jupyter.org/helm-chart/
         chart: jupyterhub
-        version: 3.3.7
+        version: 4.3.1
     values: |
+      {{- $s3ApiUrl := .Context.jupyter.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      {{- $jupyterUrl := .Context.jupyter.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $jupyterUrl := $jupyterUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $jupyterUrl := $jupyterUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $jupyterHost := regexReplaceAll "^https?://" $jupyterUrl "" -}}
+      
+      {{- $keycloakAuthUrl := .Context.jupyter.auth.oidc.baseUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $keycloakAuthUrl := $keycloakAuthUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $keycloakAuthUrl := $keycloakAuthUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+  
       # Fix resource naming conflicts by using release name as prefix
       fullnameOverride: "{{ .Release.metadata.name }}"
       nameOverride: "{{ .Release.metadata.name }}"
       
       hub:
+        extraEnv:
+          OAUTH_CLIENT_ID:
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.jupyter.auth.oidc.credentialsSecret.name }}
+                key: {{ .Context.jupyter.auth.oidc.credentialsSecret.clientIdKey }}
+          OAUTH_CLIENT_SECRET:
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.jupyter.auth.oidc.credentialsSecret.name }}
+                key: {{ .Context.jupyter.auth.oidc.credentialsSecret.clientSecretKey }}
         config:
           Authenticator:
             auto_login: true
           GenericOAuthenticator:
-            client_id: confidential-oidc-client
-            client_secret: secret1
-            oauth_callback_url: https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}/hub/oauth_callback
-            authorize_url: https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/auth
-            token_url: https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/token
-            userdata_url: https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/userinfo
+            oauth_callback_url: {{ $jupyterUrl }}/hub/oauth_callback
+            authorize_url: {{ $keycloakAuthUrl }}/auth
+            token_url: {{ $keycloakAuthUrl }}/token
+            userdata_url: {{ $keycloakAuthUrl }}/userinfo
             validate_server_cert: false
             login_service: keycloak
             claim_groups_key: groups
+            manage_groups: true
             userdata_params:
               state: state
             admin_groups:
@@ -79,7 +105,7 @@ modules:
           pullPolicy: Always
           pullSecrets: []
           name: quay.io/jupyterhub/k8s-hub
-          tag: "3.3.7"
+          tag: "4.3.1"
         db:
           type: sqlite-pvc
           pvc:
@@ -103,11 +129,11 @@ modules:
           cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
         ingressClassName: nginx
         hosts:
-          - "{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}"
+          - {{ $jupyterHost }}
         tls:
           - secretName: {{ .Release.metadata.name }}-tls
             hosts:
-              - {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+              - {{ $jupyterHost }}
       
       scheduling:
         userScheduler:
@@ -115,16 +141,218 @@ modules:
         userPlaceholder:
           enabled: false
       
-      singleuser:
+      singleuser:            
         # Fix user pod naming conflicts by prefixing with release name
         podNameTemplate: "{{ .Release.metadata.name }}-{username}{servername}"
         
         image:
           name: quay.io/okdp/jupyter/all-spark-notebook
-          tag: "spark-3.5.1-python-3.11-java-17-scala-2.12-2025-05-19"
+          tag: "spark-3.5.6-python-3.11-java-17-scala-2.12"
         
-        startTimeout: 600
-
+        startTimeout: {{ .Parameters.startTimeout }}
+      
+        extraEnv:
+          NB_USER: "$(JUPYTERHUB_USER)"
+          NB_UID: "1001"
+          NB_GID: "100"
+          CHOWN_HOME: "yes"
+          CHOWN_HOME_OPTS: "-R"
+          JUPYTER_ENABLE_LAB: "yes"
+          EDITOR: "vim"
+          GIT_SSL_NO_VERIFY: "false"
+          # Ignore InsecureRequestWarning warnings
+          PYTHONWARNINGS: "ignore:Unverified HTTPS request"
+      
+          # https://github.com/jpmorganchase/jupyter-fs
+          FS_S3_ENDPOINT_URL: "{{ $s3ApiUrl }}"
+          FS_S3_ACCESS_KEY:
+            valueFrom:
+              secretKeyRef:
+                name: "{{ .Context.jupyter.storage.s3.credentialsSecret.name }}"
+                key: "{{ .Context.jupyter.storage.s3.credentialsSecret.accessKeyKey }}"
+          FS_S3_SECRET_KEY:
+            valueFrom:
+              secretKeyRef:
+                name: "{{ .Context.jupyter.storage.s3.credentialsSecret.name }}"
+                key: "{{ .Context.jupyter.storage.s3.credentialsSecret.secretKeyKey }}"
+      
+        {{- if .Parameters.cloneExamples }}
+        lifecycleHooks:
+          postStart:
+            exec:
+              command:
+                - /bin/bash
+                - -lc
+                - |
+                  set -e
+                  HOME="/home/$JUPYTERHUB_USER"
+                  if [ ! -f "$HOME/Welcome.ipynb" ]; then
+                    cp /etc/jupyterhub/welcome/Welcome.ipynb "$HOME/Welcome.ipynb"
+                  fi
+       
+        defaultUrl: "/lab/tree/Welcome.ipynb"
+        {{- end }}
+      
+        extraFiles:
+          {{- if .Parameters.cloneExamples }}
+          welcome-notebook:
+            mountPath: /etc/jupyterhub/welcome/Welcome.ipynb
+            stringData: |
+              {
+                "cells": [
+                  {
+                    "cell_type": "markdown",
+                    "id": "127ae6f0",
+                    "metadata": {},
+                    "source": [
+                      "# 👋 Welcome to OKDP Examples\n",
+                      "\n",
+                      "This workspace contains hands-on examples and ready-to-run workflows for the **[Open Kubernetes Data Platform (OKDP)](https://okdp.io)**.\n",
+                      "\n",
+                      "You’ll be able to explore:\n",
+                      "\n",
+                      "- **[MinIO](https://www.min.io/)** for S3-compatible object storage\n",
+                      "- **[Hive Metastore](https://hive.apache.org/)** for table/catalog metadata\n",
+                      "- **[Trino](https://trino.io/)** for interactive SQL queries\n",
+                      "- **[Jupyter](https://jupyter.org/)** for notebooks and analysis\n",
+                      "- **[Apache Superset](https://superset.apache.org/)** for dashboards and visualizations\n",
+                      "\n",
+                      "---\n",
+                      "\n",
+                      "## 🚀 Get started\n",
+                      "\n",
+                      "Click the link below to **download or update** the [okdp-examples](https://github.com/OKDP/okdp-examples) repository directly into your JupyterLab workspace.\n",
+                      "\n",
+                      "> Tip: If you already cloned it before, this will **pull the latest changes**.\n",
+                      "\n",
+                      "[✅ Sync OKDP Examples]({{ $jupyterUrl }}/hub/user-redirect/git-pull?repo=https://github.com/OKDP/okdp-examples&branch=main&urlpath=lab/tree/okdp-examples/notebooks/index.ipynb)\n",
+                      "\n",
+                      "---\n",
+                      "\n",
+                      "## 🧭 What’s inside the repo\n",
+                      "\n",
+                      "- **Helm-driven workflows** to download public datasets and upload them to S3 (MinIO)\n",
+                      "- **Trino SQL** examples to create external tables and sync partitions\n",
+                      "- **Jupyter notebooks** to query Trino (SQLAlchemy + native SQL)\n",
+                      "- Optional **Superset** workflows for visualization\n",
+                      "\n",
+                      "If you get stuck, open the repo’s [README](https://github.com/OKDP/okdp-examples) and follow the step-by-step instructions.\n"
+                    ]
+                  }
+                ],
+                "metadata": {
+                  "kernelspec": {
+                    "display_name": "Python 3 (ipykernel)",
+                    "language": "python",
+                    "name": "python3"
+                  },
+                  "language_info": {
+                    "codemirror_mode": {
+                      "name": "ipython",
+                      "version": 3
+                    },
+                    "file_extension": ".py",
+                    "mimetype": "text/x-python",
+                    "name": "python",
+                    "nbconvert_exporter": "python",
+                    "pygments_lexer": "ipython3",
+                    "version": "3.12.12"
+                  }
+                },
+                "nbformat": 4,
+                "nbformat_minor": 5
+              }
+          {{- end }}
+      
+          jupyter_server_config_py:
+            mountPath: /etc/jupyter/jupyter_server_config.py
+            stringData: |  
+              {{- if .Context.jupyter.storage.s3.tls.insecureSkipVerify }}
+              import ssl
+              import s3fs
+              ssl._create_default_https_context = ssl._create_unverified_context
+              _s3fs_client_init = s3fs.core.S3FileSystem.__init__
+            
+              def _patched_init(self, *args, **kwargs):
+                # inject client_kwargs.verify=False to disable SSL validation
+                kwargs["client_kwargs"] = kwargs.get("client_kwargs", {})
+                kwargs["client_kwargs"]["verify"] = False
+                return _s3fs_client_init(self, *args, **kwargs)
+              
+              s3fs.core.S3FileSystem.__init__ = _patched_init
+              {{- end }}
+      
+              # Handle MissingContentMD5 (this prevents from pining versions)
+              import base64, hashlib, json, s3fs
+              _s3_delete = s3fs.core.S3FileSystem._call_s3
+              def _patched_delete_s3(self, method, *args, **kwargs):
+                if method == "delete_objects" and "Body" in kwargs:
+                  body = kwargs["Body"]
+                  md5 = base64.b64encode(hashlib.md5(body.encode("utf-8")).digest()).decode("utf-8")
+                  kwargs["ContentMD5"] = md5
+                return _s3_delete(self, method, *args, **kwargs)
+              s3fs.core.S3FileSystem._call_s3 = _patched_delete_s3
+      
+              c.ServerApp.contents_manager_class = "jupyterfs.MetaManager"
+              c.ServerApp.jpserver_extensions = {"jupyterfs.extension": True}
+              buckets = ["{{ .Parameters.bucket }}"]
+              import os
+              c.JupyterFs.resources = [
+                {
+                  "name": b,
+                  "url": f"s3://{b}/",
+                  "type": "fsspec",
+                  "defaultWritable": True,
+                  "use_listings_cache": False,
+                  "auth": "none",
+                  "kwargs": {
+                      "key": os.environ["FS_S3_ACCESS_KEY"],
+                      "secret": os.environ["FS_S3_SECRET_KEY"],
+                      "client_kwargs": {
+                          "endpoint_url": os.environ["FS_S3_ENDPOINT_URL"],
+                      }
+                  },
+                }
+                for b in buckets
+              ]
+      
+        profileList:
+          - display_name: "🪶 Minimal Python1"
+            description: "Lightweight image with only Python 3.12"
+            kubespawner_override:
+              image: quay.io/okdp/jupyter/minimal-notebook:python-3.12.12-hub-5.4.2-lab-4.5.0
+              image_pull_policy: Always
+          - display_name: "📊 Scientific Python"
+            description: "Includes Git, Pandas, NumPy, S3 browser, and Trino SQL support."
+            default: true
+            kubespawner_override:
+              image: quay.io/okdp/jupyter/scipy-notebook:python-3.12.12-hub-5.4.2-lab-4.5.0
+              image_pull_policy: Always
+          - display_name: "📊 Data Science"
+            description: "Includes Git, Pandas, NumPy, S3 browser, and Trino SQL support, Matplotlib, R, and Julia"
+            kubespawner_override:
+              image: quay.io/okdp/jupyter/datascience-notebook:python-3.12.12-hub-5.4.2-lab-4.5.0
+              image_pull_policy: Always
+          - display_name: "🔥 PySpark"
+            description: "Apache Spark big data processing"
+            kubespawner_override:
+              image_pull_policy: Always
+            profile_options:
+              image:
+                display_name: "Select PySpark kernel version"
+                choices:
+                  spark344:
+                    display_name: "PySpark 3.4.4 / Python 3.11"
+                    kubespawner_override:
+                      image: quay.io/okdp/jupyter/all-spark-notebook:spark-3.4.4-python-3.11-java-17-scala-2.12
+                      image_pull_policy: Always
+                  spark356:
+                    display_name: "PySpark 3.5.6 / Python 3.11"
+                    default: true
+                    kubespawner_override:
+                      image: quay.io/okdp/jupyter/all-spark-notebook:spark-3.5.6-python-3.11-java-17-scala-2.12
+                      image_pull_policy: Always
+      
         storage:
           homeMountPath: "/home/{username}"
           dynamic:
@@ -137,15 +365,6 @@ modules:
           blockWithIptables: false
         uid: 0
         fsGid: 0
-        extraEnv:
-          NB_USER: "$(JUPYTERHUB_USER)"
-          NB_UID: "1001"
-          NB_GID: "100"
-          CHOWN_HOME: "yes"
-          CHOWN_HOME_OPTS: "-R"
-          JUPYTER_ENABLE_LAB: "yes"
-          EDITOR: "vim"
-          GIT_SSL_NO_VERIFY: "false"
         extraPodConfig:
           automount_service_account_token: false
           terminationGracePeriodSeconds: 120
@@ -160,4 +379,5 @@ modules:
 roles:
   - notebooks
 dependencies:
-  - ingress 
+  - ingress
+  - storage
