@@ -1,0 +1,36 @@
+apiVersion: v1alpha1
+name: cloudnative-pg
+tag: 17.0-p01
+protected: false
+description: |
+  CloudNativePG is the Kubernetes operator that covers the full lifecycle of a highly available PostgreSQL database cluster 
+  with a primary/standby architecture, using native streaming replication.
+  https://cloudnative-pg.io/
+usage:
+  text: |
+    CloudNativePG is an open-source Kubernetes operator focused on running and managing PostgreSQL 
+    clusters in Kubernetes environments.
+modules:
+  - name: main
+    timeout: 10m
+    source:
+      helmRepository:
+        url: https://cloudnative-pg.github.io/charts/
+        chart: cloudnative-pg
+        version: 0.26.1
+    values: |
+      config:
+        clusterWide: true
+      image:
+        repository: ghcr.io/cloudnative-pg/cloudnative-pg
+        pullPolicy: IfNotPresent
+        tag: "1.27.1"
+      resources:
+        requests:
+          cpu: 500m
+          memory: 500Mi
+        limits:
+          cpu: 1
+          memory: 1Gi
+roles:
+  - pg-operator
