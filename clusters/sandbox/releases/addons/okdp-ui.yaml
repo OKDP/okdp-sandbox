@@ -8,7 +8,7 @@ spec:
   description: OKDP UI - Frontend web interface for the Open Kubernetes Data Platform
   package:
     interval: 30m
-    repository: quay.io/okdp/sandbox-packages/okdp-ui
-    tag: 0.4.1
+    repository: quay.io/okdp/sandbox-packages-v0.1/okdp-ui
+    tag: 0.4.1-p01
     timeout: 10m
   targetNamespace: okdp-ui 
