@@ -18,7 +18,7 @@ spec:
       workspace: standard
 
     okdp:
-      packageRepository: quay.io/okdp/sandbox-packages
+      packageRepository: quay.io/okdp/sandbox-packages-v0.1
       clusters:
         - id: sandbox
           name: "OKDP Sandbox Cluster"
@@ -46,13 +46,260 @@ spec:
           description: "Storage packages"
           packages:
             - name: minio
-        - id: Interactive-query
-          name: "Interactive-query catalog"
+        - id: Interactive-Query
+          name: "Interactive Query"
           description: "Interactive-query packages"
           packages:
             - name: trinodb
+        - id: Data-Catalog
+          name: "Data Catalog"
+          description: "Central metadata catalog packages"
+          packages:
+            - name: hive-metastore
+        - id: Applications
+          name: "OKDP Examples"
+          description: "A collection of hands-on okdp examples"
+          packages:
+            - name: okdp-examples
+      services:
+        - Notebook
+        - Spark
+        - Dataviz
+        - Interactive-Query
+        - Data-Catalog
+        - Storage
+        - Applications
+      kadCatalogsInfo:
+        Interactive-Query:
+          displayName: "Interactive Query"
+          menuIcon: "fa-solid fa-database"
+        Data-Catalog:
+          displayName: "Data Catalog"
+          menuIcon: "fa-solid fa-sitemap"
+        Applications:
+          displayName: "Applications"
+          menuIcon: "fa-solid fa-code"
+      kadServicesInfo:
+        hive-metastore:
+          icon: "okdp-notext.svg"
+          menuIcon: "fa-solid fa-book"
+          description: |
+            The central repository of metadata for Hive tables and partitions, providing clients including Hive, Impala, and Spark access through the metastore service API. 
+            A fundamental building block for modern data lakes.
+          home: "https://hive.apache.org"
+        okdp-examples:
+          icon: "okdp-notext.svg"
+          menuIcon: "fa-solid fa-code"
+          description: |
+            A collection of hands-on examples, helper utilities, Jupyter notebooks, and data workflows 
+            that showcases how to work with the OKDP Platform.
+          home: "https://github.com/okdp/okdp-examples"
+
+    hiveMetastore:
+      database:
+        type: postgresql
+        driver: org.postgresql.Driver
+        host: postgresql-instance-rw.cnpg-system.svc.cluster.local
+        port: 5432
+        name: hms
+        credentialsSecret:
+          name: creds-hms-db
+          usernameKey: username
+          passwordKey: password
+      storage:
+        provider: s3
+        s3:
+          apiUrl: https://minio-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          bucket: hive
+          warehouseDir: hive-warehouse/
+          credentialsSecret:
+            name: creds-hms-minio
+            accessKeyKey: accessKey
+            secretKeyKey: secretKey
+        tls:
+          enabled: true
+          insecureSkipVerify: true
+      endpoint:
+        url: thrift://hive-metastore.{{ .Release.namespace }}.svc.cluster.local:9083
+
+    trino:
+      metastore:
+        uri: thrift://hive-metastore.{{ .Release.namespace }}.svc.cluster.local:9083
+      auth:
+        enabled: true
+        method: oidc
+        basic:
+          username: trino
+          #credentialsSecret:
+          #  name: creds-trino
+          # ....
+        oidc:
+          provider: keycloak
+          issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+          scope: "openid profile email groups"
+          usePKCE: true
+          insecureSkipVerify: true
+          credentialsSecret:
+            name: creds-oidc
+            clientIdKey: client_id
+            clientSecretKey: client_secret
+      storage:
+        provider: s3
+        s3:
+          apiUrl: https://minio-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          credentialsSecret:
+            name: creds-trino-s3
+            accessKeyKey: S3_ACCESS_KEY
+            secretKeyKey: S3_SECRET_ACCESS
+          tls:
+            enabled: true
+            insecureSkipVerify: true
+      endpoint:
+        url: https://trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
+    superset:
+      database:
+        name: superset
+        host: postgresql-instance-rw.cnpg-system.svc.cluster.local
+        port: 5432
+        credentialsSecret:
+          name: creds-superset-db
+          usernameKey: username
+          passwordKey: password
+      # Secret Key for Superset's Flask App
+      secret:
+        name: creds-superset-secret-key
+        key: superset_secret_key
+      load_examples:
+        jdbc_uri: "postgresql+psycopg2://$DB_EXAMPLES_USER:$DB_EXAMPLES_PASS@$DB_EXAMPLES_HOST:$DB_EXAMPLES_PORT/$DB_EXAMPLES_NAME?options=-csearch_path%3Dmain"
+        database:
+          name: superset-examples
+          host: postgresql-instance-rw.cnpg-system.svc.cluster.local
+          port: 5432
+          credentialsSecret:
+            name: creds-superset-examples-db
+            usernameKey: username
+            passwordKey: password
+      redis:
+        host: ~
+        port: 6379
+        credentialsSecret:
+          name: creds-redis
+          usernameKey: username
+          passwordKey: password
+      auth:
+        enabled: true
+        method: oidc
+        oidc:
+          provider: keycloak
+          baseUrl: "https://keycloak.{{ .Context.ingress.suffix }}:443/realms/master/protocol/openid-connect"
+          scope: "openid profile email groups"
+          usePKCE: true
+          insecureSkipVerify: true
+          credentialsSecret:
+            name: creds-oidc
+            clientIdKey: client_id
+            clientSecretKey: client_secret
+      dataSources: |
+        databases:
+        - database_name: trino
+          sqlalchemy_uri: "trino://trino@trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}:443/lakehouse/nyc_tripdata?http_scheme=https&verify=false"
+          extra: |
+            {
+              "engine_params": {},
+              "metadata_params": {},
+              "connect_args": {
+                "http_scheme": "https",
+                "verify": false
+              },
+              "metadata_cache_timeout": {},
+              "schemas_allowed_for_file_upload": []
+            }
+          allow_run_async: true
+          allow_dml: true
+          allow_ctas: true
+          allow_cvas: true
+          expose_in_sqllab: true
+      endpoint:
+        url: https://superset-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
+    jupyter:
+      storage:
+        provider: s3
+        s3:
+          apiUrl: https://minio-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          credentialsSecret:
+            name: creds-jupyter-s3
+            accessKeyKey: accessKey
+            secretKeyKey: secretKey
+          tls:
+            enabled: true
+            insecureSkipVerify: true
+      auth:
+        enabled: true
+        method: oidc
+        oidc:
+          provider: keycloak
+          baseUrl: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect"
+          credentialsSecret:
+            name: creds-oidc
+            clientIdKey: client_id
+            clientSecretKey: client_secret
+      endpoint:
+        url: https://jupyter-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
+    examples:
+      storage:
+        provider: s3
+        s3:
+          apiUrl: https://minio-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          credentialsSecret:
+            name: creds-examples-s3
+            accessKeyKey: S3_ACCESS_KEY
+            secretKeyKey: S3_SECRET_KEY
+          tls:
+            enabled: true
+            insecureSkipVerify: true
+      trino:
+        url: https://trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
+    sparkHistory:
+      auth:
+        enabled: true
+        method: oidc
+        oidc:
+          provider: keycloak
+          issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+          scope: "openid+profile+email+offline_access+groups"
+          usePKCE: true
+          insecureSkipVerify: true
+          credentialsSecret:
+            name: creds-oidc
+            clientIdKey: client_id
+            clientSecretKey: client_secret
+      endpoint:
+        url: https://spark-history-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
+    #### OKDP External Dependencies #################################
+    ###### Pre-provision the environment for the Sandbox ############
+    #################################################################
+    # Create all the kubernetes secrets required by the services
+    # The provisioning is local, but you can provide them using external secrets or vault provider
+    # In order to have a predictable behaviour on re-deployment, we provision the secrets statically
+    localSecretsProvider:
+      info: |
+        Currently, the secrets are created inside the package `local-secrets-provider.yaml` itself.
+        We add an ability for KuboCD to reuse/inherit (substitution) the context variables later so that we can list them here.
 
     keycloak:
+      database:
+        name: keycloak
+        host: postgresql-instance-rw.cnpg-system.svc.cluster.local
+        port: 5432
+        credentialsSecret:
+          name: creds-keycloak-db
+          usernameKey: username
+          passwordKey: password
       realm:
         name: master
         displayName: "OKDP internal Realm"
@@ -137,3 +384,39 @@ spec:
                 lightweight.claim: "true"
                 multivalued: "true"
                 userinfo.token.claim: "true"
+
+    # Provision the following databases and expose the final endpoint
+    databaseServer:
+      provider: postgresql
+      postgresql:
+        databases:
+          - name: hms
+            owner:
+              username: "hms"
+              passwordSecret: creds-hms-db
+          - name: superset
+            owner:
+              username: "superset"
+              passwordSecret: creds-superset-db
+          - name: keycloak
+            owner:
+              username: "keycloak"
+              passwordSecret: creds-keycloak-db
+          - name: superset-examples
+            owner:
+              username: "examples"
+              passwordSecret: creds-superset-examples-db
+            schemas:
+              - main
+      endpoint:
+        host: postgresql-instance-rw.cnpg-system.svc.cluster.local
+        port: 5432
+
+    # Provision the following minio resources and expose the final endpoints
+    minio:
+      endpoint:
+        apiUrl: https://minio-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+        consoleUrl: https://minio-{{ .Release.namespace }}-console.{{ .Context.ingress.suffix }}
+      info: |
+        We add an ability for KuboCD to reuse/inherit (variable substitution) later.
+        All the required access keys for the services are provisioned in the package minio.yaml itself.
