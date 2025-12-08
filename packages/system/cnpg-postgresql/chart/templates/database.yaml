@@ -1,0 +1,15 @@
+{{- $root := . -}}
+  {{- range $db := $root.Values.databases }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: {{ include "cnpg-postgresql.fullname" $root }}-{{ $db.name }}
+  labels:
+    {{- include "cnpg-postgresql.labels" $root | nindent 4 }}
+spec:
+  name: {{ $db.name }}
+  owner: {{ $db.owner.username }}
+  cluster:
+    name: {{ include "cnpg-postgresql.fullname" $root }}
+---
+{{- end }}

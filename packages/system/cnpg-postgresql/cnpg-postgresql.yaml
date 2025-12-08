@@ -1,0 +1,36 @@
+apiVersion: v1alpha1
+name: cnpg-postgresql
+tag: 17.0-p01
+protected: false
+description: |
+  Defines multiple logical PostgreSQL databases managed by the CloudNativePG operator within a single PostgreSQL 
+  instance (cluster) and includes ownership, access credentials, and lifecycle management through Kubernetes-native CRDs.
+usage:
+  text: |
+    Databases instances used in the sandbox
+modules:
+  - name: main
+    timeout: 10m
+    source:
+      local:
+        path: ./chart
+    values: |
+      replicaCount: 1
+      fullnameOverride: {{ regexReplaceAll "-rw.*" .Context.databaseServer.endpoint.host "" }}
+      
+      image:
+        repository: ghcr.io/cloudnative-pg/postgresql
+        pullPolicy: IfNotPresent
+        tag: 17.0
+      
+      storage:
+        size: 2Gi
+        class: standard
+      
+      databases:
+      {{ toYaml .Context.databaseServer.postgresql.databases | indent 4 }}
+roles:
+  - database-server
+dependencies:
+  - pg-operator
+  - external-secrets
