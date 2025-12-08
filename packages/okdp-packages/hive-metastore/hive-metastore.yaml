@@ -1,0 +1,98 @@
+apiVersion: v1alpha1
+name: hive-metastore
+tag: 4.0.1-p01
+protected: false
+description: |
+  Hive Metastore is a centralized metadata repository for data lakes and big data analytics.
+  Stores and manages table schemas, partition information, and data locations for engines like Apache Hive, Spark, and Trino.
+  Enables consistent schema access across distributed storage systems such as HDFS and Amazon S3, 
+  providing the foundation for unified SQL-based querying over large-scale datasets.
+usage:
+  text: |
+    Hive Metastore is a centralized metadata repository for data lakes and big data analytics.
+#schema:
+#  parameters:
+#    properties:
+#      bucket: { type: string, required: true, default: "okdp", description: "S3 bucket used to store the Hive Metastore warehouse." }
+#      prefix: { type: string, required: true, default: "hive-warehouse/", description: "Warehouse directory under the bucket." }
+modules:
+  - name: main
+    timeout: 10m
+    source:
+      oci:
+        repository: quay.io/okdp/charts/hive-metastore
+        tag: 1.4.0
+    values: |
+      {{- $s3ApiUrl := .Context.hiveMetastore.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      {{- $endpoint := .Context.hiveMetastore.endpoint.url
+        | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace }}
+      {{- $noProto := $endpoint
+          | trimPrefix "thrift://"
+          | trimPrefix "thrift+ssl://" }}
+      {{- $parts := $noProto | splitList ":" }}
+      {{- $host := index $parts 0 }}
+      {{- $port := index $parts 1 }}
+      {{- $serviceName := ($host | splitList "." | first) }}
+
+      replicaCount: 1
+      image:
+        repository: quay.io/okdp/hive-metastore
+        tag: 4.0.1
+        pullPolicy: IfNotPresent
+      
+      logLevel: INFO
+      serviceName: {{ $serviceName }}
+      
+      db:
+        driverRef: org.postgresql.Driver
+        driverName: postgresql
+        host: {{ .Context.hiveMetastore.database.host }}
+        port: {{ .Context.hiveMetastore.database.port }}
+        databaseName: {{ .Context.hiveMetastore.database.name }}
+        user:
+          name: ~
+          password:
+            secretName: {{ .Context.hiveMetastore.database.credentialsSecret.name }}
+            propertyName: {{ .Context.hiveMetastore.database.credentialsSecret.passwordKey }}
+      
+      extraEnvRaw:
+      - name: HIVEMS_USER
+        valueFrom:
+          secretKeyRef:
+            name: {{ .Context.hiveMetastore.database.credentialsSecret.name }}
+            key: {{ .Context.hiveMetastore.database.credentialsSecret.usernameKey }}
+      - name: THRIFT_LISTENING_PORT
+        value: {{ $port | quote }}
+      
+      cloud_storage: "{{ .Context.hiveMetastore.storage.provider }}"
+      {{- if eq .Context.hiveMetastore.storage.provider "s3" }}
+      s3:
+        url: {{ $s3ApiUrl }}
+        # Misleading issue on hive-metastore chart, warehouseDirectory is a bucket (prefix not available)
+        warehouseDirectory: {{ .Context.hiveMetastore.storage.s3.bucket }}
+        accessKey:
+          secretName: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.name }}
+          propertyName: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.accessKeyKey }}
+        secretKey:
+          secretName: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.name }}
+          propertyName: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.secretKeyKey }}
+      gcs:
+        enabled: false
+      {{- end }}
+      
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1024Mi
+        requests:
+          cpu: 100m
+          memory: 512Mi
+
+roles:
+  - data-catalog
+dependencies:
+  - database-server
+  - storage
