@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: superset
-tag: 5.0.0-p01
+tag: 5.0.0-p02
 protected: false
 description: |
   Apache Superset - Enterprise business intelligence platform for modern data teams.
@@ -9,11 +9,17 @@ description: |
 usage:
   text: |
     Apache Superset provides modern data visualization and exploration capabilities.
-    Access the UI at https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+    Access the UI at {{ 
+     .Context.superset.endpoint.url 
+     | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace 
+     | replace "{{ .Release.metadata.name }}" .Release.metadata.name 
+     | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix 
+    }}
 schema:
   parameters:
     properties:
       adminGroups: { type: string, default: "admins", description: "Admin groups for superset access" }
+      load_examples: { type: boolean, default: true, description: "Whether to load superset examples" }
   context:
     properties:
       certificateIssuers:
@@ -32,12 +38,17 @@ modules:
     source:
       oci:
         repository: quay.io/okdp/charts/superset
-        tag: 0.15.0-1.0
+        tag: 0.15.0-1.1
     values: |
+      {{- $supersetUrl := .Context.superset.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $supersetUrl := $supersetUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $supersetUrl := $supersetUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $supersetHost := regexReplaceAll "^https?://" $supersetUrl "" -}}
+      
       okdp:
         # Superset configuration
         superset:
-          superset_secret_key: "22NJRoghIFHFK6vo7wWB+m/8TL//eKEo7phKEhGtsGiBLkLpx5WKA7k7"
+          superset_secret_key: ~
           extra_config: &extra_config |
             from datetime import timedelta
             # Set up max age of session to 8 hours
@@ -55,21 +66,17 @@ modules:
               "DASHBOARD_CROSS_FILTERS": True,
             }
           load_examples:
-            enabled: true
-            #SQLALCHEMY_EXAMPLES_URI: 'sqlite:////app/superset_home/examples.db'
-            SQLALCHEMY_EXAMPLES_URI: "postgresql+psycopg2://superset:superset@{{ .Release.metadata.name }}-main-postgresql:5432"
-            #SQLALCHEMY_EXAMPLES_URI: 'trino://trino@trino:8080/nessie/examples'
-      
+            enabled: {{ .Parameters.load_examples }}
+            jdbc_uri: {{ .Context.superset.load_examples.jdbc_uri }}
+
         # Oauth2 configuration
         oauth:
-          enabled: true
-          provider: keycloak
-          base_url: "https://keycloak.{{ .Context.ingress.suffix }}:443/realms/master/protocol/openid-connect"
-          client_id: "confidential-oidc-client"
-          client_secret: "secret1"
-          scope: "openid profile email groups"
-          use_pkce: true
-          ssl_certificate_verify: "False"
+          enabled: {{ .Context.superset.auth.enabled }}
+          provider: "{{ .Context.superset.auth.oidc.provider }}"
+          base_url: {{ .Context.superset.auth.oidc.baseUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
+          scope: "{{ .Context.superset.auth.oidc.scope }}"
+          use_pkce: {{ .Context.superset.auth.oidc.usePKCE }}
+          ssl_certificate_verify: "{{ ternary "False" "True" .Context.superset.auth.oidc.insecureSkipVerify }}"
           auth_registration: &auth_registration |
             AUTH_USER_REGISTRATION = True
             AUTH_ROLE_PUBLIC = "Public"
@@ -78,32 +85,17 @@ modules:
           oauth2_superset_roles_mapping: &oauth2_superset_roles_mapping |
             AUTH_ROLES_MAPPING = {
               "{{ .Parameters.adminGroups }}": ["Admin"]
-
-            }
-      
+            }      
       superset:
-        supersetNode:
-          # Connections to an existing database and cache
-          connections:
-            # -- Change in case of bringing your own redis and then also set redis.enabled:false
-            redis_host: "{{ .Release.metadata.name }}-main-redis-headless"
-            redis_port: "6379"
-            redis_user: ""
-            # redis_password: superset
-            redis_cache_db: "1"
-            redis_celery_db: "0"
-            # Or SSL port is usually 6380
-            # Update following for using Redis with SSL
-            redis_ssl:
-              enabled: false
-              ssl_cert_reqs: CERT_NONE
-            # You need to change below configuration incase bringing own PostgresSQL instance and also set postgresql.enabled:false
-            db_host: "{{ .Release.metadata.name }}-main-postgresql"
-            db_port: "5432"
-            db_user: superset
-            db_pass: superset
-            db_name: superset
-      
+        extraConfigs:
+          import_datasources.yaml: |
+      {{ .Context.superset.dataSources
+         | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace
+         | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix
+         | indent 6 }}
+        postgresql:
+          # Use an external database
+          enabled: false
         # If no existing redis cache provided, enable to use the bitnami redis cache
         # The credentials should match 'superset.supersetNode.connections'
         redis:
@@ -112,15 +104,85 @@ modules:
           auth:
             ## Enable password authentication
             enabled: false
-            ## Credentials: ## superset.supersetNode.connections.redis_*
-      
-        postgresql:
-          enabled: true
-          auth:
-            username: superset
-            password: superset
-            database: superset
-      
+        extraEnvRaw:
+          # Superset secret key
+          - name: SUPERSET_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.superset.secret.name }}
+                key: {{ .Context.superset.secret.key }}
+          # Superset/DB credentials
+          - name: DB_USER
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.superset.database.credentialsSecret.name }}
+                key: {{ .Context.superset.database.credentialsSecret.usernameKey }}
+          - name: DB_PASS
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.superset.database.credentialsSecret.name }}
+                key: {{ .Context.superset.database.credentialsSecret.passwordKey }}
+          # Superset/Redis credentials
+          - name: REDIS_USER
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.superset.redis.credentialsSecret.name }}
+                key: {{ .Context.superset.redis.credentialsSecret.usernameKey }}
+          - name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.superset.redis.credentialsSecret.name }}
+                key: {{ .Context.superset.redis.credentialsSecret.passwordKey }}
+          # OIDC credentials
+          - name: AUTH_OAUTH_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.superset.auth.oidc.credentialsSecret.name }}
+                key: {{ .Context.superset.auth.oidc.credentialsSecret.clientIdKey }}
+          - name: AUTH_OAUTH_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.superset.auth.oidc.credentialsSecret.name }}
+                key: {{ .Context.superset.auth.oidc.credentialsSecret.clientSecretKey }}
+          # Examples
+          {{- if .Parameters.load_examples }}
+          - name: DB_EXAMPLES_HOST
+            value: {{ .Context.superset.load_examples.database.host }}
+          - name: DB_EXAMPLES_PORT
+            value: "{{ .Context.superset.load_examples.database.port }}"
+          - name: DB_EXAMPLES_NAME
+            value: {{ .Context.superset.load_examples.database.name }}
+          - name: DB_EXAMPLES_USER
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.superset.load_examples.database.credentialsSecret.name }}
+                key: {{ .Context.superset.load_examples.database.credentialsSecret.usernameKey }}         
+          - name: DB_EXAMPLES_PASS
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.superset.load_examples.database.credentialsSecret.name }}
+                key: {{ .Context.superset.load_examples.database.credentialsSecret.passwordKey }}            
+          {{- end }}
+        supersetNode:
+          # Connections to an existing database and cache
+          connections:
+            # -- PostgreSQL
+            db_host: "{{ .Context.superset.database.host }}"
+            db_port: "{{ .Context.superset.database.port }}"
+            db_name: {{ .Context.superset.database.name }}
+            db_user: ~
+            db_pass: ~
+            # -- Redis
+            redis_host: {{ default (printf "%s-main-redis-headless" .Release.metadata.name) .Context.superset.redis.host | quote }}
+            redis_port: {{ .Context.superset.redis.port }}
+            redis_user: ~
+            redis_password: ~
+            redis_cache_db: "1"
+            redis_celery_db: "0"
+            redis_ssl:
+              enabled: false
+              ssl_cert_reqs: CERT_NONE
+            
         ingress:
           enabled: true
           ingressClassName: "nginx"
@@ -137,10 +199,10 @@ modules:
           path: /
           pathType: ImplementationSpecific
           hosts:
-            - {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+            - {{ $supersetHost }}
           tls:
             - hosts:
-                - {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+                - {{ $supersetHost }}
               secretName: "{{ .Release.metadata.name }}-tls-secret"
       
         configOverrides:
@@ -152,4 +214,5 @@ modules:
 roles:
   - dataviz
 dependencies:
+  - database-server
   - ingress 
