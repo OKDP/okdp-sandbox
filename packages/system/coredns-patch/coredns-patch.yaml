@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: coredns-patch
-tag: 1.0.0-p03
+tag: 1.0.0-p04
 protected: false
 description: |
   CoreDNS configuration patch to resolve local domain names to ingress controller
@@ -24,7 +24,7 @@ modules:
     timeout: 10m
     source:
       local:
-        path: ../charts/coredns-patch/0.1.0
+        path: ./chart/0.1.0
     values: |
       ingressSuffix: "{{ .Context.ingress.suffix }}"
       ingressService: "{{ .Parameters.ingressService }}"
@@ -35,5 +35,4 @@ modules:
           kubernetes.io/os: linux
 roles:
   - coredns
-dependencies: |
-  [] 
+dependencies: []

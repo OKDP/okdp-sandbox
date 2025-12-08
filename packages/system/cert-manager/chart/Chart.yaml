@@ -1,0 +1,20 @@
+apiVersion: v2
+name: cert-issuers
+description: A Helm chart for managing cert-manager ClusterIssuers and Certificate bundles
+type: application
+version: 0.2.0
+appVersion: "1.0.0"
+home: https://github.com/cert-manager/cert-manager
+sources:
+  - https://github.com/cert-manager/cert-manager
+keywords:
+  - cert-manager
+  - certificates
+  - tls
+  - ssl
+  - issuers
+maintainers:
+  - name: OKDP Team
+    email: team@okdp.io
+annotations:
+  category: Security 
