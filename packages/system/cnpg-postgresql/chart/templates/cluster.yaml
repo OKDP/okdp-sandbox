@@ -1,0 +1,21 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "cnpg-postgresql.fullname" . }}
+  labels:
+    {{- include "cnpg-postgresql.labels" . | nindent 4 }}
+spec:
+  instances: {{ .Values.replicaCount }}
+  imageName: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+  storage:
+    size: {{ .Values.storage.size }}
+    storageClass: {{ .Values.storage.class | quote }}
+  managed:
+    roles:
+      {{- range $db := .Values.databases }}
+      - name: {{ $db.owner.username }}
+        ensure: present
+        login: true
+        passwordSecret:
+          name: {{ default (printf "%s-owner-secret" $db.owner.username) $db.owner.passwordSecret }}
+      {{- end }}
