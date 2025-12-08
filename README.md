@@ -221,6 +221,37 @@ kubectl apply -f clusters/sandbox/default-context.yaml
 >   --type=merge
 > ```
 
+Configure proxy settings for OKDP Services (Optional)
+
+If your environment requires a proxy to reach external datasets (Superset examples, okdp examples, quay.io KuboCD packages), the following command sets the proxy configuration variables to the required OKDP services:
+
+```sh
+kubectl -n kubocd-system patch context default --type merge -p "$(cat <<EOF
+spec:
+  context:
+    proxy:
+      httpProxy: "${HTTP_PROXY:-${http_proxy}}"
+      httpsProxy: "${HTTPS_PROXY:-${https_proxy}}"
+      noProxy: "${NO_PROXY:-${no_proxy}}"
+EOF
+)"
+```
+
+<details>
+<summary><strong><small>PowerShell</small></strong></summary>
+<br>
+
+```powershell
+kubectl -n kubocd-system patch context default --type merge -p @"
+spec:
+  context:
+    proxy:
+      httpProxy: "$($env:HTTP_PROXY ?? $env:http_proxy)"
+      httpsProxy: "$($env:HTTPS_PROXY ?? $env:https_proxy)"
+      noProxy: "$($env:NO_PROXY ?? $env:no_proxy)"
+"@
+```
+</details>
 
 Deploy OKDP components:
 
@@ -278,6 +309,7 @@ kubectl get secret default-issuer -n cert-manager -o jsonpath='{.data.ca\.crt}' 
 
 1. **Access OKDP UI**: https://okdp-ui.okdp.sandbox or https://okdp-ui.<CUSTOM_DOMAIN>
 2. **Login credentials**: Default authentication via Keycloak (login/password: adm/adm)
+3. **Run the examples**: https://github.com/OKDP/okdp-examples
 
 ## Cleanup
 
