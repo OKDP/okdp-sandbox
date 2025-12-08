@@ -15,8 +15,21 @@ modules:
     source:
       oci:
         repository: quay.io/okdp/charts/okdp-server
-        tag: 0.4.0
+        tag: 0.5.0
     values: |
+      extraEnvRaw:
+        {{- if .Context.proxy.httpProxy }}
+        - name: HTTP_PROXY
+          value: {{ .Context.proxy.httpProxy | quote }}
+        {{- end }}
+        {{- if .Context.proxy.httpsProxy }}
+        - name: HTTPS_PROXY
+          value: {{ .Context.proxy.httpsProxy | quote }}
+        {{- end }}
+        {{- if .Context.proxy.noProxy }}
+        - name: NO_PROXY
+          value: {{ .Context.proxy.noProxy | quote }}
+        {{- end }}
       configuration:
         clusters:
           {{- range .Context.okdp.clusters }}

@@ -5,6 +5,10 @@ metadata:
   namespace: kubocd-system
 spec:
   context:
+    proxy:
+      httpProxy: ~
+      httpsProxy: ~
+      noProxy: ~
     ingress:
       suffix: okdp.sandbox
       className: nginx

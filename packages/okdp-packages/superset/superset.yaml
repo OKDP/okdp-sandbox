@@ -144,6 +144,18 @@ modules:
               secretKeyRef:
                 name: {{ .Context.superset.auth.oidc.credentialsSecret.name }}
                 key: {{ .Context.superset.auth.oidc.credentialsSecret.clientSecretKey }}
+          {{- if .Context.proxy.httpProxy }}
+          - name: HTTP_PROXY
+            value: {{ .Context.proxy.httpProxy | quote }}
+          {{- end }}
+          {{- if .Context.proxy.httpsProxy }}
+          - name: HTTPS_PROXY
+            value: {{ .Context.proxy.httpsProxy | quote }}
+          {{- end }}
+          {{- if .Context.proxy.noProxy }}
+          - name: NO_PROXY
+            value: {{ .Context.proxy.noProxy | quote }}
+          {{- end }}
           # Examples
           {{- if .Parameters.load_examples }}
           - name: DB_EXAMPLES_HOST

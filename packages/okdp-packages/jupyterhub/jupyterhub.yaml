@@ -175,6 +175,16 @@ modules:
               secretKeyRef:
                 name: "{{ .Context.jupyter.storage.s3.credentialsSecret.name }}"
                 key: "{{ .Context.jupyter.storage.s3.credentialsSecret.secretKeyKey }}"
+          
+          {{- if .Context.proxy.httpProxy }}
+          HTTP_PROXY: {{ .Context.proxy.httpProxy | quote }}
+          {{- end }}
+          {{- if .Context.proxy.httpsProxy }}
+          HTTPS_PROXY: {{ .Context.proxy.httpsProxy | quote }}
+          {{- end }}
+          {{- if .Context.proxy.noProxy }}
+          NO_PROXY: {{ .Context.proxy.noProxy | quote }}
+          {{- end }}
       
         {{- if .Parameters.cloneExamples }}
         lifecycleHooks:
