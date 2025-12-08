@@ -55,5 +55,4 @@ modules:
 
 roles:
   - dns-server
-dependencies: |
-  [] 
+dependencies: []

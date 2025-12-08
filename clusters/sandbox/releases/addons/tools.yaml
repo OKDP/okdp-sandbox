@@ -6,7 +6,7 @@ metadata:
 spec:
   description: "Miscellaneous Kubernetes tools for cluster management"
   package:
-    repository: quay.io/okdp/sandbox-packages/tools
+    repository: quay.io/okdp/sandbox-packages-v0.1/tools
     tag: 1.0.0-p01
     interval: 30m
     timeout: 10m

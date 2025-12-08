@@ -1,8 +1,0 @@
-ingressSuffix: "okdp.sandbox"
-ingressService: "ingress-nginx-controller.ingress-nginx.svc.cluster.local"
-
-job:
-  image: bitnami/kubectl:latest
-  restartPolicy: OnFailure
-  nodeSelector:
-    kubernetes.io/os: linux 

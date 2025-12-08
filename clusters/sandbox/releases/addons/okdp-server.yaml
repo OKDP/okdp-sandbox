@@ -8,7 +8,7 @@ spec:
   description: OKDP Server - API backend for the Open Kubernetes Data Platform
   package:
     interval: 30m
-    repository: quay.io/okdp/sandbox-packages/okdp-server
+    repository: quay.io/okdp/sandbox-packages-v0.1/okdp-server
     tag: 0.4.0
     timeout: 10m
   targetNamespace: okdp-server 
