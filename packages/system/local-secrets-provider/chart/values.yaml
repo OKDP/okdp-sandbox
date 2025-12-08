@@ -1,0 +1,22 @@
+nameOverride: ""
+fullnameOverride: ""
+
+# -----------------------------------------------------------------------------
+# secrets:
+#   This section defines Kubernetes Secret objects that will be generated
+#   dynamically by the Helm chart.
+
+secrets: []
+#  - name: hms-s3                # Name of the Kubernetes Secret to create
+#    accessKey: ""               # Generates a random access key
+#    secretKey: ""               # Generates a random secret key
+#
+#  - name: hms-db                # Another Secret, e.g., database credentials
+#    username: hms                   # Static field — value used as-is
+#    password: ""                # Generates a random password
+#
+#  - name: other                 # Another Secret, e.g., database credentials
+#    user: other                 # Static field — value used as-is
+#    password: ""                # Generates a random password
+#    accessKey: ""               # Generates a random access key
+#    secretKey: ""               # Generates a random secret key

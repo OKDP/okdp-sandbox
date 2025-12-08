@@ -1,0 +1,8 @@
+apiVersion: v2
+name: local-secrets-provider
+description: |
+  A centralized Helm chart for managing and distributing local testing shared configurations, 
+  secrets, services, and environment variables across multiple platform components.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
