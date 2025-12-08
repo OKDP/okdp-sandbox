@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: keycloak
-tag: 24.4.11-p05
+tag: 24.4.11-p06
 protected: false
 description: |
   Keycloak identity and access management for Kubernetes
@@ -20,18 +20,7 @@ schema:
         type: string
         default: "admin"
         description: "Keycloak admin password"
-      postgresPassword:
-        type: string
-        default: "2peivenu98"
-        description: "PostgreSQL password"
-      postgresUser:
-        type: string
-        default: "bn_keycloak"
-        description: "PostgreSQL username"
-      postgresDbPassword:
-        type: string
-        default: "fqTFx6lvxC"
-        description: "PostgreSQL database password"
+
 modules:
   - name: main
     timeout: 10m
@@ -62,15 +51,26 @@ modules:
         adminPassword: "{{ .Parameters.adminPassword }}"
 
       postgresql:
-        enabled: true
-        image:
-          registry: quay.io
-          repository: okdp/sandbox-images/postgresql
-          tag: 17.4.0-debian-12-r2
-        auth:
-          postgresPassword: "{{ .Parameters.postgresPassword }}"
-          username: "{{ .Parameters.postgresUser }}"
-          password: "{{ .Parameters.postgresDbPassword }}"
+        enabled: false
+      externalDatabase:
+        host: {{ .Context.keycloak.database.host }}
+        port: {{ .Context.keycloak.database.port }}
+        database: {{ .Context.keycloak.database.name }}
+      extraEnvVars:
+      - name: KC_DB
+        value: 'postgres'
+      - name: KC_DB_URL
+        value: 'jdbc:postgresql://{{ .Context.keycloak.database.host }}:{{ .Context.keycloak.database.port }}/{{ .Context.keycloak.database.name }}'
+      - name: KC_DB_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: {{ .Context.keycloak.database.credentialsSecret.name }}
+            key: {{ .Context.keycloak.database.credentialsSecret.usernameKey }}
+      - name: KC_DB_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: {{ .Context.keycloak.database.credentialsSecret.name }}
+            key: {{ .Context.keycloak.database.credentialsSecret.passwordKey }}
 
       keycloakConfigCli:
         image:
@@ -194,6 +194,8 @@ modules:
               "accessTokenLifespan": {{ .Context.keycloak.realm.accessTokenLifespan }}
             }
 roles:
-  - keycloak
-dependencies: |
+  - identity
+dependencies:
+  - external-secrets
+  - database-server
   - ingress
