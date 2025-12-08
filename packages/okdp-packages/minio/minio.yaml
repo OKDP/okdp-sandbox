@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: minio
-tag: 5.4.0-p18
+tag: RELEASE.2024-12-18T13-15-44Z-p01
 protected: false
 description: |
   MinIO - Enterprise-grade object storage for modern data infrastructure.
@@ -9,14 +9,14 @@ description: |
 usage:
   text: |
     MinIO provides S3-compatible object storage for your applications.
-    Access the console at https://{{ .Release.metadata.name }}-console.{{ .Context.ingress.suffix }}
-    API endpoint: https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+    Access the console at {{ .Context.minio.endpoint.consoleUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
+    API endpoint: {{ .Context.minio.endpoint.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
 schema:
   parameters:
     properties:
-      rootUser: { type: string, required: true }
-      rootPassword: { type: string, required: true }
-      driveSize: { type: string, required: true, pattern: "^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$" }
+      rootUser: { type: string, required: true, default: "minioadmin" }
+      rootPassword: { type: string, required: true, default: "minioadmin" }
+      driveSize: { type: string, required: true, pattern: "^([+-]?[0-9.]+)([eEinumkKMGTP]*[-+]?[0-9]*)$", default: "5Gi" }
       drivesPerNode: { type: integer, enum: [ 1, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56 ], default: 1 }
       replicas: { type: integer, enum: [ 1, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56 ], default: 1 }
   context:
@@ -44,6 +44,16 @@ modules:
         chart: minio
         version: 5.4.0
     values: |
+      {{- $minioApiUrl := .Context.minio.endpoint.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $minioApiUrl := $minioApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $minioApiUrl := $minioApiUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $minioConsoleUrl := .Context.minio.endpoint.consoleUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $minioConsoleUrl := $minioConsoleUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $minioConsoleUrl := $minioConsoleUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      {{- $minioApiHost := regexReplaceAll "^https?://" $minioApiUrl "" -}}
+      {{- $minioConsoleHost := regexReplaceAll "^https?://" $minioConsoleUrl "" -}}
+      
       nameOverride: "{{ .Release.metadata.name }}"
       fullnameOverride: "{{ .Release.metadata.name }}"
 
@@ -57,7 +67,31 @@ modules:
       # Authentication
       rootUser: {{ .Parameters.rootUser }}
       rootPassword: {{ .Parameters.rootPassword }}
-
+      # Buckets
+      buckets:
+       - name: {{ .Context.hiveMetastore.storage.s3.bucket }}
+         policy: none
+         purge: false
+         versioning: false
+      # Users
+      svcaccts:
+        - accessKey: hive-metastore
+          existingSecret: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.name }}
+          existingSecretKey: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.secretKeyKey }}
+          user: {{ .Parameters.rootUser }}
+        - accessKey: trino
+          existingSecret: {{ .Context.trino.storage.s3.credentialsSecret.name }}
+          existingSecretKey: {{ .Context.trino.storage.s3.credentialsSecret.secretKeyKey }}
+          user: {{ .Parameters.rootUser }}
+        - accessKey: jupyter
+          existingSecret: {{ .Context.jupyter.storage.s3.credentialsSecret.name }}
+          existingSecretKey: {{ .Context.jupyter.storage.s3.credentialsSecret.secretKeyKey }}
+          user: {{ .Parameters.rootUser }}
+        - accessKey: okdp-examples
+          existingSecret: {{ .Context.examples.storage.s3.credentialsSecret.name }}
+          existingSecretKey: {{ .Context.examples.storage.s3.credentialsSecret.secretKeyKey }}
+          user: {{ .Parameters.rootUser }}
+      
       # OIDC Configuration
       environment:
         MINIO_IDENTITY_OPENID_CONFIG_URL: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/.well-known/openid-configuration"
@@ -120,11 +154,11 @@ modules:
           cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
         path: /
         hosts:
-          - {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+          - {{ $minioApiHost }}
         tls:
           - secretName: {{ .Release.metadata.name }}-tls
             hosts:
-              - {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+              - {{ $minioApiHost }}
 
       # Console ingress
       consoleIngress:
@@ -137,11 +171,11 @@ modules:
           cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
         path: /
         hosts:
-          - {{ .Release.metadata.name }}-console.{{ .Context.ingress.suffix }}
+          - {{ $minioConsoleHost }}
         tls:
           - secretName: {{ .Release.metadata.name }}-console-tls
             hosts:
-              - {{ .Release.metadata.name }}-console.{{ .Context.ingress.suffix }}
+              - {{ $minioConsoleHost }}
 
       # Resources
       resources:
@@ -160,6 +194,6 @@ modules:
         fsGroup: 1000
 
 roles:
-  - minio
-dependencies: |
-  [] 
+  - storage
+dependencies:
+  - ingress
