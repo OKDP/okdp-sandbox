@@ -157,6 +157,6 @@ modules:
                 pathType: Prefix
 roles:
   - okdp-server
-dependencies: |
+dependencies:
+  - identity
   - ingress
-  - keycloak
