@@ -1,0 +1,81 @@
+apiVersion: v1alpha1
+name: okdp-examples
+tag: 1.0.0-p01
+protected: false
+description: |
+  A collection of hands-on examples, helper utilities, Jupyter notebooks, 
+  and data workflows that showcases how to work with the OKDP Platform.
+usage:
+  text: |
+    A collection of hands-on examples, helper utilities, Jupyter notebooks,
+    and data workflows that showcases how to work with the OKDP Platform.
+schema:
+  parameters:
+    properties:
+      bucket: { type: string, required: true, default: "okdp", description: "S3 bucket where the dataset will be stored" }
+      prefix: { type: string, required: true, default: "examples/data/raw/tripdata", description: "S3 key prefix (folder path) under the bucket where the dataset will be uploaded" }
+      dataDownloadUrl: { type: string, required: true, default: "https://d37ci6vzurychx.cloudfront.net/trip-data", description: "Base URL used to download the dataset files before uploading to S3" }
+modules:
+  - name: main
+    timeout: 10m
+    source:
+      oci:
+        repository: quay.io/okdp/charts/okdp-examples
+        tag: 1.0.0
+    values: |
+      {{- $s3ApiUrl := .Context.examples.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      {{- $trinoEndpoint := .Context.trino.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $trinoEndpoint := $trinoEndpoint | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $trinoEndpoint := $trinoEndpoint | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      replicaCount: 1
+      image:
+        repository: quay.io/okdp/okdp-examples
+        tag: 1.0.0
+        pullPolicy: Always
+      
+      extraEnvRaw:
+        {{- if .Context.examples.storage.s3.tls.insecureSkipVerify }}
+        - name: MC_INSECURE
+          value: "1"
+        {{- end }}
+        - name: S3_ENDPOINT
+          value: {{ $s3ApiUrl }}
+        - name: S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.examples.storage.s3.credentialsSecret.name }}
+              key: {{ .Context.examples.storage.s3.credentialsSecret.accessKeyKey }}
+        - name: S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.examples.storage.s3.credentialsSecret.name }}
+              key: {{ .Context.examples.storage.s3.credentialsSecret.secretKeyKey }}
+        - name: BUCKET
+          value: {{ .Parameters.bucket }}
+        - name: BUCKET_PREFIX
+          value: "{{ .Parameters.prefix }}"
+        - name: DATA_URL
+          value: {{ .Parameters.dataDownloadUrl }}
+        - name: TRINO_SERVER_URL
+          value: {{ $trinoEndpoint }}
+        - name: TRINO_TERMINAL
+          value: dumb
+      
+      resources:
+        requests:
+          cpu: 100m
+          memory: 250Mi
+        limits:
+          cpu: 200m
+          memory: 512Mi
+
+roles:
+  - examples
+dependencies:
+  - storage
+  - data-catalog
+  - interactive-query
