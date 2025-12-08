@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: spark-history-server
-tag: 3.5.1-p01
+tag: 3.5.1-p02
 protected: false
 description: |
   Spark History Server - Monitoring and debugging interface for Apache Spark applications.
@@ -38,6 +38,15 @@ modules:
         repository: quay.io/okdp/charts/spark-history-server
         tag: 1.0.0
     values: |
+      {{- $historyEndpoint := .Context.sparkHistory.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $historyEndpoint := $historyEndpoint | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $historyEndpointUrl := $historyEndpoint | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $historyEndpointHost := regexReplaceAll "^https?://" $historyEndpointUrl "" -}}
+      
+      {{- $keycloakIssuerUri := .Context.sparkHistory.auth.oidc.issuerUri | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
       ingress:
         enabled: true
         ingressClassName: "nginx"
@@ -45,13 +54,13 @@ modules:
           nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
           cert-manager.io/cluster-issuer: {{ .Context.certificateIssuers.selfSigned.name }}
         hosts:
-          - host: {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+          - host: {{ $historyEndpointHost }}
             paths:
               - path: /
                 pathType: Prefix
         tls:
           - hosts:
-              - {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+              - {{ $historyEndpointHost }}
             secretName: {{ .Release.metadata.name }}-tls
       
       config:
@@ -63,12 +72,13 @@ modules:
         spark.ui.filters: io.okdp.spark.authc.OidcAuthFilter
         spark.user.groups.mapping: io.okdp.spark.authz.OidcGroupMappingServiceProvider
         spark.history.ui.acls.enable: true
-        spark.io.okdp.spark.authc.OidcAuthFilter.param.issuer-uri: https://keycloak.{{ .Context.ingress.suffix }}/realms/master
-        spark.io.okdp.spark.authc.OidcAuthFilter.param.redirect-uri: https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}/home
-        spark.io.okdp.spark.authc.OidcAuthFilter.param.scope: openid+profile+email+offline_access+groups
+        spark.io.okdp.spark.authc.OidcAuthFilter.param.issuer-uri: {{ $keycloakIssuerUri }}
+        spark.io.okdp.spark.authc.OidcAuthFilter.param.redirect-uri: {{ $historyEndpointUrl }}/home
+        spark.io.okdp.spark.authc.OidcAuthFilter.param.scope: {{ .Context.sparkHistory.auth.oidc.scope }}
         spark.io.okdp.spark.authc.OidcAuthFilter.param.cookie-max-age-minutes: 480
         spark.io.okdp.spark.authc.OidcAuthFilter.param.cookie-cipher-secret-key: FC5E81345CED0E256DC42E410362FF6E
         spark.io.okdp.spark.authc.OidcAuthFilter.param.cookie-is-secure: true
+        spark.io.okdp.spark.authc.OidcAuthFilter.param.use-pkce: {{ .Context.sparkHistory.auth.oidc.usePKCE }}
         spark.io.okdp.spark.authc.OidcAuthFilter.param.user-id: email # Or sub
         # Members of this group will have access to all jobs.
         spark.history.ui.admin.acls.groups: {{ .Parameters.adminGroups }}
@@ -84,9 +94,15 @@ modules:
         - name: JAVA_TOOL_OPTIONS
           value: "-Djavax.net.ssl.trustStore=/cacerts/bundle.p12 -Djavax.net.ssl.trustStorePassword="
         - name: AUTH_CLIENT_ID
-          value: "confidential-oidc-client"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.sparkHistory.auth.oidc.credentialsSecret.name }}
+              key: {{ .Context.sparkHistory.auth.oidc.credentialsSecret.clientIdKey }}
         - name: AUTH_CLIENT_SECRET
-          value: "secret1"
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.sparkHistory.auth.oidc.credentialsSecret.name }}
+              key: {{ .Context.sparkHistory.auth.oidc.credentialsSecret.clientSecretKey }}      
       
       extraVolumes:
         - name: cacerts
@@ -100,5 +116,5 @@ modules:
 roles:
   - spark
 dependencies:
-#  - keycloak
+  - identity
   - ingress 
