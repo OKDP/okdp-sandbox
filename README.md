@@ -285,8 +285,9 @@ For HTTPS access without warnings, two options:
 
 **Option 1**: Install the CA certificate
 
+Import okdp-sandbox-ca.crt into your system's or browser's certificate store
+
 ```sh
-# Import okdp-sandbox-ca.crt into your system's or browser's certificate store
 kubectl get secret default-issuer -n cert-manager -o jsonpath='{.data.ca\.crt}' | base64 -d > okdp-sandbox-ca.crt
 ```
 
