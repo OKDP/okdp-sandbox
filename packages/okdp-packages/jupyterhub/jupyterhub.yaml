@@ -292,17 +292,6 @@ modules:
               s3fs.core.S3FileSystem.__init__ = _patched_init
               {{- end }}
       
-              # Handle MissingContentMD5 (this prevents from pining versions)
-              import base64, hashlib, json, s3fs
-              _s3_delete = s3fs.core.S3FileSystem._call_s3
-              def _patched_delete_s3(self, method, *args, **kwargs):
-                if method == "delete_objects" and "Body" in kwargs:
-                  body = kwargs["Body"]
-                  md5 = base64.b64encode(hashlib.md5(body.encode("utf-8")).digest()).decode("utf-8")
-                  kwargs["ContentMD5"] = md5
-                return _s3_delete(self, method, *args, **kwargs)
-              s3fs.core.S3FileSystem._call_s3 = _patched_delete_s3
-      
               c.ServerApp.contents_manager_class = "jupyterfs.MetaManager"
               c.ServerApp.jpserver_extensions = {"jupyterfs.extension": True}
               buckets = ["{{ .Parameters.bucket }}"]
