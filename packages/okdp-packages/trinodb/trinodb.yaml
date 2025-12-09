@@ -14,6 +14,8 @@ schema:
   parameters:
     properties:
       numWorkers: { type: integer, default: 3, description: "Number of workers" }
+      workerMemoryGi: { type: number, default: 1, multipleOf: 0.25, description: "Worker memory (GiB) used for Kubernetes requests/limits (recommended: request=limit)." }
+      workerCpu: { type: number, default: 0.5, multipleOf: 0.25, description: "Worker CPU request in millicores (e.g., 500=0.5 vCPU, 1000=1 vCPU)." }
   context:
     properties:
       certificateIssuers:
@@ -121,11 +123,11 @@ modules:
       worker:
         resources:
           requests:
-            cpu: "500m"
-            memory: "1Gi"
+            cpu: "{{ .Parameters.workerCpu }}"
+            memory: "{{ .Parameters.workerMemoryGi }}Gi"
           limits:
-            cpu: "2"
-            memory: "2Gi"
+            cpu: "{{ mulf (float64 .Parameters.workerCpu) 2 }}"
+            memory: "{{ mulf (float64 .Parameters.workerMemoryGi) 2 }}Gi"
         additionalVolumes:
           - name: generated-files
             emptyDir: {}
