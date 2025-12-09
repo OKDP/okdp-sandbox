@@ -71,7 +71,27 @@ modules:
           secretKeyRef:
             name: {{ .Context.keycloak.database.credentialsSecret.name }}
             key: {{ .Context.keycloak.database.credentialsSecret.passwordKey }}
-
+      - name: KC_METRICS_ENABLED
+        value: "false"
+      - name: KC_TRACING_ENABLED
+        value: "false"
+      - name: KC_CACHE
+        value: "local"
+      
+      production: false
+      cache:
+        enabled: false
+      
+      # https://github.com/bitnami/charts/blob/keycloak/24.4.11/bitnami/common/templates/_resources.tpl
+      #resourcesPreset: "medium"
+      #resources:
+      #  requests:
+      #    cpu: 500m
+      #    memory: 512Mi
+      #  limits:
+      #    cpu: 750m
+      #    memory: 1536Mi
+      
       keycloakConfigCli:
         image:
           registry: quay.io
