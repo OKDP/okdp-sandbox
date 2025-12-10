@@ -57,14 +57,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  get-package-oci-prefix:
+    runs-on: ubuntu-latest
+    outputs:
+      oci_package_prefix: ${{ steps.prefix.outputs.oci_package_prefix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Get OCI package prefix
+        id: prefix
+        uses: ./.github/actions/oci-package-prefix
+        with:
+          context_path: clusters/sandbox/default-context.yaml
 
   kubocd-packages-ci:
+    needs: [get-package-oci-prefix]
     uses: ./.github/workflows/kubocd-package-template.yml
     with:
       ci_registry: "ghcr.io"
       registry: "quay.io"
       publish_to_registry: "false"
-      oci_package_prefix: "sandbox-packages"
+      oci_package_prefix: "${{ needs.get-package-oci-prefix.outputs.oci_package_prefix }}"
       runs-on: "ubuntu-latest"
 
 
