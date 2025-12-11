@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: minio
-tag: RELEASE.2024-12-18T13-15-44Z-p01
+tag: RELEASE.2025-01-20T14-49-07Z-p01
 protected: false
 description: |
   MinIO - Enterprise-grade object storage for modern data infrastructure.
@@ -59,7 +59,7 @@ modules:
 
       image:
         repository: quay.io/minio/minio
-        tag: RELEASE.2024-12-18T13-15-44Z
+        tag: RELEASE.2025-01-20T14-49-07Z
         pullPolicy: IfNotPresent
 
       mode: {{ if ne .Parameters.replicas 1.0 }}distributed{{else}}standalone{{end}}
