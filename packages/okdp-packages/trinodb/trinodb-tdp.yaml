@@ -15,13 +15,13 @@ schema:
   parameters:
     properties:
       numWorkers: { type: integer, default: 3, description: "Number of workers" }
-      tdp_ca_cert: { type: string, default: "tdp-ca-cert", description: "CA cert secret name" }
+      tdp_ca_cert_secret_name: { type: string, default: "tdp-ca-cert", description: "CA cert secret name" }
       tdp_ca_cert_filename: { type: string, default: "tdp_ca.crt", description: "CA cert filename" }
-      trino_keytab: { type: string, default: "trino-keytab", description: "Trino keytab secret name" }
+      trino_keytab_secret_name: { type: string, default: "trino-keytab", description: "Trino keytab secret name" }
       trino_keytab_filename: { type: string, default: "trino.keytab", description: "Trino keytab filename" }
-      hadoop_client_config: { type: string, default: "hadoop-client-config", description: "Hadoop client configmap name" }
+      hadoop_client_configmap_name: { type: string, default: "hadoop-client-config", description: "Hadoop client configmap name" }
       hive_metastore_uri: { type: string, default: "thrift://master-02.tdp:9083,thrift://master-03.tdp:9083", description: "Hive metastore URI" }
-      hive_hdfs_trino_principal: { type: string, default: "trino@REALM.TDP", description: "Hive HDFS Trino principal" }
+      trino_principal: { type: string, default: "trino@REALM.TDP", description: "Hive HDFS Trino principal" }
       hive_metastore_service_principal: { type: string, default: "hive/_HOST@REALM.TDP", description: "Hive metastore service principal" }
   context:
     properties:
@@ -61,21 +61,21 @@ modules:
           - name: trino-tls
             secret:
               secretName: {{ .Release.metadata.name }}-tls
-          - name:  {{ .Parameters.tdp_ca_cert }}
+          - name:  {{ .Parameters.tdp_ca_cert_secret_name }}
             secret:
-              secretName: {{ .Parameters.tdp_ca_cert }}
+              secretName: {{ .Parameters.tdp_ca_cert_secret_name }}
               items:
                 - key: {{ .Parameters.tdp_ca_cert_filename }}
                   path: {{ .Parameters.tdp_ca_cert_filename }}
-          - name: {{ .Parameters.trino_keytab }}
+          - name: {{ .Parameters.trino_keytab_secret_name }}
             secret:
-              secretName: {{ .Parameters.trino_keytab }}
+              secretName: {{ .Parameters.trino_keytab_secret_name }}
               items:
                 - key: {{ .Parameters.trino_keytab_filename }}
                   path: {{ .Parameters.trino_keytab_filename }}
-          - name: {{ .Parameters.hadoop_client_config }}
+          - name: {{ .Parameters.hadoop_client_configmap_name }}
             configMap:
-               name: {{ .Parameters.hadoop_client_config }}
+               name: {{ .Parameters.hadoop_client_configmap_name }}
         additionalVolumeMounts:
           - name: generated-files
             mountPath: /etc/trino/generated
@@ -84,13 +84,13 @@ modules:
             mountPath: /cacerts
           - name: trino-tls
             mountPath: /trino-tls
-          - name: {{ .Parameters.trino_keytab }}
+          - name: {{ .Parameters.trino_keytab_secret_name }}
             mountPath: /etc/trino/keytabs
-          - name: {{ .Parameters.tdp_ca_cert }}
+          - name: {{ .Parameters.tdp_ca_cert_secret_name }}
             mountPath: /tdp-ca-cert
-          - name: {{ .Parameters.hadoop_client_config }}
+          - name: {{ .Parameters.hadoop_client_configmap_name }}
             mountPath: /etc/trino/hadoop
-          - name: {{ .Parameters.hadoop_client_config }}
+          - name: {{ .Parameters.hadoop_client_configmap_name }}
             mountPath: /etc/krb5.conf    
             subPath: krb5.conf  
         additionalJVMConfig:
@@ -115,21 +115,21 @@ modules:
           - name: trino-tls
             secret:
               secretName: {{ .Release.metadata.name }}-tls
-          - name:  {{ .Parameters.tdp_ca_cert }}
+          - name:  {{ .Parameters.tdp_ca_cert_secret_name }}
             secret:
-              secretName: {{ .Parameters.tdp_ca_cert }}
+              secretName: {{ .Parameters.tdp_ca_cert_secret_name }}
               items:
                 - key: {{ .Parameters.tdp_ca_cert_filename }}
                   path: {{ .Parameters.tdp_ca_cert_filename }}
-          - name: {{ .Parameters.trino_keytab }}
+          - name: {{ .Parameters.trino_keytab_secret_name }}
             secret:
-              secretName: {{ .Parameters.trino_keytab }}
+              secretName: {{ .Parameters.trino_keytab_secret_name }}
               items:
                 - key: {{ .Parameters.trino_keytab_filename }}
                   path: {{ .Parameters.trino_keytab_filename }}
-          - name: {{ .Parameters.hadoop_client_config }}
+          - name: {{ .Parameters.hadoop_client_configmap_name }}
             configMap:
-               name: {{ .Parameters.hadoop_client_config }}
+               name: {{ .Parameters.hadoop_client_configmap_name }}
         additionalVolumeMounts:
           - name: generated-files
             mountPath: /etc/trino/generated
@@ -138,13 +138,13 @@ modules:
             mountPath: /cacerts
           - name: trino-tls
             mountPath: /trino-tls
-          - name: {{ .Parameters.trino_keytab }}
+          - name: {{ .Parameters.trino_keytab_secret_name }}
             mountPath: /etc/trino/keytabs
-          - name: {{ .Parameters.tdp_ca_cert }}
+          - name: {{ .Parameters.tdp_ca_cert_secret_name }}
             mountPath: /tdp-ca-cert
-          - name: {{ .Parameters.hadoop_client_config }}
+          - name: {{ .Parameters.hadoop_client_configmap_name }}
             mountPath: /etc/trino/hadoop
-          - name: {{ .Parameters.hadoop_client_config }}
+          - name: {{ .Parameters.hadoop_client_configmap_name }}
             mountPath: /etc/krb5.conf    
             subPath: krb5.conf  
         additionalJVMConfig:
@@ -249,12 +249,12 @@ modules:
           hive.config.resources=/etc/trino/hadoop/core-site.xml, /etc/trino/hadoop/hdfs-site.xml, /etc/trino/hadoop/hive-site.xml
           hive.hdfs.impersonation.enabled=true
           hive.hdfs.authentication.type=KERBEROS
-          hive.hdfs.trino.principal={{ .Parameters.hive_hdfs_trino_principal }}
+          hive.hdfs.trino.principal={{ .Parameters.trino_principal }}
           hive.hdfs.trino.keytab=/etc/trino/keytabs/{{ .Parameters.trino_keytab_filename }}
           hive.metastore.authentication.type=KERBEROS
           hive.metastore.thrift.impersonation.enabled=true
           hive.metastore.service.principal={{ .Parameters.hive_metastore_service_principal }}
-          hive.metastore.client.principal={{ .Parameters.hive_hdfs_trino_principal }}
+          hive.metastore.client.principal={{ .Parameters.trino_principal }}
           hive.metastore.client.keytab=/etc/trino/keytabs/{{ .Parameters.trino_keytab_filename }}
           hive.metastore.thrift.client.connect-timeout=1h
           hive.metastore.thrift.client.read-timeout=1h
