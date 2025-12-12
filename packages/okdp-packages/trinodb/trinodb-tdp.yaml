@@ -1,0 +1,266 @@
+apiVersion: v1alpha1
+name: trinodb
+tag: 1.0.0-tdp
+protected: false
+description: |
+  Apache Trino - Distributed SQL query engine designed for large-scale data processing across multiple data sources.
+  High-performance, in-memory query engine that enables fast, interactive analytics on diverse data systems.
+  Supports querying data from multiple databases, data warehouses, and big data platforms in a single query.
+  This version integrates TDP with Hive and HDFS supporting Kerberos auth and impersonation.
+usage:
+  text: |
+    Apache Trino provides distributed SQL query engine designed for large-scale data processing.
+    Access the UI at https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+schema:
+  parameters:
+    properties:
+      numWorkers: { type: integer, default: 3, description: "Number of workers" }
+      tdp_ca_cert: { type: string, default: "tdp-ca-cert", description: "CA cert secret name" }
+      tdp_ca_cert_filename: { type: string, default: "tdp_ca.crt", description: "CA cert filename" }
+      trino_keytab: { type: string, default: "trino-keytab", description: "Trino keytab secret name" }
+      trino_keytab_filename: { type: string, default: "trino.keytab", description: "Trino keytab filename" }
+      hadoop_client_config: { type: string, default: "hadoop-client-config", description: "Hadoop client configmap name" }
+      hive_metastore_uri: { type: string, default: "thrift://master-02.tdp:9083,thrift://master-03.tdp:9083", description: "Hive metastore URI" }
+      hive_hdfs_trino_principal: { type: string, default: "trino@REALM.TDP", description: "Hive HDFS Trino principal" }
+      hive_metastore_service_principal: { type: string, default: "hive/_HOST@REALM.TDP", description: "Hive metastore service principal" }
+  context:
+    properties:
+      certificateIssuers:
+        required: true
+        properties:
+          selfSigned:
+            properties:
+              name: { type: string, required: true }
+      ingress:
+        required: true
+        properties:
+          suffix: { type: string, required: true }
+modules:
+  - name: main
+    timeout: 10m
+    source:
+      helmRepository:
+        url: https://trinodb.github.io/charts/
+        chart: trino
+        version: v1.39.1
+    values: |
+      coordinator:
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2"
+            memory: "8Gi"
+        additionalVolumes:
+          - name: generated-files
+            emptyDir: {}
+          - name: cacerts
+            secret:
+              secretName: certs-bundle
+          - name: trino-tls
+            secret:
+              secretName: {{ .Release.metadata.name }}-tls
+          - name:  {{ .Parameters.tdp_ca_cert }}
+            secret:
+              secretName: {{ .Parameters.tdp_ca_cert }}
+              items:
+                - key: {{ .Parameters.tdp_ca_cert_filename }}
+                  path: {{ .Parameters.tdp_ca_cert_filename }}
+          - name: {{ .Parameters.trino_keytab }}
+            secret:
+              secretName: {{ .Parameters.trino_keytab }}
+              items:
+                - key: {{ .Parameters.trino_keytab_filename }}
+                  path: {{ .Parameters.trino_keytab_filename }}
+          - name: {{ .Parameters.hadoop_client_config }}
+            configMap:
+               name: {{ .Parameters.hadoop_client_config }}
+        additionalVolumeMounts:
+          - name: generated-files
+            mountPath: /etc/trino/generated
+            readOnly: false
+          - name: cacerts
+            mountPath: /cacerts
+          - name: trino-tls
+            mountPath: /trino-tls
+          - name: {{ .Parameters.trino_keytab }}
+            mountPath: /etc/trino/keytabs
+          - name: {{ .Parameters.tdp_ca_cert }}
+            mountPath: /tdp-ca-cert
+          - name: {{ .Parameters.hadoop_client_config }}
+            mountPath: /etc/trino/hadoop
+          - name: {{ .Parameters.hadoop_client_config }}
+            mountPath: /etc/krb5.conf    
+            subPath: krb5.conf  
+        additionalJVMConfig:
+          - "-Djavax.net.ssl.trustStore=/cacerts/bundle.p12"
+          - "-Djavax.net.ssl.trustStorePassword="
+
+
+      worker:
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+        additionalVolumes:
+          - name: generated-files
+            emptyDir: {}
+          - name: cacerts
+            secret:
+              secretName: certs-bundle
+          - name: trino-tls
+            secret:
+              secretName: {{ .Release.metadata.name }}-tls
+          - name:  {{ .Parameters.tdp_ca_cert }}
+            secret:
+              secretName: {{ .Parameters.tdp_ca_cert }}
+              items:
+                - key: {{ .Parameters.tdp_ca_cert_filename }}
+                  path: {{ .Parameters.tdp_ca_cert_filename }}
+          - name: {{ .Parameters.trino_keytab }}
+            secret:
+              secretName: {{ .Parameters.trino_keytab }}
+              items:
+                - key: {{ .Parameters.trino_keytab_filename }}
+                  path: {{ .Parameters.trino_keytab_filename }}
+          - name: {{ .Parameters.hadoop_client_config }}
+            configMap:
+               name: {{ .Parameters.hadoop_client_config }}
+        additionalVolumeMounts:
+          - name: generated-files
+            mountPath: /etc/trino/generated
+            readOnly: false
+          - name: cacerts
+            mountPath: /cacerts
+          - name: trino-tls
+            mountPath: /trino-tls
+          - name: {{ .Parameters.trino_keytab }}
+            mountPath: /etc/trino/keytabs
+          - name: {{ .Parameters.tdp_ca_cert }}
+            mountPath: /tdp-ca-cert
+          - name: {{ .Parameters.hadoop_client_config }}
+            mountPath: /etc/trino/hadoop
+          - name: {{ .Parameters.hadoop_client_config }}
+            mountPath: /etc/krb5.conf    
+            subPath: krb5.conf  
+        additionalJVMConfig:
+          - "-Djavax.net.ssl.trustStore=/cacerts/bundle.p12"
+          - "-Djavax.net.ssl.trustStorePassword="
+
+      ingress:
+        enabled: true
+        className: nginx
+        annotations:
+          cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+          nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+          nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+          nginx.ingress.kubernetes.io/use-regex: "true"  
+          nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+          nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+          nginx.ingress.kubernetes.io/ssl-redirect: "true"
+        hosts:
+          - host: {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+            paths:
+              - path: /
+                pathType: Prefix
+        tls:
+          - hosts:
+              - {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+            secretName: {{ .Release.metadata.name }}-tls
+
+      server:
+        workers: {{ .Parameters.numWorkers }}
+        node:
+          environment: sandbox
+        config:
+          coordinator: "true"
+          node-scheduler.include-coordinator: "true"
+          discovery-server.enabled: "true"
+          path: /etc/trino
+          https:
+            enabled: true
+            port: 8443
+            keystore:
+              path: "/etc/trino/generated/tls.pem"
+        coordinatorExtraConfig: |
+          http-server.process-forwarded=true
+          web-ui.authentication.type=oauth2
+          http-server.authentication.oauth2.issuer=https://keycloak.{{ .Context.ingress.suffix }}/realms/master
+          http-server.authentication.oauth2.client-id=confidential-oidc-client
+          http-server.authentication.oauth2.client-secret=secret1
+          http-server.authentication.oauth2.auth-url=https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/auth
+          http-server.authentication.oauth2.token-url=https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/token
+          http-server.authentication.oauth2.scopes=openid,email,profile,groups
+          deprecated.http-server.authentication.oauth2.groups-field=groups
+
+
+      initContainers:
+        coordinator:
+          - name: init-coordinator-coordinator
+            image: openjdk:11-jre-slim
+            imagePullPolicy: IfNotPresent
+            command:
+              - sh
+              - -c
+              - |
+                cat /trino-tls/tls.crt /trino-tls/tls.key > /etc/trino/generated/tls.pem
+                cp /cacerts/bundle.p12 /etc/trino/generated/
+                keytool -importcert -alias tdp-ca -file /tdp-ca-cert/{{ .Parameters.tdp_ca_cert_filename }} -keystore /etc/trino/generated/bundle.p12 -noprompt
+            volumeMounts:
+              - name: trino-tls
+                mountPath: "/trino-tls"
+              - name: cacerts
+                mountPath: /cacerts
+              - name: generated-files
+                readOnly: false
+                mountPath: "/etc/trino/generated"
+              - name: tdp-ca-cert
+                mountPath: /tdp-ca-cert
+        worker:
+          - name: init-coordinator-worker
+            image: openjdk:11-jre-slim
+            imagePullPolicy: IfNotPresent
+            command:
+              - sh
+              - -c
+              - |
+                cat /trino-tls/tls.crt /trino-tls/tls.key > /etc/trino/generated/tls.pem
+                cp /cacerts/bundle.p12 /etc/trino/generated/
+                keytool -importcert -alias tdp-ca -file /tdp-ca-cert/{{ .Parameters.tdp_ca_cert_filename }} -keystore /etc/trino/generated/bundle.p12 -noprompt
+            volumeMounts:
+              - name: trino-tls
+                mountPath: "/trino-tls"
+              - name: cacerts
+                mountPath: /cacerts
+              - name: generated-files
+                readOnly: false
+                mountPath: "/etc/trino/generated"
+              - name: tdp-ca-cert
+                mountPath: /tdp-ca-cert
+      catalogs:
+        tdp_hive: |-
+          connector.name=hive
+          hive.metastore.uri={{ .Parameters.hive_metastore_uri }}
+          fs.hadoop.enabled=true
+          hive.config.resources=/etc/trino/hadoop/core-site.xml, /etc/trino/hadoop/hdfs-site.xml, /etc/trino/hadoop/hive-site.xml
+          hive.hdfs.impersonation.enabled=true
+          hive.hdfs.authentication.type=KERBEROS
+          hive.hdfs.trino.principal={{ .Parameters.hive_hdfs_trino_principal }}
+          hive.hdfs.trino.keytab=/etc/trino/keytabs/{{ .Parameters.trino_keytab_filename }}
+          hive.metastore.authentication.type=KERBEROS
+          hive.metastore.thrift.impersonation.enabled=true
+          hive.metastore.service.principal={{ .Parameters.hive_metastore_service_principal }}
+          hive.metastore.client.principal={{ .Parameters.hive_hdfs_trino_principal }}
+          hive.metastore.client.keytab=/etc/trino/keytabs/{{ .Parameters.trino_keytab_filename }}
+          hive.metastore.thrift.client.connect-timeout=1h
+          hive.metastore.thrift.client.read-timeout=1h
+
+
+roles:
+  - Interactive-query
+dependencies:
+  - ingress 
