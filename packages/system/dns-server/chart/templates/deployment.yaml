@@ -22,7 +22,6 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
-            - --conf-file=/etc/dnsmasq/dnsmasq.conf
             - --keep-in-foreground
           ports:
             - name: dns-udp
@@ -35,7 +34,8 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
             - name: config
-              mountPath: /etc/dnsmasq
+              mountPath: /etc/dnsmasq.conf
+              subPath: dnsmasq.conf
           securityContext:
             capabilities:
               add:
