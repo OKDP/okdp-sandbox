@@ -9,15 +9,12 @@ description: |
 usage:
   text: |
     Spark History Server provides a web UI for viewing completed Spark applications.
-    Access the UI at https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+    Access the UI at {{ .Context.sparkHistory.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
 schema:
   parameters:
     properties:
-      eventLogDir: { type: string, required: true, default: "s3a://", description: "S3 path for Spark event logs, typically s3a://<bucket>/eventLogs" }
-      s3_endpoint: { type: string, required: true, description: "S3 endpoint URL" }
-      accessKey: { type: string, required: true, description: "S3 access key" }
-      secretKey: { type: string, required: true, description: "S3 secret key" }
-      adminGroups: { type: string, default: "", description: "Comma separated list of admin groups" }
+      eventsLogDir: { type: string, required: true, default: "s3a://spark-events/event-logs/", description: "S3 path for Spark event logs, typically s3a://<bucket>/eventLogs" }
+      adminGroups: { type: string, default: "admins", description: "Comma separated list of admin groups" }
   context:
     properties:
       certificateIssuers:
@@ -38,6 +35,10 @@ modules:
         repository: quay.io/okdp/charts/spark-history-server
         tag: 1.0.0
     values: |
+      {{- $s3ApiUrl := .Context.sparkHistory.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
       {{- $historyEndpoint := .Context.sparkHistory.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
       {{- $historyEndpoint := $historyEndpoint | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
       {{- $historyEndpointUrl := $historyEndpoint | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
@@ -64,9 +65,9 @@ modules:
             secretName: {{ .Release.metadata.name }}-tls
       
       config:
-        spark.hadoop.fs.s3a.endpoint: {{ .Parameters.s3_endpoint }}
+        spark.hadoop.fs.s3a.endpoint: {{ $s3ApiUrl }}
         spark.hadoop.fs.s3a.connection.ssl.enabled: true
-        spark.history.fs.logDirectory: {{ .Parameters.eventLogDir }}
+        spark.history.fs.logDirectory: {{ .Parameters.eventsLogDir }}
         spark.hadoop.fs.s3a.impl: org.apache.hadoop.fs.s3a.S3AFileSystem
         spark.hadoop.fs.s3a.path.style.access: true
         spark.ui.filters: io.okdp.spark.authc.OidcAuthFilter
@@ -84,10 +85,20 @@ modules:
         spark.history.ui.admin.acls.groups: {{ .Parameters.adminGroups }}
       
       extraEnvs:
+        {{- if .Context.sparkHistory.storage.s3.tls.insecureSkipVerify }}
+        - name: SPARK_HISTORY_OPTS
+          value: -Dcom.amazonaws.sdk.disableCertChecking=true
+        {{- end }}
         - name: AWS_ACCESS_KEY_ID
-          value: {{ .Parameters.accessKey }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.sparkHistory.storage.s3.credentialsSecret.name }}
+              key: {{ .Context.sparkHistory.storage.s3.credentialsSecret.accessKeyKey }}
         - name: AWS_SECRET_ACCESS_KEY
-          value: {{ .Parameters.secretKey }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.sparkHistory.storage.s3.credentialsSecret.name }}
+              key: {{ .Context.sparkHistory.storage.s3.credentialsSecret.secretKeyKey }}
         # Disable Certificate Checking
         - name: SPARK_HISTORY_OPTS
           value: "-Dcom.amazonaws.sdk.disableCertChecking=true"
@@ -117,4 +128,5 @@ roles:
   - spark
 dependencies:
   - identity
-  - ingress 
+  - storage
+  - ingress

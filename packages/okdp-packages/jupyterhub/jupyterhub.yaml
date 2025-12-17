@@ -15,8 +15,11 @@ schema:
     properties:
       cloneExamples: { type: boolean, default: true, description: "Whether to clone OKDP examples" }
       bucket: { type: string, default: "okdp", description: "S3 bucket name to expose in the Jupyter S3 browser" }
+      sparkEventsLogDir: { type: string, required: true, default: "s3a://spark-events/event-logs/", description: "S3 path for Spark event logs, typically s3a://<bucket>/eventLogs" }
       startTimeout: { type: integer, default: 600, description: "Maximum number of seconds JupyterHub will wait for a user’s server to become reachable" }
       allowedRoles: { type: string, default: "admins", description: "Allowed roles for JupyterHub access" }
+      memoryGi: { type: number, default: 1, multipleOf: 0.25, description: "Notebook (singleuser) pod memory (GiB) for requests/limits." }
+      cpu:      { type: number, default: 0.5, multipleOf: 0.25, description: "Notebook (singleuser) pod CPU (vCPU) for requests/limits." }
   context:
     properties:
       certificateIssuers:
@@ -34,7 +37,22 @@ schema:
         properties:
           workspace: { type: string, required: true }
 modules:
+  - name: spark-rbac
+    timeout: 10m
+    source:
+      local:
+        path: ../spark-rbac/chart
+    values: |
+      rbac:
+        create: {{ .Context.sparkRBAC.rbac.create }}
+      serviceAccount:
+        create: {{ .Context.sparkRBAC.serviceAccount.create }}
+        name: "{{ .Context.sparkRBAC.serviceAccount.name }}"
+        automountServiceAccountToken: {{ .Context.sparkRBAC.serviceAccount.automountServiceAccountToken }}
+
   - name: main
+    dependsOn:
+      - spark-rbac
     timeout: 10m
     source:
       helmRepository:
@@ -176,6 +194,12 @@ modules:
                 name: "{{ .Context.jupyter.storage.s3.credentialsSecret.name }}"
                 key: "{{ .Context.jupyter.storage.s3.credentialsSecret.secretKeyKey }}"
           
+          # Notebook pod IP used by Spark driver (spark.driver.host) in client mode
+          POD_IP:
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+      
           {{- if .Context.proxy.httpProxy }}
           HTTP_PROXY: {{ .Context.proxy.httpProxy | quote }}
           {{- end }}
@@ -314,6 +338,12 @@ modules:
                 }
                 for b in buckets
               ]
+        cpu:
+          limit: {{ mulf (float64 .Parameters.cpu) 2 }}
+          guarantee: {{ .Parameters.cpu }}
+        memory:
+          limit: {{ mulf (float64 .Parameters.memoryGi) 2 }}G
+          guarantee: {{ .Parameters.memoryGi }}G
       
         profileList:
           - display_name: "🪶 Minimal Python1"
@@ -323,7 +353,6 @@ modules:
               image_pull_policy: Always
           - display_name: "📊 Scientific Python"
             description: "Includes Git, Pandas, NumPy, S3 browser, and Trino SQL support."
-            default: true
             kubespawner_override:
               image: quay.io/okdp/jupyter/scipy-notebook:python-3.12.12-hub-5.4.2-lab-4.5.0
               image_pull_policy: Always
@@ -334,8 +363,29 @@ modules:
               image_pull_policy: Always
           - display_name: "🔥 PySpark"
             description: "Apache Spark big data processing"
+            default: true
             kubespawner_override:
               image_pull_policy: Always
+              environment:
+                PYSPARK_SUBMIT_ARGS: >-
+                  --master k8s://https://kubernetes.default.svc.cluster.local
+                  --conf spark.submit.deployMode=client
+                  --conf spark.driver.host=$(POD_IP)
+                  --conf spark.kubernetes.driverEnv.SPARK_USER=$(NB_USER)
+                  --conf spark.executorEnv.SPARK_USER=$(NB_USER)
+                  --conf spark.kubernetes.container.image=$(SPARK_EXECUTOR_IMAGE)
+                  --conf spark.kubernetes.authenticate.ccountName={{ .Context.sparkRBAC.serviceAccount.name }}
+                  --conf spark.kubernetes.namespace={{ .Release.spec.targetNamespace }}
+                  --conf spark.eventLog.enabled=true
+                  --conf spark.eventLog.dir={{ .Parameters.sparkEventsLogDir }}
+                  --conf spark.history.fs.logDirectory={{ .Parameters.sparkEventsLogDir }}
+                  --conf spark.eventLog.compress=true
+                  --conf spark.eventLog.rolling.enabled=true
+                  {{- if .Context.jupyter.storage.s3.tls.insecureSkipVerify }}
+                  --conf spark.driver.extraJavaOptions="-Dcom.amazonaws.sdk.disableCertChecking=true"
+                  --conf spark.executor.extraJavaOptions="-Dcom.amazonaws.sdk.disableCertChecking=true"
+                  {{- end }}
+                  pyspark-shell
             profile_options:
               image:
                 display_name: "Select PySpark kernel version"
@@ -345,13 +395,18 @@ modules:
                     kubespawner_override:
                       image: quay.io/okdp/jupyter/all-spark-notebook:spark-3.4.4-python-3.11-java-17-scala-2.12
                       image_pull_policy: Always
+                      environment:
+                        SPARK_EXECUTOR_IMAGE: quay.io/okdp/spark-py:spark-3.4.4-python-3.11-scala-2.12-java-17
                   spark356:
                     display_name: "PySpark 3.5.6 / Python 3.11"
                     default: true
                     kubespawner_override:
                       image: quay.io/okdp/jupyter/all-spark-notebook:spark-3.5.6-python-3.11-java-17-scala-2.12
                       image_pull_policy: Always
-      
+                      environment:
+                        SPARK_EXECUTOR_IMAGE: quay.io/okdp/spark-py:spark-3.5.6-python-3.11-scala-2.12-java-17
+        
+        serviceAccountName: {{ .Context.sparkRBAC.serviceAccount.name }}
         storage:
           homeMountPath: "/home/{username}"
           dynamic:
@@ -360,12 +415,20 @@ modules:
             pvcNameTemplate: "{{ .Release.metadata.name }}-claim-{username}{servername}"
             volumeNameTemplate: "{{ .Release.metadata.name }}-volume-{username}{servername}"
           type: dynamic
+          extraVolumes:
+            - name: {{ .Context.examples.storage.s3.credentialsSecret.name  }}
+              secret:
+                secretName: {{ .Context.examples.storage.s3.credentialsSecret.name  }}
+          extraVolumeMounts:
+            - name: {{ .Context.examples.storage.s3.credentialsSecret.name  }}
+              mountPath: "/var/run/secrets/examples/s3"
+              readOnly: true
         cloudMetadata:
           blockWithIptables: false
         uid: 0
-        fsGid: 0
+        fsGid: 100
         extraPodConfig:
-          automount_service_account_token: false
+          automount_service_account_token: true
           terminationGracePeriodSeconds: 120
         networkPolicy:
           enabled: false

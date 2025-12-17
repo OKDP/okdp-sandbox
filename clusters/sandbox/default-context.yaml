@@ -252,22 +252,27 @@ spec:
       endpoint:
         url: https://jupyter-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
-    examples:
+    sparkRBAC:
+      rbac:
+        create: true
+      serviceAccount:
+        create: true
+        name: "spark"
+        automountServiceAccountToken: true
+
+    sparkHistory:
+      eventsLogDir: s3a://spark-events/event-logs/
       storage:
         provider: s3
         s3:
           apiUrl: https://minio-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
           credentialsSecret:
-            name: creds-examples-s3
+            name: creds-spark-history-s3
             accessKeyKey: S3_ACCESS_KEY
             secretKeyKey: S3_SECRET_KEY
           tls:
             enabled: true
             insecureSkipVerify: true
-      trino:
-        url: https://trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-
-    sparkHistory:
       auth:
         enabled: true
         method: oidc
@@ -283,6 +288,21 @@ spec:
             clientSecretKey: client_secret
       endpoint:
         url: https://spark-history-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
+    examples:
+      storage:
+        provider: s3
+        s3:
+          apiUrl: https://minio-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          credentialsSecret:
+            name: creds-examples-s3
+            accessKeyKey: S3_ACCESS_KEY
+            secretKeyKey: S3_SECRET_KEY
+          tls:
+            enabled: true
+            insecureSkipVerify: true
+      trino:
+        url: https://trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
     #### OKDP External Dependencies #################################
     ###### Pre-provision the environment for the Sandbox ############

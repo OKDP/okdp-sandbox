@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: okdp-examples
-tag: 1.0.0-p01
+tag: 1.1.0-p01
 protected: false
 description: |
   A collection of hands-on examples, helper utilities, Jupyter notebooks, 
@@ -15,13 +15,14 @@ schema:
       bucket: { type: string, required: true, default: "okdp", description: "S3 bucket where the dataset will be stored" }
       prefix: { type: string, required: true, default: "examples/data/raw/tripdata", description: "S3 key prefix (folder path) under the bucket where the dataset will be uploaded" }
       dataDownloadUrl: { type: string, required: true, default: "https://d37ci6vzurychx.cloudfront.net/trip-data", description: "Base URL used to download the dataset files before uploading to S3" }
+      sparkEventsLogDir: { type: string, required: true, default: "s3a://spark-events/event-logs/", description: "S3 path for Spark event logs, typically s3a://<bucket>/eventLogs" }
 modules:
   - name: main
     timeout: 10m
     source:
       oci:
         repository: quay.io/okdp/charts/okdp-examples
-        tag: 1.0.0
+        tag: 1.1.0
     values: |
       {{- $s3ApiUrl := .Context.examples.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
       {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
@@ -64,6 +65,8 @@ modules:
           value: {{ $trinoEndpoint }}
         - name: TRINO_TERMINAL
           value: dumb
+        - name: SPARK_EVENT_LOG_DIRECTORY
+          value: {{ .Parameters.sparkEventsLogDir }}
         {{- if .Context.proxy.httpProxy }}
         - name: HTTP_PROXY
           value: {{ .Context.proxy.httpProxy | quote }}
