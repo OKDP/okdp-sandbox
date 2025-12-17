@@ -1,0 +1,22 @@
+apiVersion: v2
+appVersion: 1.0.0
+description: |
+  Helm chart that provisions the Kubernetes ServiceAccount and RBAC resources
+  (Role and RoleBinding) required to run Apache Spark on Kubernetes.
+type: application
+home: https://okdp.io/
+icon: https://okdp.io/logos/okdp-notext.svg
+keywords:
+  - spark
+  - pyspark
+  - kubernetes
+  - spark-rbac
+  - okdp
+maintainers:
+  - email: idir.izitounene@kubotal.io
+    name: idirze
+    url: https://github.com/idirze
+name: spark-rbac
+sources:
+  - https://github.com/OKDP/okdp-sandbox
+version: 1.0.0

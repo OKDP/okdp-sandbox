@@ -1,0 +1,28 @@
+apiVersion: v1alpha1
+name: spark-rbac
+tag: 1.0.0-p01
+protected: false
+description: |
+  Helm chart that provisions the Kubernetes ServiceAccount and RBAC resources
+  (Role and RoleBinding) required to run Apache Spark on Kubernetes.
+usage:
+  text: |
+    Helm chart that provisions the Kubernetes ServiceAccount and RBAC resources
+    (Role and RoleBinding) required to run Apache Spark on Kubernetes.
+modules:
+  - name: main
+    timeout: 10m
+    source:
+      oci:
+        repository: quay.io/okdp/charts/spark-rbac
+        tag: 1.0.0
+    values: |
+      rbac:
+        create: {{ .Context.sparkRBAC.rbac.create }}
+      serviceAccount:
+        create: {{ .Context.sparkRBAC.serviceAccount.create }}
+        name: "{{ .Context.sparkRBAC.serviceAccount.name }}"
+        automountServiceAccountToken: {{ .Context.sparkRBAC.serviceAccount.automountServiceAccountToken }}
+
+roles:
+  - spark-rbac

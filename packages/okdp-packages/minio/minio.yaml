@@ -91,6 +91,10 @@ modules:
           existingSecret: {{ .Context.examples.storage.s3.credentialsSecret.name }}
           existingSecretKey: {{ .Context.examples.storage.s3.credentialsSecret.secretKeyKey }}
           user: {{ .Parameters.rootUser }}
+        - accessKey: spark-history
+          existingSecret: {{ .Context.sparkHistory.storage.s3.credentialsSecret.name }}
+          existingSecretKey: {{ .Context.sparkHistory.storage.s3.credentialsSecret.secretKeyKey }}
+          user: {{ .Parameters.rootUser }}
       
       # OIDC Configuration
       environment:
