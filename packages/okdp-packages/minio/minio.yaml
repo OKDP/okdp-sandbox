@@ -1,6 +1,9 @@
 apiVersion: v1alpha1
 name: minio
-tag: RELEASE.2025-01-20T14-49-07Z-p01
+#tag: RELEASE.2025-01-20T14-49-07Z-p01
+# Currently, the UI requires the version to conform to SemVer (https://simversion.github.io/)
+# https://github.com/OKDP/okdp-ui/blob/main/src/app/shared/utils/utils.ts#L131
+tag: 2025.1.20144907-p01
 protected: false
 description: |
   MinIO - Enterprise-grade object storage for modern data infrastructure.
