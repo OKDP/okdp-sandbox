@@ -109,6 +109,10 @@ kind create cluster --config "$env:TEMP\okdp-sandbox-config.yaml"
 ### 3. Install Platform Components
 #### Install Flux (GitOps engine)
 
+> ℹ️ **Note**  
+> This step is only required for a fresh installation. It is **not required for upgrades** if Flux is already installed and running.  
+> For upgrades, jump to [Deploy/Upgrade OKDP platform components](#deployupgrade-okdp-platform-components).
+
 > ℹ️ **[Flux](https://fluxcd.io/flux/concepts/)** is the GitOps controller that continuously reconciles your cluster state with what’s defined in Git.  
 > The following command installs all Flux core components:
 > - **source-controller**: fetches sources such as Git repositories and Helm charts  
@@ -187,9 +191,35 @@ kubectl wait --for=condition=ready pod -l app=source-controller -n flux-system -
 kubectl apply -f clusters/sandbox/flux/kubocd.yaml
 ```
 
-#### Deploy OKDP platform components
+#### Deploy/Upgrade OKDP platform components
 
-Deploy the sandbox default context:
+> ℹ️ **Note**  
+> To upgrade the OKDP platform components, run:
+>
+> ```bash
+> kubectl delete $(kubectl get release -n kubocd-system -o name) -n kubocd-system
+> ```
+>
+> This will delete all KuboCD `Release` resources in the `kubocd-system` namespace.
+>
+> During upgrade command, you may see errors like:
+>
+> ```
+> Error from server (Forbidden): admission webhook "vrelease-v1alpha1.kb.io" denied the request: release cert-manager is protected
+> Error from server (Forbidden): admission webhook "vrelease-v1alpha1.kb.io" denied the request: release kubocd-webhooks is protected
+> ```
+>
+> These errors can be safely ignored. The affected releases are **system-protected components** managed by the platform and have a **separate upgrade lifecycle**.
+>
+> Pull the latest updates locally before starting the upgrade.
+> 
+> ```bash
+> git pull --rebase
+> ```
+>
+
+
+Deploy/Upgrade the sandbox default context:
 
 > 💡 **The KuboCD Context** is a centralized, reusable, declarative and environment-aware configuration layer that provides user defined shared parameters (ingress suffixes, storage classes, certificate issuers, catalogs, and authentication settings, etc) to all the components, ensuring consistent deployment.
 >
@@ -221,8 +251,39 @@ kubectl apply -f clusters/sandbox/default-context.yaml
 >   --type=merge
 > ```
 
+Configure proxy settings for OKDP Services (Optional)
 
-Deploy OKDP components:
+If your environment requires a proxy to reach external datasets (Superset examples, okdp examples, quay.io KuboCD packages), the following command sets the proxy configuration variables to the required OKDP services:
+
+```sh
+kubectl -n kubocd-system patch context default --type merge -p "$(cat <<EOF
+spec:
+  context:
+    proxy:
+      httpProxy: "${HTTP_PROXY:-${http_proxy}}"
+      httpsProxy: "${HTTPS_PROXY:-${https_proxy}}"
+      noProxy: "${NO_PROXY:-${no_proxy}}"
+EOF
+)"
+```
+
+<details>
+<summary><strong><small>PowerShell</small></strong></summary>
+<br>
+
+```powershell
+kubectl -n kubocd-system patch context default --type merge -p @"
+spec:
+  context:
+    proxy:
+      httpProxy: "$($env:HTTP_PROXY ?? $env:http_proxy)"
+      httpsProxy: "$($env:HTTPS_PROXY ?? $env:https_proxy)"
+      noProxy: "$($env:NO_PROXY ?? $env:no_proxy)"
+"@
+```
+</details>
+
+Deploy/Upgrade OKDP components:
 
 ```sh
 kubectl apply -f clusters/sandbox/releases/addons
@@ -254,8 +315,9 @@ For HTTPS access without warnings, two options:
 
 **Option 1**: Install the CA certificate
 
+Import okdp-sandbox-ca.crt into your system's or browser's certificate store
+
 ```sh
-# Import okdp-sandbox-ca.crt into your system's or browser's certificate store
 kubectl get secret default-issuer -n cert-manager -o jsonpath='{.data.ca\.crt}' | base64 -d > okdp-sandbox-ca.crt
 ```
 
@@ -278,6 +340,7 @@ kubectl get secret default-issuer -n cert-manager -o jsonpath='{.data.ca\.crt}' 
 
 1. **Access OKDP UI**: https://okdp-ui.okdp.sandbox or https://okdp-ui.<CUSTOM_DOMAIN>
 2. **Login credentials**: Default authentication via Keycloak (login/password: adm/adm)
+3. **Run the examples**: https://github.com/OKDP/okdp-examples
 
 ## Cleanup
 

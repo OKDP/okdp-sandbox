@@ -1,0 +1,8 @@
+apiVersion: v2
+name: cnpg-postgresql
+description: |
+  Defines multiple logical PostgreSQL databases managed by the CloudNativePG operator within a single PostgreSQL 
+  instance (cluster) and includes ownership, access credentials, and lifecycle management through Kubernetes-native CRDs.
+type: application
+version: 0.1.0
+appVersion: "17.0"

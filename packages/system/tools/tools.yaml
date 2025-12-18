@@ -94,5 +94,4 @@ modules:
         runAsUser: 1000
 roles:
   - tools
-dependencies: |
-  [] 
+dependencies: []

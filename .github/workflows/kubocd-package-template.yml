@@ -204,6 +204,8 @@ jobs:
       - name: Test the releases deployment ✅
         if: inputs.publish_to_registry == 'false'
         run: |
+          echo "**************************************** Storage Classes ****************************************"
+          kubectl get sc
           kubectl get events -A -w &
           (while true; do
             echo "Wait until all KuboCD releases are ready ..."
@@ -211,6 +213,12 @@ jobs:
             kubectl get release -A
             echo "**************************************** Pods status ****************************************"
             kubectl get po -A
+            echo "**************************************** PVC status ****************************************"
+            kubectl get pvc -A
+            echo "**************************************** Pending Pods ****************************************"
+            kubectl get pods -A --field-selector=status.phase=Pending \
+              -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name --no-headers \
+              | xargs -n2 sh -c 'echo "Pending Pod: $0/$1 ==="; kubectl describe pod -n "$0" "$1"; echo'
             sleep 15
           done) &
           kubectl wait --for=jsonpath='{.status.phase}'=READY release --all -A --timeout=600s

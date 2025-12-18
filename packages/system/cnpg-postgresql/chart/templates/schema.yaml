@@ -1,0 +1,65 @@
+{{- $root := . -}}
+{{- range $db := $root.Values.databases }}
+{{- if $db.schemas }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "cnpg-postgresql.fullname" $root }}-{{ $db.name }}-schemas
+  labels:
+    {{- include "cnpg-postgresql.labels" $root | nindent 4 }}
+  {{- with $root.Values.job.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ttlSecondsAfterFinished: {{ $root.Values.job.ttlSecondsAfterFinished }}
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: create-schemas
+          image: {{ printf "%s:%v" $root.Values.image.repository $root.Values.image.tag }}
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+          command: ["bash", "-c"]
+          args:
+            - |
+              echo "⏳ Waiting for PostgreSQL and database {{ $db.name }} to become ready..."
+              for i in {1..150}; do
+                if pg_isready -h {{ include "cnpg-postgresql.fullname" $root }}-rw -U {{ $db.owner.username }} -d postgres >/dev/null 2>&1; then
+                  if psql -h {{ include "cnpg-postgresql.fullname" $root }}-rw -U {{ $db.owner.username }} -d postgres \
+                           -tAc "SELECT 1 FROM pg_database WHERE datname='{{ $db.name }}';" | grep -q 1; then
+                    echo "✅ Database {{ $db.name }} is ready!"
+                    DB_READY=true
+                    break
+                  fi
+                fi
+                echo "Still waiting for database {{ $db.name }}... ($i/150)"
+                sleep 2
+              done
+          
+              if [ "$DB_READY" != "true" ]; then
+                echo "❌ Database {{ $db.name }} not ready after waiting. Exiting."
+                exit 1
+              fi
+              
+              {{- range $schema := $db.schemas }}
+              echo "  👉 Creating schema: {{ $schema }}"
+              if ! psql -h {{ include "cnpg-postgresql.fullname" $root }}-rw \
+                        -U {{ $db.owner.username }} \
+                        -d {{ $db.name }} \
+                        -c "CREATE SCHEMA IF NOT EXISTS {{ $schema }};"; then
+                echo "  ❌ Failed to create schema '{{ $schema }}'!"
+                exit 1
+              fi
+              {{- end }}
+              echo "✅ All Schemas created successfully."
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-db-secret" $db.owner.username) $db.owner.passwordSecret }}
+                  key: password
+---
+{{- end }}
+{{- end }}

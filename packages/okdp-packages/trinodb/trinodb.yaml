@@ -1,6 +1,9 @@
 apiVersion: v1alpha1
 name: trinodb
-tag: 1.0.0-p01
+#tag: 475-p01
+# Currently, the UI requires the version to conform to SemVer (https://simversion.github.io/)
+# https://github.com/OKDP/okdp-ui/blob/main/src/app/shared/utils/utils.ts#L131
+tag: 475.0.0-p01
 protected: false
 description: |
   Apache Trino - Distributed SQL query engine designed for large-scale data processing across multiple data sources.
@@ -9,11 +12,13 @@ description: |
 usage:
   text: |
     Apache Trino provides distributed SQL query engine designed for large-scale data processing.
-    Access the UI at https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+    Access the UI at {{ .Context.trino.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
 schema:
   parameters:
     properties:
       numWorkers: { type: integer, default: 3, description: "Number of workers" }
+      workerMemoryGi: { type: number, default: 1, multipleOf: 0.25, description: "Worker memory (GiB) used for Kubernetes requests/limits (recommended: request=limit)." }
+      workerCpu: { type: number, default: 0.5, multipleOf: 0.25, description: "Worker CPU request in millicores (e.g., 500=0.5 vCPU, 1000=1 vCPU)." }
   context:
     properties:
       certificateIssuers:
@@ -35,6 +40,60 @@ modules:
         chart: trino
         version: v1.39.1
     values: |
+      {{- $trinoEndpoint := .Context.trino.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $trinoEndpoint := $trinoEndpoint | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $trinoEndpoint := $trinoEndpoint | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $trinoEndpoint := regexReplaceAll "^https?://" $trinoEndpoint "" -}}
+      
+      {{- $s3ApiUrl := .Context.trino.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      {{- $hmsUri := .Context.trino.metastore.uri | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      
+      {{- $keycloakIssuerUri := .Context.trino.auth.oidc.issuerUri | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      image:
+        repository: trinodb/trino
+        tag: 475
+      
+      catalogs:
+        tpch: |
+          connector.name=tpch
+          tpch.splits-per-node=4
+        tpcds: |
+          connector.name=tpcds
+          tpcds.splits-per-node=4
+        lakehouse: |
+          connector.name=hive
+          hive.metastore.uri={{ $hmsUri }}
+          hive.metastore.username={{ .Context.trino.auth.basic.username }}
+          hive.non-managed-table-writes-enabled=true
+  
+          fs.native-s3.enabled=true
+          s3.region=us-east-1
+          s3.path-style-access=true
+          s3.endpoint={{ $s3ApiUrl }}
+          s3.aws-access-key=${ENV:S3_ACCESS_KEY}
+          s3.aws-secret-key=${ENV:S3_SECRET_ACCESS}
+      envFrom:
+        - secretRef:
+            name: {{ .Context.trino.storage.s3.credentialsSecret.name }}
+      env:
+        - name: OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.trino.auth.oidc.credentialsSecret.name }}
+              key: {{ .Context.trino.auth.oidc.credentialsSecret.clientIdKey }}
+      
+        - name: OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.trino.auth.oidc.credentialsSecret.name }}
+              key: {{ .Context.trino.auth.oidc.credentialsSecret.clientSecretKey }}
+
       coordinator:
         resources:
           requests:
@@ -64,15 +123,14 @@ modules:
           - "-Djavax.net.ssl.trustStore=/cacerts/bundle.p12"
           - "-Djavax.net.ssl.trustStorePassword="
 
-
       worker:
         resources:
           requests:
-            cpu: "500m"
-            memory: "1Gi"
+            cpu: "{{ .Parameters.workerCpu }}"
+            memory: "{{ .Parameters.workerMemoryGi }}Gi"
           limits:
-            cpu: "2"
-            memory: "2Gi"
+            cpu: "{{ mulf (float64 .Parameters.workerCpu) 2 }}"
+            memory: "{{ mulf (float64 .Parameters.workerMemoryGi) 2 }}Gi"
         additionalVolumes:
           - name: generated-files
             emptyDir: {}
@@ -106,13 +164,13 @@ modules:
           nginx.ingress.kubernetes.io/ssl-passthrough: "true"
           nginx.ingress.kubernetes.io/ssl-redirect: "true"
         hosts:
-          - host: {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+          - host: {{ $trinoEndpoint }}
             paths:
               - path: /
                 pathType: Prefix
         tls:
           - hosts:
-              - {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+              - {{ $trinoEndpoint }}
             secretName: {{ .Release.metadata.name }}-tls
 
       server:
@@ -132,11 +190,11 @@ modules:
         coordinatorExtraConfig: |
           http-server.process-forwarded=true
           web-ui.authentication.type=oauth2
-          http-server.authentication.oauth2.issuer=https://keycloak.{{ .Context.ingress.suffix }}/realms/master
-          http-server.authentication.oauth2.client-id=confidential-oidc-client
-          http-server.authentication.oauth2.client-secret=secret1
-          http-server.authentication.oauth2.auth-url=https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/auth
-          http-server.authentication.oauth2.token-url=https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/token
+          http-server.authentication.oauth2.issuer={{ $keycloakIssuerUri }}
+          http-server.authentication.oauth2.client-id=${ENV:OAUTH_CLIENT_ID}
+          http-server.authentication.oauth2.client-secret=${ENV:OAUTH_CLIENT_SECRET}
+          http-server.authentication.oauth2.auth-url={{ $keycloakIssuerUri }}/protocol/openid-connect/auth
+          http-server.authentication.oauth2.token-url={{ $keycloakIssuerUri }}/protocol/openid-connect/token
           http-server.authentication.oauth2.scopes=openid,email,profile,groups
           deprecated.http-server.authentication.oauth2.groups-field=groups
 
@@ -166,6 +224,7 @@ modules:
                 mountPath: "/etc/trino/generated"
 
 roles:
-  - Interactive-query
+  - interactive-query
 dependencies:
-  - ingress 
+  - data-catalog
+  - ingress

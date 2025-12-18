@@ -67,5 +67,4 @@ modules:
         {{- end }}
 roles:
   - ingress
-dependencies: |
-  [] 
+dependencies: []

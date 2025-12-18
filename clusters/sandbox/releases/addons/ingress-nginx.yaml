@@ -6,7 +6,7 @@ metadata:
 spec:
   description: "NGINX Ingress Controller for HTTP/HTTPS routing"
   package:
-    repository: quay.io/okdp/sandbox-packages/ingress-nginx
+    repository: quay.io/okdp/sandbox-packages-v0.1/ingress-nginx
     tag: 4.12.1-p03
     interval: 30m
     timeout: 10m

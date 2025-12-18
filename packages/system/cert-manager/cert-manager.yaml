@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: cert-manager
-tag: 1.17.1-p05
+tag: 1.17.1-p06
 protected: true
 schema:
   parameters:
@@ -96,7 +96,7 @@ modules:
     timeout: 10m
     source:
       local:
-        path: ../charts/cert-issuers
+        path: ./chart
     values: |
       {{ toYaml .Parameters.issuers }}
       bundle:
@@ -120,5 +120,4 @@ modules:
       {{ end }}
 roles:
   - certManager
-dependencies: |
-  [] 
+dependencies: []

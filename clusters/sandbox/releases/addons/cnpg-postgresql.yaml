@@ -1,0 +1,16 @@
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Release
+metadata:
+  name: cnpg-postgresql
+  namespace: kubocd-system
+spec:
+  createNamespace: true
+  description: |
+    Defines multiple logical PostgreSQL databases managed by the CloudNativePG operator within a single PostgreSQL 
+    instance (cluster) and includes ownership, access credentials, and lifecycle management through Kubernetes-native CRDs.
+  package:
+    interval: 30m
+    repository: quay.io/okdp/sandbox-packages-v0.1/cnpg-postgresql
+    tag: 17.0-p01
+    timeout: 10m
+  targetNamespace: cnpg-system
