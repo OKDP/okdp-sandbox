@@ -109,6 +109,10 @@ kind create cluster --config "$env:TEMP\okdp-sandbox-config.yaml"
 ### 3. Install Platform Components
 #### Install Flux (GitOps engine)
 
+> ℹ️ **Note**  
+> This step is only required for a fresh installation. It is **not required for upgrades** if Flux is already installed and running.  
+> For upgrades, jump to [Deploy/Upgrade OKDP platform components](#deployupgrade-okdp-platform-components).
+
 > ℹ️ **[Flux](https://fluxcd.io/flux/concepts/)** is the GitOps controller that continuously reconciles your cluster state with what’s defined in Git.  
 > The following command installs all Flux core components:
 > - **source-controller**: fetches sources such as Git repositories and Helm charts  
@@ -187,9 +191,35 @@ kubectl wait --for=condition=ready pod -l app=source-controller -n flux-system -
 kubectl apply -f clusters/sandbox/flux/kubocd.yaml
 ```
 
-#### Deploy OKDP platform components
+#### Deploy/Upgrade OKDP platform components
 
-Deploy the sandbox default context:
+> ℹ️ **Note**  
+> To upgrade the OKDP platform components, run:
+>
+> ```bash
+> kubectl delete $(kubectl get release -n kubocd-system -o name) -n kubocd-system
+> ```
+>
+> This will delete all KuboCD `Release` resources in the `kubocd-system` namespace.
+>
+> During upgrade command, you may see errors like:
+>
+> ```
+> Error from server (Forbidden): admission webhook "vrelease-v1alpha1.kb.io" denied the request: release cert-manager is protected
+> Error from server (Forbidden): admission webhook "vrelease-v1alpha1.kb.io" denied the request: release kubocd-webhooks is protected
+> ```
+>
+> These errors can be safely ignored. The affected releases are **system-protected components** managed by the platform and have a **separate upgrade lifecycle**.
+>
+> Pull the latest updates locally before starting the upgrade.
+> 
+> ```bash
+> git pull --rebase
+> ```
+>
+
+
+Deploy/Upgrade the sandbox default context:
 
 > 💡 **The KuboCD Context** is a centralized, reusable, declarative and environment-aware configuration layer that provides user defined shared parameters (ingress suffixes, storage classes, certificate issuers, catalogs, and authentication settings, etc) to all the components, ensuring consistent deployment.
 >
@@ -253,7 +283,7 @@ spec:
 ```
 </details>
 
-Deploy OKDP components:
+Deploy/Upgrade OKDP components:
 
 ```sh
 kubectl apply -f clusters/sandbox/releases/addons
