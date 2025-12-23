@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: trinodb
-tag: 1.0.0-p01
+tag: 1.0.0-p02
 protected: false
 description: |
   Apache Trino - Distributed SQL query engine designed for large-scale data processing across multiple data sources.

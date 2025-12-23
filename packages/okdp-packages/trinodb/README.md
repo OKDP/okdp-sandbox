@@ -57,7 +57,7 @@ curl -sk \
   -H "Authorization: Bearer $TOKEN" \
   -H "X-Trino-User: usera" \
   --data-binary 'SHOW CATALOGS' \
-  https://trinodb-fn9nhy.okdp.sandbox/v1/statement
+  https://<SERVICE_PREFIX>.okdp.sandbox/v1/statement
 ```
 
 **Header Details:**
