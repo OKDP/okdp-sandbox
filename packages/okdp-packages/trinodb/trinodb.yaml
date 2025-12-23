@@ -120,6 +120,7 @@ modules:
         node:
           environment: sandbox
         config:
+          authenticationType: "oauth2"
           coordinator: "true"
           node-scheduler.include-coordinator: "true"
           discovery-server.enabled: "true"
@@ -132,12 +133,14 @@ modules:
         coordinatorExtraConfig: |
           http-server.process-forwarded=true
           web-ui.authentication.type=oauth2
+          http-server.authentication.type=oauth2
           http-server.authentication.oauth2.issuer=https://keycloak.{{ .Context.ingress.suffix }}/realms/master
           http-server.authentication.oauth2.client-id=confidential-oidc-client
           http-server.authentication.oauth2.client-secret=secret1
           http-server.authentication.oauth2.auth-url=https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/auth
           http-server.authentication.oauth2.token-url=https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/token
           http-server.authentication.oauth2.scopes=openid,email,profile,groups
+          http-server.authentication.oauth2.principal-field=preferred_username
           deprecated.http-server.authentication.oauth2.groups-field=groups
 
 
@@ -164,6 +167,9 @@ modules:
               - name: generated-files
                 readOnly: false
                 mountPath: "/etc/trino/generated"
+      
+      additionalConfigProperties:
+        - internal-communication.shared-secret=random123
 
 roles:
   - Interactive-query
