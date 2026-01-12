@@ -13,7 +13,8 @@ usage:
 schema:
   parameters:
     properties:
-      numWorkers: { type: integer, default: 3, description: "Number of workers" }
+      numWorkers:
+        { type: integer, default: 3, description: "Number of workers" }
   context:
     properties:
       certificateIssuers:
@@ -133,7 +134,6 @@ modules:
         coordinatorExtraConfig: |
           http-server.process-forwarded=true
           web-ui.authentication.type=oauth2
-          http-server.authentication.type=oauth2
           http-server.authentication.oauth2.issuer=https://keycloak.{{ .Context.ingress.suffix }}/realms/master
           http-server.authentication.oauth2.client-id=confidential-oidc-client
           http-server.authentication.oauth2.client-secret=secret1
@@ -167,11 +167,11 @@ modules:
               - name: generated-files
                 readOnly: false
                 mountPath: "/etc/trino/generated"
-      
+
       additionalConfigProperties:
         - internal-communication.shared-secret=random123
 
 roles:
   - Interactive-query
 dependencies:
-  - ingress 
+  - ingress
