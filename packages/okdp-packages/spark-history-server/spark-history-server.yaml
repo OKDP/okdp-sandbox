@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: spark-history-server
-tag: 3.5.1-p02
+tag: 3.5.1-p03
 protected: false
 description: |
   Spark History Server - Monitoring and debugging interface for Apache Spark applications.
@@ -9,12 +9,24 @@ description: |
 usage:
   text: |
     Spark History Server provides a web UI for viewing completed Spark applications.
+    {{- if .Parameters.enableWebProxy }}
+    {{- $historyEndpointUrl := .Context.sparkHistory.endpoint.url
+    | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace
+    | replace "{{ .Release.metadata.name }}" .Release.metadata.name
+    | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix
+    -}}
+    {{- $historyEndpointScheme := regexFind "^https?://" $historyEndpointUrl | default "https://" -}}
+    Access the UI at {{- printf "%s%s-%s.%s" $historyEndpointScheme .Parameters.webProxyUrlPrefix .Release.spec.targetNamespace .Context.ingress.suffix -}}
+    {{- else }}
     Access the UI at {{ .Context.sparkHistory.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
+    {{- end }}
 schema:
   parameters:
     properties:
       eventsLogDir: { type: string, required: true, default: "s3a://spark-events/event-logs/", description: "S3 path for Spark event logs, typically s3a://<bucket>/eventLogs" }
       adminGroups: { type: string, default: "admins", description: "Comma separated list of admin groups" }
+      enableWebProxy: { type: boolean, default: true, description: "Whether to enable Spark History web proxy" }
+      webProxyUrlPrefix: { type: string, default: "spark-web-proxy", description: "Spark web proxy url prefix" }
   context:
     properties:
       certificateIssuers:
@@ -48,6 +60,20 @@ modules:
       {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
       {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
       
+      {{- $historyEndpointScheme := regexFind "^https?://" $historyEndpointUrl | default "https://" -}}
+      {{- $webProxyEndpointUrl := printf "%s%s-%s.%s" $historyEndpointScheme .Parameters.webProxyUrlPrefix .Release.spec.targetNamespace .Context.ingress.suffix -}}
+      
+      {{- $historyRedirectUri := $historyEndpointUrl -}}
+      
+      {{- if .Parameters.enableWebProxy }}
+      {{- $historyRedirectUri := $webProxyEndpointUrl -}}
+      {{- end }}
+      
+      image:
+        repository: quay.io/okdp/spark
+        pullPolicy: IfNotPresent
+        tag: "spark-3.5.6-scala-2.12-java-17"
+      
       ingress:
         enabled: true
         ingressClassName: "nginx"
@@ -74,7 +100,7 @@ modules:
         spark.user.groups.mapping: io.okdp.spark.authz.OidcGroupMappingServiceProvider
         spark.history.ui.acls.enable: true
         spark.io.okdp.spark.authc.OidcAuthFilter.param.issuer-uri: {{ $keycloakIssuerUri }}
-        spark.io.okdp.spark.authc.OidcAuthFilter.param.redirect-uri: {{ $historyEndpointUrl }}/home
+        spark.io.okdp.spark.authc.OidcAuthFilter.param.redirect-uri: {{ $historyRedirectUri }}/home
         spark.io.okdp.spark.authc.OidcAuthFilter.param.scope: {{ .Context.sparkHistory.auth.oidc.scope }}
         spark.io.okdp.spark.authc.OidcAuthFilter.param.cookie-max-age-minutes: 480
         spark.io.okdp.spark.authc.OidcAuthFilter.param.cookie-cipher-secret-key: FC5E81345CED0E256DC42E410362FF6E
@@ -123,7 +149,48 @@ modules:
       extraVolumeMounts:
         - name: cacerts
           mountPath: /cacerts
+  # TODO: Kubocd — Add conditional modules
+  - name: proxy
+    dependsOn:
+      - main
+    timeout: 10m
+    source:
+      oci:
+        repository: quay.io/okdp/charts/spark-web-proxy
+        tag: 0.1.0
+    values: |
 
+      {{- $webProxyEndpointHost := printf "%s-%s.%s" .Parameters.webProxyUrlPrefix .Release.spec.targetNamespace .Context.ingress.suffix -}}
+      
+      image:
+        repository: quay.io/okdp/spark-web-proxy
+        pullPolicy: IfNotPresent
+        tag: "0.2.1"
+      
+      configuration:
+        spark:
+          history:
+            service: {{ .Release.metadata.name }}-main.{{ .Release.spec.targetNamespace }}.svc.cluster.local
+          ui:
+            proxyBase: /sparkui
+          jobNamespaces:
+            - {{ .Release.spec.targetNamespace }}
+      
+      ingress:
+        enabled: true
+        className: "nginx"
+        annotations:
+          nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+          cert-manager.io/cluster-issuer: {{ .Context.certificateIssuers.selfSigned.name }}
+        hosts:
+          - host: {{ $webProxyEndpointHost }}
+            paths:
+              - path: /
+                pathType: Prefix
+        tls:
+          - hosts:
+              - {{ $webProxyEndpointHost }}
+            secretName: {{ .Release.metadata.name }}-proxy-tls
 roles:
   - spark
 dependencies:
