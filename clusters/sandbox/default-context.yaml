@@ -49,7 +49,7 @@ spec:
           name: "Storage catalog"
           description: "Storage packages"
           packages:
-            - name: minio
+            - name: seaweedfs
         - id: Interactive-Query
           name: "Interactive Query"
           description: "Interactive-query packages"
@@ -98,6 +98,10 @@ spec:
             A collection of hands-on examples, helper utilities, Jupyter notebooks, and data workflows 
             that showcases how to work with the OKDP Platform.
           home: "https://github.com/okdp/okdp-examples"
+        seaweedfs:
+          description: |
+            SeaweedFS is a simple and highly scalable distributed file system. There are the objectives to store billions of files and to serve the files fast!
+          home: "https://seaweedfs.com/"
 
     hiveMetastore:
       database:
@@ -113,11 +117,11 @@ spec:
       storage:
         provider: s3
         s3:
-          apiUrl: https://minio-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
           bucket: hive
           warehouseDir: hive-warehouse/
           credentialsSecret:
-            name: creds-hms-minio
+            name: creds-hms-s3
             accessKeyKey: accessKey
             secretKeyKey: secretKey
         tls:
@@ -150,7 +154,7 @@ spec:
       storage:
         provider: s3
         s3:
-          apiUrl: https://minio-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
           credentialsSecret:
             name: creds-trino-s3
             accessKeyKey: S3_ACCESS_KEY
@@ -231,7 +235,7 @@ spec:
       storage:
         provider: s3
         s3:
-          apiUrl: https://minio-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
           credentialsSecret:
             name: creds-jupyter-s3
             accessKeyKey: accessKey
@@ -265,7 +269,7 @@ spec:
       storage:
         provider: s3
         s3:
-          apiUrl: https://minio-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
           credentialsSecret:
             name: creds-spark-history-s3
             accessKeyKey: S3_ACCESS_KEY
@@ -293,7 +297,7 @@ spec:
       storage:
         provider: s3
         s3:
-          apiUrl: https://minio-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
           credentialsSecret:
             name: creds-examples-s3
             accessKeyKey: S3_ACCESS_KEY
@@ -426,6 +430,10 @@ spec:
             owner:
               username: "keycloak"
               passwordSecret: creds-keycloak-db
+          - name: seaweedfs-default
+            owner:
+              username: "seaweedfs"
+              passwordSecret: creds-seaweedfs-db
           - name: superset-examples
             owner:
               username: "examples"
@@ -436,11 +444,20 @@ spec:
         host: postgresql-instance-rw.cnpg-system.svc.cluster.local
         port: 5432
 
-    # Provision the following minio resources and expose the final endpoints
-    minio:
+    seaweedfs:
       endpoint:
-        apiUrl: https://minio-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-        consoleUrl: https://minio-{{ .Release.namespace }}-console.{{ .Context.ingress.suffix }}
+        filerUrl: https://seaweedfs-seaweedfs-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+        s3Url: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+      database:
+        name: seaweedfs
+        host: postgresql-instance-rw.cnpg-system.svc.cluster.local
+        port: 5432
+        credentialsSecret:
+          name: creds-seaweedfs-db
+          usernameKey: username
+          passwordKey: password
+      s3:
+        s3_secret: creds-seaweedfs-secret
       info: |
         We add an ability for KuboCD to reuse/inherit (variable substitution) later.
-        All the required access keys for the services are provisioned in the package minio.yaml itself.
+        All the required access keys for the services are provisioned in the package seaweedfs.yaml itself.     
