@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-init
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: psql
+        image: postgres:17
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret_creds }}
+              key: password
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secret_creds }}
+              key: username
+        command:
+        - sh
+        - -c
+        - |
+          psql \
+            -h {{ .Values.postgres_host }} \
+            -p {{ .Values.port }} \
+            -U "$POSTGRES_USER" \
+            -d postgres \
+            -v DB_NAME={{ .Values.database }} \
+            -f /sql/init.sql
+        volumeMounts:
+        - name: sql
+          mountPath: /sql
+      volumes:
+      - name: sql
+        configMap:
+          name: postgres-init-sql
