@@ -1,0 +1,222 @@
+apiVersion: v1alpha1
+name: seaweedfs
+tag: 4.0.406-p1
+protected: false
+description: |
+  SeaweedFS is a simple and highly scalable distributed file system. There are the objectives to store billions of files and to serve the files fast!
+usage:
+  text: |
+    SeaweedFS is a simple and highly scalable distributed file system.
+    Access the console at {{ .Context.seaweedfs.endpoint.filerUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
+schema:
+  parameters:
+    properties:
+      username: { type: string, required: true, default: "admin" }
+      password: { type: string, required: true, default: "admin123" }
+      volumeReplicas: { type: integer, required: true, default: 1 }
+      masterStorage: { type: string, required: true, default: "1" }
+      masterLogStorage: { type: string, required: true, default: "0.5" }
+      volumeStorage: { type: string, required: true, default: "2" }
+      filerStorage: { type: string, required: true, default: "0.5" }
+      filerLogStorage: { type: string, required: true, default: "0.5" }
+  context:
+    properties:
+      certificateIssuers:
+        required: true
+        properties:
+          selfSigned:
+            properties:
+              name: { type: string, required: true }
+      storageClass:
+        required: true
+        properties:
+          data: { type: string, required: true }
+      ingress:
+        required: true
+        properties:
+          suffix: { type: string, required: true }
+modules:
+  - name: ocp-oauth-htpasswd
+    source:
+      local:
+        path: ./ocp-oauth-htpasswd
+    values: |
+      username: {{ .Parameters.username }}
+      password: {{ .Parameters.password }}
+      auth_secret: auth-user-secret
+      s3_secret: {{ .Context.seaweedfs.s3.s3_secret }}
+      s3Identities:
+        - name: anvAdmin
+          accessKey: snu8yoP6QAlY0ne4
+          secretKey: PNzBcmeLNEdR0oviwm04NQAicOrDH1Km
+          actions:
+            - Admin
+            - Read
+            - Write
+        - name: anvReadOnly
+          accessKey: SCigFee6c5lbi04A
+          secretKey: kgFhbT38R8WUYVtiFQ1OiSVOrYr3NKku
+          actions:
+            - Read
+        - name: creds-spark-history-s3
+          accessKey: spark-history
+          secretKey: 9xWCGP9DWn4r9ikF4VhhOfBzbJsO0FpgW7DmIjQh
+          actions:
+            - Read
+            - Write
+        - name: creds-jupyter-s3
+          accessKey: jupyter
+          secretKey: 4xABAzx5eHAfjf6SSbwFegO3eqrcz3yePEZH2oQz
+          actions:
+            - Read
+            - Write
+        - name: creds-trino-s3
+          accessKey: trino
+          secretKey: IthuzMjA3fWjGNdHCxE0KaJhx2zY8pxZmmkEqxHg
+          actions:
+            - Read
+            - Write
+        - name: creds-hms-s3
+          accessKey: hive-metastore
+          secretKey: rdwFp4MRhDnGGsSJpNQ0CiMIFz56VseWIPMWgKBe
+          actions:
+            - Read
+            - Write
+        - name: creds-examples-s3
+          accessKey: okdp-examples
+          secretKey: DiP4JtyptKQIVyEufZu2l74WIWYH5fK1tz6GrXgH
+          actions:
+            - Read
+            - Write
+  # Have to create a database per namespace with filemeta table before if
+  # activating external DBMS connection.
+  # - name: postgres-table-init
+  #   source:
+  #     local:
+  #       path: ./postgres-table-init
+  #   values: |
+  #     postgres_host: {{ .Context.seaweedfs.database.host }}
+  #     port: {{ .Context.seaweedfs.database.port }}
+  #     database: {{ .Context.seaweedfs.database.name }}-{{ .Release.spec.targetNamespace }}
+  #     secret_creds: {{ .Context.seaweedfs.database.credentialsSecret.name }}
+  - name: main
+    timeout: 10m
+    source:
+      helmRepository:
+        url: https://seaweedfs.github.io/seaweedfs/helm
+        chart: seaweedfs
+        version: 4.0.406
+    values: |
+      {{- $seaweedfsS3Url := .Context.seaweedfs.endpoint.s3Url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $seaweedfsS3Url := $seaweedfsS3Url | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $seaweedfsS3Url := $seaweedfsS3Url | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $seaweedfsFilerUrl := .Context.seaweedfs.endpoint.filerUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $seaweedfsFilerUrl := $seaweedfsFilerUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $seaweedfsFilerUrl := $seaweedfsFilerUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      {{- $seaweedfsS3Host := regexReplaceAll "^https?://" $seaweedfsS3Url "" -}}
+      {{- $seaweedfsFilerHost := regexReplaceAll "^https?://" $seaweedfsFilerUrl "" -}}
+      
+      nameOverride: "{{ .Release.metadata.name }}"
+      fullnameOverride: "{{ .Release.metadata.name }}"
+
+      global:
+        imageName: chrislusf/seaweedfs
+
+      master:
+        enabled: true
+        replicas: 1
+        data:
+          type: "persistentVolumeClaim"
+          storageClass: "{{ .Context.storageClass.workspace }}"
+          size: "{{ .Parameters.masterStorage }}Gi"
+
+        logs:
+          type: "persistentVolumeClaim"
+          storageClass: "{{ .Context.storageClass.workspace }}"
+          size: "{{ .Parameters.masterLogStorage }}Gi"
+      
+      volume:
+        enabled: true
+        replicas: {{ .Parameters.volumeReplicas }}
+        dataDirs:
+          - name: data
+            type: "persistentVolumeClaim"
+            storageClass: "{{ .Context.storageClass.workspace }}"
+            size: "{{ .Parameters.volumeStorage }}Gi"
+
+      filer:
+        enabled: true
+        replicas: 1
+        enablePVC: true
+        port: 8888
+        data:
+          type: "persistentVolumeClaim"
+          storageClass: "{{ .Context.storageClass.workspace }}"
+          size: "{{ .Parameters.filerStorage }}Gi"
+        logs:
+          type: "persistentVolumeClaim"
+          storageClass: "{{ .Context.storageClass.workspace }}"
+          size: "{{ .Parameters.filerLogStorage }}Gi"
+        s3:
+          enabled: true
+          enableAuth: true
+          existingConfigSecret: {{ .Context.seaweedfs.s3.s3_secret }}
+          createBuckets:
+            - name: {{ .Context.hiveMetastore.storage.s3.bucket }}
+              anonymousRead: false
+        # Have to create a database per namespace with filemeta table before if
+        # activating external DBMS connection.
+        # extraEnvironmentVars:
+        #   WEED_LEVELDB2_ENABLED: "false"
+        #   WEED_POSTGRES_ENABLED: "true"
+        #   WEED_POSTGRES_HOSTNAME: "{{ .Context.seaweedfs.database.host }}"
+        #   WEED_POSTGRES_PORT: "{{ .Context.seaweedfs.database.port }}"
+        #   WEED_POSTGRES_DATABASE: "{{ .Context.seaweedfs.database.name }}-{{ .Release.spec.targetNamespace }}"
+        #   WEED_POSTGRES_CONNECTION_MAX_IDLE: "5"
+        #   WEED_POSTGRES_CONNECTION_MAX_OPEN: "75"
+        # secretExtraEnvironmentVars:
+        #   WEED_POSTGRES_USERNAME:
+        #     secretKeyRef:
+        #       name: {{ .Context.seaweedfs.database.credentialsSecret.name }}
+        #       key: username
+        #   WEED_POSTGRES_PASSWORD:
+        #     secretKeyRef:
+        #       name: {{ .Context.seaweedfs.database.credentialsSecret.name }}
+        #       key: password
+        ingress:
+          enabled: true
+          className: nginx
+          annotations:
+            nginx.ingress.kubernetes.io/proxy-body-size: "130m"
+            cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+            nginx.ingress.kubernetes.io/auth-type: basic
+            nginx.ingress.kubernetes.io/auth-secret: auth-user-secret
+            nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+          host: {{ $seaweedfsFilerHost }}
+          path: "/"
+          pathType: Prefix
+          tls:
+            - secretName: seaweedfs-filer-tls
+              hosts:
+                - {{ $seaweedfsFilerHost }}
+      
+      s3:
+        enabled: false
+        ingress:
+          enabled: true
+          className: nginx
+          annotations:
+            nginx.ingress.kubernetes.io/proxy-body-size: "130m"
+            cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+          host: {{ $seaweedfsS3Host }}
+          tls:
+            - secretName: seaweedfs-s3-tls
+              hosts:
+              - {{ $seaweedfsS3Host }}
+
+roles:
+  - storage
+dependencies:
+  - ingress
+  # - database-server

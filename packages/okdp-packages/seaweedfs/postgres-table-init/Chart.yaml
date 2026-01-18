@@ -1,0 +1,7 @@
+apiVersion: v1
+name: postgres-table-init
+description: |
+  Create a database and the filemeta table in postgres necessary for seaweedfs.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
