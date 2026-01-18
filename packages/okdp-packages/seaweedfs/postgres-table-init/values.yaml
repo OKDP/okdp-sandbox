@@ -1,0 +1,4 @@
+postgres_host: postgres
+port: 5432
+database: database
+secret_creds: creds-db

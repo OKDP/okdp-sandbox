@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-sql
+data:
+  init.sql: |
+    SELECT format('CREATE DATABASE %I', :'DB_NAME')
+    WHERE NOT EXISTS (
+      SELECT FROM pg_database WHERE datname = :'DB_NAME'
+    )\gexec
+
+    \c :"DB_NAME";
+
+    CREATE TABLE IF NOT EXISTS filemeta (
+      dirhash     BIGINT,
+      name        VARCHAR(65535),
+      directory   VARCHAR(65535),
+      meta        bytea,
+      PRIMARY KEY (dirhash, name)
+    );

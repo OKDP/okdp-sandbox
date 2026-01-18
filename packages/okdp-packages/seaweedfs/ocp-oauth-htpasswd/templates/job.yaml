@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: htpasswd-generator
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: secret-writer
+
+      volumes:
+        - name: shared-data
+          emptyDir: {}
+
+      containers:
+        - name: htpasswd
+          image: backplane/htpasswd:latest
+          env:
+            - name: HTPASSWD_USERNAME
+              value: "{{ .Values.username }}"
+            - name: HTPASSWD_PASSWORD
+              value: "{{ .Values.password }}"
+          command:
+            - sh
+            - -c
+            - |
+              htpasswd -c -b -B /data/auth "$HTPASSWD_USERNAME" "$HTPASSWD_PASSWORD"
+          volumeMounts:
+            - name: shared-data
+              mountPath: /data
+
+        - name: kubectl
+          image: bitnami/kubectl:latest
+          env:
+            - name: SECRET_NAME
+              value: "{{ .Values.auth_secret }}"
+          command:
+            - sh
+            - -c
+            - |
+              while [ ! -f /data/auth ]; do sleep 1; done
+
+              kubectl create secret generic "$SECRET_NAME" \
+                --from-file=auth=/data/auth \
+                --dry-run=client -o yaml | kubectl apply -f -
+          volumeMounts:
+            - name: shared-data
+              mountPath: /data
