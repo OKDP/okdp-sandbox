@@ -47,44 +47,39 @@ modules:
       s3_secret: {{ .Context.seaweedfs.s3.s3_secret }}
       s3Identities:
         - name: anvAdmin
-          accessKey: snu8yoP6QAlY0ne4
-          secretKey: PNzBcmeLNEdR0oviwm04NQAicOrDH1Km
+          accessKey: {{ .Context.seaweedfs.s3.credentialsSecret.name }}
+          secretKey: {{ .Context.seaweedfs.s3.credentialsSecret.secretKeyKey }}
           actions:
             - Admin
             - Read
             - Write
-        - name: anvReadOnly
-          accessKey: SCigFee6c5lbi04A
-          secretKey: kgFhbT38R8WUYVtiFQ1OiSVOrYr3NKku
-          actions:
-            - Read
-        - name: creds-spark-history-s3
-          accessKey: spark-history
-          secretKey: 9xWCGP9DWn4r9ikF4VhhOfBzbJsO0FpgW7DmIjQh
+        - name: hive-metastore
+          accessKey: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.name }}
+          secretKey: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.secretKeyKey }}
           actions:
             - Read
             - Write
-        - name: creds-jupyter-s3
-          accessKey: jupyter
-          secretKey: 4xABAzx5eHAfjf6SSbwFegO3eqrcz3yePEZH2oQz
+        - name: trino
+          accessKey: {{ .Context.trino.storage.s3.credentialsSecret.name }}
+          secretKey: {{ .Context.trino.storage.s3.credentialsSecret.secretKeyKey }}
           actions:
             - Read
             - Write
-        - name: creds-trino-s3
-          accessKey: trino
-          secretKey: IthuzMjA3fWjGNdHCxE0KaJhx2zY8pxZmmkEqxHg
+        - name: jupyter
+          accessKey: {{ .Context.jupyter.storage.s3.credentialsSecret.name }}
+          secretKey: {{ .Context.jupyter.storage.s3.credentialsSecret.secretKeyKey }}
           actions:
             - Read
             - Write
-        - name: creds-hms-s3
-          accessKey: hive-metastore
-          secretKey: rdwFp4MRhDnGGsSJpNQ0CiMIFz56VseWIPMWgKBe
+        - name: okdp-examples
+          accessKey: {{ .Context.examples.storage.s3.credentialsSecret.name }}
+          secretKey: {{ .Context.examples.storage.s3.credentialsSecret.secretKeyKey }}
           actions:
             - Read
             - Write
-        - name: creds-examples-s3
-          accessKey: okdp-examples
-          secretKey: DiP4JtyptKQIVyEufZu2l74WIWYH5fK1tz6GrXgH
+        - name: spark-history
+          accessKey: {{ .Context.sparkHistory.storage.s3.credentialsSecret.name }}
+          secretKey: {{ .Context.sparkHistory.storage.s3.credentialsSecret.secretKeyKey }}
           actions:
             - Read
             - Write

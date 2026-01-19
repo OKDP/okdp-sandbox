@@ -458,6 +458,10 @@ spec:
           passwordKey: password
       s3:
         s3_secret: creds-seaweedfs-secret
+        credentialsSecret:
+            name: creds-seaweedfs-s3
+            accessKeyKey: S3_ACCESS_KEY
+            secretKeyKey: S3_SECRET_KEY
       info: |
         We add an ability for KuboCD to reuse/inherit (variable substitution) later.
         All the required access keys for the services are provisioned in the package seaweedfs.yaml itself.     
