@@ -135,11 +135,14 @@ spec:
         s3:
           apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
           bucket: hive
+          bucketAnonymousRead: true
           warehouseDir: hive-warehouse/
           credentialsSecret:
             name: creds-hms-s3
             accessKeyKey: accessKey
             secretKeyKey: secretKey
+          actions:
+            - Admin
         tls:
           enabled: true
           insecureSkipVerify: true
@@ -175,6 +178,8 @@ spec:
             name: creds-trino-s3
             accessKeyKey: S3_ACCESS_KEY
             secretKeyKey: S3_SECRET_ACCESS
+          actions:
+            - Admin
           tls:
             enabled: true
             insecureSkipVerify: true
@@ -254,8 +259,10 @@ spec:
           apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
           credentialsSecret:
             name: creds-jupyter-s3
-            accessKeyKey: accessKey
-            secretKeyKey: secretKey
+            accessKeyKey: S3_ACCESS_KEY
+            secretKeyKey: S3_SECRET_KEY
+          actions:
+            - Admin
           tls:
             enabled: true
             insecureSkipVerify: true
@@ -286,10 +293,14 @@ spec:
         provider: s3
         s3:
           apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          bucket: spark-events
+          bucketAnonymousRead: true
           credentialsSecret:
             name: creds-spark-history-s3
-            accessKeyKey: S3_ACCESS_KEY
-            secretKeyKey: S3_SECRET_KEY
+            accessKeyKey: accessKey
+            secretKeyKey: secretKey
+          actions:
+            - Admin
           tls:
             enabled: true
             insecureSkipVerify: true
@@ -318,6 +329,8 @@ spec:
             name: creds-examples-s3
             accessKeyKey: S3_ACCESS_KEY
             secretKeyKey: S3_SECRET_KEY
+          actions:
+            - Admin
           tls:
             enabled: true
             insecureSkipVerify: true
@@ -474,6 +487,12 @@ spec:
           passwordKey: password
       s3:
         s3_secret: creds-seaweedfs-secret
+        credentialsSecret:
+            name: creds-seaweedfs-s3
+            accessKeyKey: accessKey
+            secretKeyKey: secretKey
+        actions:
+            - Admin
       info: |
         We add an ability for KuboCD to reuse/inherit (variable substitution) later.
-        All the required access keys for the services are provisioned in the package seaweedfs.yaml itself.     
+        All the required access keys for the services are provisioned in the package seaweedfs.yaml itself.

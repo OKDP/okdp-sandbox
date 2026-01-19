@@ -45,49 +45,37 @@ modules:
       password: {{ .Parameters.password }}
       auth_secret: auth-user-secret
       s3_secret: {{ .Context.seaweedfs.s3.s3_secret }}
-      s3Identities:
-        - name: anvAdmin
-          accessKey: snu8yoP6QAlY0ne4
-          secretKey: PNzBcmeLNEdR0oviwm04NQAicOrDH1Km
+      sourceS3Secrets:
+        - name: {{ .Context.seaweedfs.s3.credentialsSecret.name }}
           actions:
-            - Admin
-            - Read
-            - Write
-        - name: anvReadOnly
-          accessKey: SCigFee6c5lbi04A
-          secretKey: kgFhbT38R8WUYVtiFQ1OiSVOrYr3NKku
+          {{- range .Context.seaweedfs.s3.actions }}
+            - {{ . }}
+          {{- end }}
+        - name: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.name }}
           actions:
-            - Read
-        - name: creds-spark-history-s3
-          accessKey: spark-history
-          secretKey: 9xWCGP9DWn4r9ikF4VhhOfBzbJsO0FpgW7DmIjQh
+          {{- range .Context.hiveMetastore.storage.s3.actions }}
+          - {{ . }}
+          {{- end }}
+        - name: {{ .Context.trino.storage.s3.credentialsSecret.name }}
           actions:
-            - Read
-            - Write
-        - name: creds-jupyter-s3
-          accessKey: jupyter
-          secretKey: 4xABAzx5eHAfjf6SSbwFegO3eqrcz3yePEZH2oQz
+          {{- range .Context.trino.storage.s3.actions }}
+          - {{ . }}
+          {{- end }}
+        - name: {{ .Context.jupyter.storage.s3.credentialsSecret.name }}
           actions:
-            - Read
-            - Write
-        - name: creds-trino-s3
-          accessKey: trino
-          secretKey: IthuzMjA3fWjGNdHCxE0KaJhx2zY8pxZmmkEqxHg
+          {{- range .Context.jupyter.storage.s3.actions }}
+          - {{ . }}
+          {{- end }}
+        - name: {{ .Context.sparkHistory.storage.s3.credentialsSecret.name }}
           actions:
-            - Read
-            - Write
-        - name: creds-hms-s3
-          accessKey: hive-metastore
-          secretKey: rdwFp4MRhDnGGsSJpNQ0CiMIFz56VseWIPMWgKBe
+          {{- range .Context.sparkHistory.storage.s3.actions }}
+          - {{ . }}
+          {{- end }}
+        - name: {{ .Context.examples.storage.s3.credentialsSecret.name }}
           actions:
-            - Read
-            - Write
-        - name: creds-examples-s3
-          accessKey: okdp-examples
-          secretKey: DiP4JtyptKQIVyEufZu2l74WIWYH5fK1tz6GrXgH
-          actions:
-            - Read
-            - Write
+          {{- range .Context.examples.storage.s3.actions }}
+          - {{ . }}
+          {{- end }}
   # Have to create a database per namespace with filemeta table before if
   # activating external DBMS connection.
   # - name: postgres-table-init
@@ -164,7 +152,9 @@ modules:
           existingConfigSecret: {{ .Context.seaweedfs.s3.s3_secret }}
           createBuckets:
             - name: {{ .Context.hiveMetastore.storage.s3.bucket }}
-              anonymousRead: false
+              anonymousRead: {{ .Context.hiveMetastore.storage.s3.bucketAnonymousRead }}
+            - name: {{ .Context.sparkHistory.storage.s3.bucket }}
+              anonymousRead: {{ .Context.sparkHistory.storage.s3.bucketAnonymousRead }}
         # Have to create a database per namespace with filemeta table before if
         # activating external DBMS connection.
         # extraEnvironmentVars:

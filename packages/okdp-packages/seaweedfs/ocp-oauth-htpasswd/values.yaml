@@ -2,16 +2,13 @@ username: admin
 password: admin123
 auth_secret: auth-user-secret
 s3_secret: creds-s3-secret
-s3Identities:
-  - name: anvAdmin
-    accessKey: snu8yoP6QAlY0ne4
-    secretKey: PNzBcmeLNEdR0oviwm04NQAicOrDH1Km
+sourceS3Secrets:
+  - name: creds-example-s3
     actions:
       - Admin
       - Read
       - Write
-  - name: anvReadOnly
-    accessKey: SCigFee6c5lbi04A
-    secretKey: kgFhbT38R8WUYVtiFQ1OiSVOrYr3NKku
+
+  - name: creds-example-s3-2
     actions:
       - Read
