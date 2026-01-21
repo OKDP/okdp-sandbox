@@ -15,7 +15,7 @@ spec:
 
       containers:
         - name: htpasswd
-          image: backplane/htpasswd:latest
+          image: backplane/htpasswd@sha256:24e8899e9c784b35bd0f79b5f7bedad19dcb43e3c68eab1b2b0114e9da02a54f
           env:
             - name: HTPASSWD_USERNAME
               value: "{{ .Values.username }}"
@@ -31,7 +31,7 @@ spec:
               mountPath: /data
 
         - name: kubectl
-          image: bitnami/kubectl:latest
+          image: bitnami/kubectl@sha256:b349e60a6ae2969af84a778c0b976b050a0cc77f4fb6a4ad44307cd0a06e9d8f
           env:
             - name: SECRET_NAME
               value: "{{ .Values.auth_secret }}"
