@@ -1,7 +1,11 @@
+{{- $root := . -}}
+
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: htpasswd-generator
+  labels:
+    {{- include "ocp-oauth-htpasswd.labels" $root | nindent 4 }}
 spec:
   ttlSecondsAfterFinished: 60
   template:

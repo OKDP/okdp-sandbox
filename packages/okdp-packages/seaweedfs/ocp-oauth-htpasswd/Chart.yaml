@@ -1,4 +1,4 @@
-apiVersion: v1
+apiVersion: v2
 name: ocp-oauth-htpasswd
 description: |
   A way to create a secret for basic authentication.

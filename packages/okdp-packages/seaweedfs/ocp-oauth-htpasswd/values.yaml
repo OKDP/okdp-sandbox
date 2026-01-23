@@ -1,3 +1,6 @@
+nameOverride: ""
+fullnameOverride: ""
+
 username: admin
 password: admin123
 auth_secret: auth-user-secret
