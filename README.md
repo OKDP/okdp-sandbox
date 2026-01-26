@@ -17,7 +17,7 @@ A complete sandbox environment for testing and evaluating OKDP (Open Kubernetes 
 
 OKDP Sandbox provides a ready-to-use data platform environment that includes:
 - Identity management (Keycloak)
-- Object storage (MinIO)
+- Object storage (SeaweedFS)
 - Data processing (Spark History Server)
 - Notebooking (JupyterHub)
 - Data visualization (Apache Superset)
@@ -334,7 +334,7 @@ kubectl get secret default-issuer -n cert-manager -o jsonpath='{.data.ca\.crt}' 
 
 **Option 2**: Ignore certificate warnings
 - **First, connect to Keycloak** (https://keycloak.okdp.sandbox or https://keycloak.<CUSTOM_DOMAIN>) and accept the self-signed certificate in your browser.
-- This step is **mandatory** for all OKDP services (UI, MinIO, etc.) to communicate properly with Keycloak.
+- This step is **mandatory** for all OKDP services (UI, Seaweedfs, etc.) to communicate properly with Keycloak.
 
 ## Quick Start Guide
 
