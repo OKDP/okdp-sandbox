@@ -132,6 +132,7 @@ modules:
             type: "persistentVolumeClaim"
             storageClass: "{{ .Context.storageClass.workspace }}"
             size: "{{ .Parameters.volumeStorage }}Gi"
+            maxVolumes: 0
 
       filer:
         enabled: true
