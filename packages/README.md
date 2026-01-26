@@ -12,7 +12,7 @@ packages/
 └── okdp-packages/      # OKDP packages
     ├── superset/
     ├── jupyterhub/
-    ├── minio/
+    ├── seaweedfs/
     └── ...
 ```
 
@@ -47,7 +47,7 @@ for pkg in packages/system/*/; do
 done
 
 # Build specific package
-kubocd pack --ociRepoPrefix quay.io/okdp/sandbox-packages-v0.1 ./packages/okdp-packages/minio/minio.yaml
+kubocd pack --ociRepoPrefix quay.io/okdp/sandbox-packages-v0.1 ./packages/okdp-packages/seaweedfs/seaweedfs.yaml
 ```
 
 ### Build Output

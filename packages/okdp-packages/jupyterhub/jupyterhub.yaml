@@ -16,7 +16,7 @@
 
 apiVersion: v1alpha1
 name: jupyterhub
-tag: 4.3.1-p01
+tag: 4.3.1-p02
 protected: false
 description: |
   JupyterHub - Multi-user interactive development environment for data science and machine learning.
@@ -261,7 +261,7 @@ modules:
                       "\n",
                       "You’ll be able to explore:\n",
                       "\n",
-                      "- **[MinIO](https://www.min.io/)** for S3-compatible object storage\n",
+                      "- **[SeaweedFS](https://github.com/seaweedfs/seaweedfs)** for S3-compatible object storage\n",
                       "- **[Hive Metastore](https://hive.apache.org/)** for table/catalog metadata\n",
                       "- **[Trino](https://trino.io/)** for interactive SQL queries\n",
                       "- **[Jupyter](https://jupyter.org/)** for notebooks and analysis\n",
@@ -281,7 +281,7 @@ modules:
                       "\n",
                       "## 🧭 What’s inside the repo\n",
                       "\n",
-                      "- **Helm-driven workflows** to download public datasets and upload them to S3 (MinIO)\n",
+                      "- **Helm-driven workflows** to download public datasets and upload them to S3 (SeaweedFS)\n",
                       "- **Trino SQL** examples to create external tables and sync partitions\n",
                       "- **Jupyter notebooks** to query Trino (SQLAlchemy + native SQL)\n",
                       "- Optional **Superset** workflows for visualization\n",
