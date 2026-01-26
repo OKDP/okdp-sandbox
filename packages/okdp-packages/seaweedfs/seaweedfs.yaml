@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: seaweedfs
-tag: 4.0.406-p1
+tag: 4.0.407-p1
 protected: false
 description: |
   SeaweedFS is a simple and highly scalable distributed file system. There are the objectives to store billions of files and to serve the files fast!
@@ -93,7 +93,7 @@ modules:
       helmRepository:
         url: https://seaweedfs.github.io/seaweedfs/helm
         chart: seaweedfs
-        version: 4.0.406
+        version: 4.0.407
     values: |
       {{- $seaweedfsS3Url := .Context.seaweedfs.endpoint.s3Url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
       {{- $seaweedfsS3Url := $seaweedfsS3Url | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
