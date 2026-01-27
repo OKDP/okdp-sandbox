@@ -14,7 +14,7 @@
 #  limitations under the License.
 #
 
-{{- $root := . -}}
+{{- $root := . }}
 
 apiVersion: batch/v1
 kind: Job
