@@ -142,7 +142,9 @@ spec:
             accessKeyKey: accessKey
             secretKeyKey: secretKey
           actions:
-            - Admin
+            - Read
+            - Write
+            - List
         tls:
           enabled: true
           insecureSkipVerify: true
@@ -179,7 +181,9 @@ spec:
             accessKeyKey: S3_ACCESS_KEY
             secretKeyKey: S3_SECRET_ACCESS
           actions:
-            - Admin
+            - Read
+            - Write
+            - List
           tls:
             enabled: true
             insecureSkipVerify: true
@@ -262,7 +266,9 @@ spec:
             accessKeyKey: S3_ACCESS_KEY
             secretKeyKey: S3_SECRET_KEY
           actions:
-            - Admin
+            - Read
+            - Write
+            - List
           tls:
             enabled: true
             insecureSkipVerify: true
@@ -300,7 +306,9 @@ spec:
             accessKeyKey: accessKey
             secretKeyKey: secretKey
           actions:
-            - Admin
+            - Read
+            - Write
+            - List
           tls:
             enabled: true
             insecureSkipVerify: true
