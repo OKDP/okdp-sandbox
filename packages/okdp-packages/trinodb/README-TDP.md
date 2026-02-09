@@ -4,6 +4,19 @@ This document outlines the steps to configure and deploy the necessary Kubernete
 
 ## Prerequisites
 
+Ensure the `trino` user exists in your TDP cluster and has the necessary proxy permissions. This is configured in the `core-site.xml` of your TDP cluster:
+
+```xml
+<property>
+  <name>hadoop.proxyuser.trino.hosts</name>
+  <value>*</value>
+</property>
+<property>
+  <name>hadoop.proxyuser.trino.groups</name>
+  <value>*</value>
+</property>
+```
+
 Ensure you have the following files available in your `../tdp-client` directory. **Note: Configuration files are auto-generated in the TDP environment.**
 
 - `trino.keytab`: Kerberos keytab for the Trino service principal.
