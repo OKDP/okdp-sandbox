@@ -1,0 +1,168 @@
+---
+# ServiceAccount for Spark applications in Airflow namespace
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark
+  namespace: airflow
+  labels:
+    app: spark
+    component: serviceaccount
+
+---
+# Role for Spark driver and executor pods
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: spark-role
+  namespace: airflow
+  labels:
+    app: spark
+    component: rbac
+rules:
+  # Pods management
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # ConfigMaps for Spark configuration
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Services for Spark UI and driver
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Persistent volumes
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "watch"]
+  
+  # Events for monitoring
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+
+---
+# RoleBinding for Spark ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: spark-role-binding
+  namespace: airflow
+  labels:
+    app: spark
+    component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: spark-role
+subjects:
+  - kind: ServiceAccount
+    name: spark
+    namespace: airflow
+
+---
+# Role for Airflow to manage SparkApplications
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: airflow-spark-operator-role
+  namespace: airflow
+  labels:
+    app: airflow
+    component: rbac
+rules:
+  # SparkApplication CRD management
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["sparkapplications"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["sparkapplications/status"]
+    verbs: ["get", "list", "watch"]
+  
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["scheduledsparkapplications"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  # Pods for monitoring
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+  
+  # Services for Spark UI access
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch"]
+  
+  # Events for monitoring
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+
+---
+# RoleBinding for Airflow ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: airflow-spark-operator-binding
+  namespace: airflow
+  labels:
+    app: airflow
+    component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: airflow-spark-operator-role
+subjects:
+  - kind: ServiceAccount
+    name: airflow
+    namespace: airflow
+
+---
+# ClusterRole for Spark Operator to manage SparkApplications across namespaces
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: spark-operator-airflow-access
+  labels:
+    app: spark-operator
+    component: rbac
+rules:
+  # SparkApplication management in airflow namespace
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["sparkapplications"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["sparkapplications/status"]
+    verbs: ["get", "update", "patch"]
+  
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["sparkapplications/finalizers"]
+    verbs: ["update"]
+
+---
+# ClusterRoleBinding for Spark Operator
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: spark-operator-airflow-access-binding
+  labels:
+    app: spark-operator
+    component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: spark-operator-airflow-access
+subjects:
+  - kind: ServiceAccount
+    name: spark-operator-noname-controller
+    namespace: spark-operator
