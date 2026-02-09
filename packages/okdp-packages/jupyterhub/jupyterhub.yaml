@@ -369,7 +369,6 @@ modules:
               image_pull_policy: Always
           - display_name: "📊 Scientific Python"
             description: "Includes Git, Pandas, NumPy, S3 browser, and Trino SQL support."
-            default: true
             kubespawner_override:
               image: quay.io/okdp/jupyter/scipy-notebook:python-3.12.12-hub-5.4.2-lab-4.5.0
               image_pull_policy: Always
@@ -380,6 +379,7 @@ modules:
               image_pull_policy: Always
           - display_name: "🔥 PySpark"
             description: "Apache Spark big data processing"
+            default: true
             kubespawner_override:
               image_pull_policy: Always
               environment:
