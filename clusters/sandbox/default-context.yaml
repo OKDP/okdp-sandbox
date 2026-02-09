@@ -345,6 +345,8 @@ spec:
         url: https://spark-history-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
     airflow:
+      sparkOperator:
+        serviceAccount: spark
       database:
         type: postgresql
         name: airflow

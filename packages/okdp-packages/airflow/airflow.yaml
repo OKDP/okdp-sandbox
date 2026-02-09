@@ -1,0 +1,71 @@
+apiVersion: v1alpha1
+name: airflow
+tag: 1.17.0-p01
+protected: false
+description: |
+  Apache Airflow 2.10.5 - Platform to programmatically author, schedule, and monitor workflows
+
+schema:
+  parameters:
+    properties:
+      postgresqlEnabled:
+        type: boolean
+        default: true
+      ingressHost:
+        type: string
+        default: "airflow.okdp.local"
+  context:
+    properties: {}
+
+modules:
+  - name: noname
+    timeout: 15m
+    source:
+      helmRepository:
+        url: https://airflow.apache.org
+        chart: airflow
+        version: 1.17.0
+    values: |
+      airflow:
+        image:
+          repository: apache/airflow
+          tag: 2.10.5-python3.11
+        executor: CeleryExecutor
+        config:
+          AIRFLOW__CORE__LOAD_EXAMPLES: 'False'
+          AIRFLOW__WEBSERVER__RBAC: 'True'
+      
+      webserver:
+        replicas: 1
+        defaultUser:
+          enabled: true
+          username: admin
+          password: admin
+          role: Admin
+      
+      scheduler:
+        replicas: 1
+      
+      workers:
+        replicas: 1
+      
+      postgresql:
+        enabled: {{ .Parameters.postgresqlEnabled }}
+        auth:
+          username: airflow
+          password: airflow
+          database: airflow
+      
+      redis:
+        enabled: true
+        auth:
+          enabled: false
+      
+      ingress:
+        enabled: true
+        web:
+          enabled: true
+          hosts:
+            - name: {{ .Parameters.ingressHost }}
+              path: /
+              pathType: Prefix
