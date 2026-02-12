@@ -1,24 +1,26 @@
 apiVersion: v1alpha1
 name: airflow
-tag: 1.17.0-p01
+tag: 2.9.3-p01
 protected: false
 description: |
-  Apache Airflow 2.10.5 - Platform to programmatically author, schedule, and monitor workflows
+  Apache Airflow 2.9.3 - Workflow orchestration platform with Spark Operator integration
+
+usage:
+  text: |
+    Apache Airflow has been deployed successfully.
+
+    Access the Airflow UI:
+      URL: https://airflow-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+      Default credentials: admin / admin
 
 schema:
   parameters:
-    properties:
-      postgresqlEnabled:
-        type: boolean
-        default: true
-      ingressHost:
-        type: string
-        default: ""
+    properties: {}
   context:
     properties: {}
 
 modules:
-  - name: noname
+  - name: main
     timeout: 15m
     source:
       helmRepository:
@@ -26,49 +28,90 @@ modules:
         chart: airflow
         version: 1.17.0
     values: |
-      airflow:
-        image:
-          repository: apache/airflow
-          tag: 2.10.5-python3.11
-        executor: CeleryExecutor
-        config:
-          AIRFLOW__CORE__LOAD_EXAMPLES: 'False'
-          AIRFLOW__WEBSERVER__RBAC: 'True'
-      
+      executor: CeleryExecutor
+      defaultAirflowTag: "2.9.3"
+
       webserver:
-        replicas: 1
         defaultUser:
           enabled: true
-          username: admin
-          password: admin
           role: Admin
-      
+          username: admin
+          email: admin@example.com
+          firstName: admin
+          lastName: user
+          password: admin
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+
       scheduler:
-        replicas: 1
-      
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+
+      triggerer:
+        enabled: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "100m"
+
       workers:
-        replicas: 1
-      
-      postgresql:
-        enabled: {{ .Parameters.postgresqlEnabled }}
-        auth:
-          username: airflow
-          password: airflow
-          database: airflow
-      
-      redis:
-        enabled: true
-        auth:
-          enabled: false
-      
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+
       ingress:
-        enabled: true
         web:
           enabled: true
           ingressClassName: nginx
-          annotations:
-            kubernetes.io/ingress.class: nginx
           hosts:
-            - name: {{ default (printf "airflow-%s.%s" .Release.namespace .Context.ingress.suffix) .Parameters.ingressHost }}
-              path: /
-              pathType: Prefix
+            - name: airflow-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+              tls:
+                enabled: true
+                secretName: airflow-tls
+          annotations:
+            cert-manager.io/cluster-issuer: {{ .Context.certificateIssuers.selfSigned.name }}
+
+      postgresql:
+        enabled: true
+
+      redis:
+        enabled: true
+
+      dags:
+        persistence:
+          enabled: false
+        gitSync:
+          enabled: false
+
+      flower:
+        enabled: false
+      pgbouncer:
+        enabled: false
+      statsd:
+        enabled: false
+
+      config:
+        core:
+          load_examples: 'False'
+
+roles:
+  - airflow
+
+dependencies: []
