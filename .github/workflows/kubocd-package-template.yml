@@ -220,7 +220,28 @@ jobs:
               | xargs -r -n2 sh -c 'echo "Pending Pod: $0/$1 ==="; kubectl describe pod -n "$0" "$1"; echo'
             sleep 15
           done) &
-          kubectl wait --for=condition=ready release --all -A --timeout=1200s
+          # `kubectl wait` is flaky on this CRD in CI; poll release phase explicitly.
+          timeout_secs=1800
+          interval_secs=15
+          elapsed=0
+
+          while [ "$elapsed" -lt "$timeout_secs" ]; do
+            not_ready="$(kubectl get release -A -o jsonpath='{range .items[?(@.status.phase!="READY")]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}')"
+
+            if [ -z "$not_ready" ]; then
+              echo "All releases are READY."
+              exit 0
+            fi
+
+            echo "Releases not ready yet:"
+            echo "$not_ready"
+            sleep "$interval_secs"
+            elapsed=$((elapsed + interval_secs))
+          done
+
+          echo "Timed out waiting for READY releases after ${timeout_secs}s"
+          kubectl get release -A
+          exit 1
   
       - name: Build and push KuboCD packages into public registry (${{ inputs.registry }}) 📦
         if: inputs.publish_to_registry == 'true'
