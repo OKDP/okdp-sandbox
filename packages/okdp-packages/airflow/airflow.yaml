@@ -28,7 +28,8 @@ modules:
         chart: airflow
         version: 1.17.0
     values: |
-      executor: CeleryExecutor
+      executor: LocalExecutor
+
       defaultAirflowTag: "2.9.3"
 
       webserver:
@@ -67,15 +68,6 @@ modules:
             memory: "256Mi"
             cpu: "100m"
 
-      workers:
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "250m"
-
       ingress:
         web:
           enabled: true
@@ -92,7 +84,13 @@ modules:
         enabled: true
 
       redis:
-        enabled: true
+        enabled: false
+
+      workers:
+        replicas: 0
+
+      dagProcessor:
+        enabled: false
 
       dags:
         persistence:
@@ -106,6 +104,9 @@ modules:
         enabled: false
       statsd:
         enabled: false
+
+      migrateDatabaseJob:
+        enabled: true
 
       config:
         core:
