@@ -205,32 +205,35 @@ jobs:
         run: |
           echo "**************************************** Storage Classes ****************************************"
           kubectl get sc
-          kubectl get events -A -w &
-          (while true; do
+          kubectl get events -A -w >/tmp/kubectl-events.log 2>&1 &
+          EVENTS_PID=$!
+          trap 'kill $EVENTS_PID 2>/dev/null || true' EXIT
+
+          # Poll release phase explicitly; this is more stable than kubectl wait for this CRD.
+          timeout_secs=1800
+          interval_secs=15
+          elapsed=0
+          ready=0
+
+          while [ "$elapsed" -lt "$timeout_secs" ]; do
             echo "Wait until all KuboCD releases are ready ..."
             echo "************************************** Releases status **************************************"
-            kubectl get release -A
+            kubectl get release -A || true
             echo "**************************************** Pods status ****************************************"
-            kubectl get po -A
+            kubectl get po -A || true
             echo "**************************************** PVC status ****************************************"
-            kubectl get pvc -A
+            kubectl get pvc -A || true
             echo "**************************************** Pending Pods ****************************************"
             kubectl get pods -A --field-selector=status.phase=Pending \
               -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name --no-headers \
               | xargs -r -n2 sh -c 'echo "Pending Pod: $0/$1 ==="; kubectl describe pod -n "$0" "$1"; echo'
-            sleep 15
-          done) &
-          # `kubectl wait` is flaky on this CRD in CI; poll release phase explicitly.
-          timeout_secs=1800
-          interval_secs=15
-          elapsed=0
 
-          while [ "$elapsed" -lt "$timeout_secs" ]; do
-            not_ready="$(kubectl get release -A -o jsonpath='{range .items[?(@.status.phase!="READY")]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}')"
+            not_ready="$(kubectl get release -A -o jsonpath='{range .items[?(@.status.phase!="READY")]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' 2>/dev/null || true)"
 
             if [ -z "$not_ready" ]; then
               echo "All releases are READY."
-              exit 0
+              ready=1
+              break
             fi
 
             echo "Releases not ready yet:"
@@ -239,8 +242,14 @@ jobs:
             elapsed=$((elapsed + interval_secs))
           done
 
+          if [ "$ready" -eq 1 ]; then
+            exit 0
+          fi
+
           echo "Timed out waiting for READY releases after ${timeout_secs}s"
           kubectl get release -A
+          echo "Last events log lines:"
+          tail -n 200 /tmp/kubectl-events.log || true
           exit 1
   
       - name: Build and push KuboCD packages into public registry (${{ inputs.registry }}) 📦
