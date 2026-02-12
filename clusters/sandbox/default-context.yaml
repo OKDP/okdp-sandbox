@@ -359,7 +359,7 @@ spec:
       storage:
         provider: s3
         s3:
-          apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.okdp.sandbox
           bucket: airflow-logs
           credentialsSecret:
             name: creds-airflow-s3

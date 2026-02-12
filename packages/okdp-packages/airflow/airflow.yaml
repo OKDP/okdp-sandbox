@@ -13,7 +13,7 @@ schema:
         default: true
       ingressHost:
         type: string
-        default: "airflow.okdp.local"
+        default: ""
   context:
     properties: {}
 
@@ -65,7 +65,10 @@ modules:
         enabled: true
         web:
           enabled: true
+          ingressClassName: nginx
+          annotations:
+            kubernetes.io/ingress.class: nginx
           hosts:
-            - name: {{ .Parameters.ingressHost }}
+            - name: {{ default (printf "airflow-%s.%s" .Release.namespace .Context.ingress.suffix) .Parameters.ingressHost }}
               path: /
               pathType: Prefix
