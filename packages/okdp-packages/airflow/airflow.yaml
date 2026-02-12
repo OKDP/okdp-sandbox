@@ -17,7 +17,17 @@ schema:
   parameters:
     properties: {}
   context:
-    properties: {}
+    properties:
+      certificateIssuers:
+        required: true
+        properties:
+          selfSigned:
+            properties:
+              name: { type: string, required: true }
+      ingress:
+        required: true
+        properties:
+          suffix: { type: string, required: true }
 
 modules:
   - name: main
@@ -43,29 +53,29 @@ modules:
           password: admin
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "100m"
+            memory: "128Mi"
+            cpu: "25m"
           limits:
-            memory: "512Mi"
-            cpu: "250m"
+            memory: "256Mi"
+            cpu: "200m"
 
       scheduler:
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "100m"
+            memory: "128Mi"
+            cpu: "25m"
           limits:
-            memory: "512Mi"
-            cpu: "250m"
+            memory: "256Mi"
+            cpu: "200m"
 
       triggerer:
         enabled: true
         resources:
           requests:
-            memory: "128Mi"
-            cpu: "50m"
+            memory: "64Mi"
+            cpu: "25m"
           limits:
-            memory: "256Mi"
+            memory: "128Mi"
             cpu: "100m"
 
       ingress:
@@ -82,6 +92,17 @@ modules:
 
       postgresql:
         enabled: true
+        primary:
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "25m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          persistence:
+            enabled: true
+            size: 1Gi
 
       redis:
         enabled: false
@@ -107,6 +128,22 @@ modules:
 
       migrateDatabaseJob:
         enabled: true
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "25m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+      createUserJob:
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "25m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
 
       config:
         core:
