@@ -217,7 +217,7 @@ jobs:
             echo "**************************************** Pending Pods ****************************************"
             kubectl get pods -A --field-selector=status.phase=Pending \
               -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name --no-headers \
-              | xargs -n2 sh -c 'echo "Pending Pod: $0/$1 ==="; kubectl describe pod -n "$0" "$1"; echo'
+              | xargs -r -n2 sh -c 'echo "Pending Pod: $0/$1 ==="; kubectl describe pod -n "$0" "$1"; echo'
             sleep 15
           done) &
           kubectl wait --for=jsonpath='{.status.phase}'=READY release --all -A --timeout=600s
