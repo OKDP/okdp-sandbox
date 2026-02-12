@@ -50,4 +50,12 @@ rules:
     resources: ["persistentvolumeclaims"]
     verbs: ["get", "list", "watch", "create", "delete", "patch", "deletecollection"]
 
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["sparkapplications"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["sparkapplications/status"]
+    verbs: ["get", "list", "watch"]
+
 {{- end }}

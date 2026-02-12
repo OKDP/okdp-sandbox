@@ -1,0 +1,17 @@
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Release
+metadata:
+  name: spark-operator
+  namespace: kubocd-system
+spec:
+  description: "Spark Operator for managing Apache Spark applications on Kubernetes"
+  package:
+    repository: quay.io/okdp/sandbox-packages-v0.1/spark-operator
+    tag: 2.4.0-p01
+  parameters:
+    jobNamespaces: [""] # Allow all namespaces for sandbox simplicity
+    metricsEnabled: true
+    podMonitorEnabled: false
+    webhookEnabled: true
+  targetNamespace: spark-operator
+  createNamespace: true

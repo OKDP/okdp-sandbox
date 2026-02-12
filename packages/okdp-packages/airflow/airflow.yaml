@@ -1,0 +1,155 @@
+apiVersion: v1alpha1
+name: airflow
+tag: 2.9.3-p01
+protected: false
+description: |
+  Apache Airflow 2.9.3 - Workflow orchestration platform with Spark Operator integration
+
+usage:
+  text: |
+    Apache Airflow has been deployed successfully.
+
+    Access the Airflow UI:
+      URL: https://airflow-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+      Default credentials: admin / admin
+
+schema:
+  parameters:
+    properties: {}
+  context:
+    properties:
+      certificateIssuers:
+        required: true
+        properties:
+          selfSigned:
+            properties:
+              name: { type: string, required: true }
+      ingress:
+        required: true
+        properties:
+          suffix: { type: string, required: true }
+
+modules:
+  - name: main
+    timeout: 15m
+    source:
+      helmRepository:
+        url: https://airflow.apache.org
+        chart: airflow
+        version: 1.17.0
+    values: |
+      executor: LocalExecutor
+
+      defaultAirflowTag: "2.9.3"
+
+      webserver:
+        defaultUser:
+          enabled: true
+          role: Admin
+          username: admin
+          email: admin@example.com
+          firstName: admin
+          lastName: user
+          password: admin
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "25m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+      scheduler:
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "25m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+      triggerer:
+        enabled: true
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "25m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+
+      ingress:
+        web:
+          enabled: true
+          ingressClassName: nginx
+          hosts:
+            - name: airflow-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+              tls:
+                enabled: true
+                secretName: airflow-tls
+          annotations:
+            cert-manager.io/cluster-issuer: {{ .Context.certificateIssuers.selfSigned.name }}
+
+      postgresql:
+        enabled: true
+        primary:
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "25m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          persistence:
+            enabled: true
+            size: 1Gi
+
+      redis:
+        enabled: false
+
+      workers:
+        replicas: 0
+
+      dagProcessor:
+        enabled: false
+
+      dags:
+        persistence:
+          enabled: false
+        gitSync:
+          enabled: false
+
+      flower:
+        enabled: false
+      pgbouncer:
+        enabled: false
+      statsd:
+        enabled: false
+
+      migrateDatabaseJob:
+        enabled: true
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "25m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+      createUserJob:
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "25m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+      config:
+        core:
+          load_examples: 'False'
+
+roles:
+  - airflow
+
+dependencies: []
