@@ -92,6 +92,10 @@ modules:
 
       postgresql:
         enabled: true
+        image:
+          registry: docker.io
+          repository: bitnami/postgresql
+          tag: "16"
         primary:
           resources:
             requests:
