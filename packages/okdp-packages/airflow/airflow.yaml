@@ -28,6 +28,21 @@ schema:
         required: true
         properties:
           suffix: { type: string, required: true }
+      airflow:
+        required: true
+        properties:
+          database:
+            required: true
+            properties:
+              name: { type: string, required: true }
+              host: { type: string, required: true }
+              port: { type: integer, required: true }
+              credentialsSecret:
+                required: true
+                properties:
+                  name: { type: string, required: true }
+                  usernameKey: { type: string, required: true }
+                  passwordKey: { type: string, required: true }
 
 modules:
   - name: main
@@ -90,23 +105,19 @@ modules:
           annotations:
             cert-manager.io/cluster-issuer: {{ .Context.certificateIssuers.selfSigned.name }}
 
+      # Use the shared CNPG PostgreSQL instance instead of the bundled bitnami subchart
       postgresql:
-        enabled: true
-        image:
-          registry: docker.io
-          repository: bitnami/postgresql
-          tag: "16"
-        primary:
-          resources:
-            requests:
-              memory: "64Mi"
-              cpu: "25m"
-            limits:
-              memory: "256Mi"
-              cpu: "200m"
-          persistence:
-            enabled: true
-            size: 1Gi
+        enabled: false
+
+      data:
+        metadataConnection:
+          user: airflow
+          pass: airflow123
+          protocol: postgresql
+          host: {{ .Context.airflow.database.host }}
+          port: {{ .Context.airflow.database.port }}
+          db: {{ .Context.airflow.database.name }}
+          sslmode: disable
 
       redis:
         enabled: false
@@ -156,4 +167,7 @@ modules:
 roles:
   - airflow
 
-dependencies: []
+dependencies:
+  - external-secrets
+  - database-server
+  - ingress
