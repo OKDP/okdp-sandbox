@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: airflow
-tag: 2.9.3-p01
+tag: 2.9.3-p02
 protected: false
 description: |
   Apache Airflow 2.9.3 - Workflow orchestration platform with Spark Operator integration
