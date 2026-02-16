@@ -50,3 +50,4 @@ roles:
 dependencies:
   - pg-operator
   - external-secrets
+  - tools
