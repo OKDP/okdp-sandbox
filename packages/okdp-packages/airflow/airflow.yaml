@@ -1,18 +1,24 @@
 apiVersion: v1alpha1
 name: airflow
-tag: 2.9.3-p02
+tag: 2.9.3-p03
 protected: false
 description: |
   Apache Airflow 2.9.3 - Workflow orchestration platform with Spark Operator integration
 
 usage:
   text: |
-    Apache Airflow has been deployed successfully.
+    Apache Airflow release has been applied successfully.
+    Pods, ingress, and certificate provisioning may still take a few minutes.
 
     Access the Airflow UI:
       URL: https://airflow-{{ .Release.spec.targetNamespace }}.{{ .Context.ingress.suffix }}
       Alternate URL: https://airflow.{{ .Context.ingress.suffix }}
       Default credentials: admin / admin
+
+    Note:
+      This sandbox uses a self-signed TLS issuer by default.
+      If the browser shows NET::ERR_CERT_AUTHORITY_INVALID, use "Advanced" -> "Proceed"
+      or trust the cluster certificate authority locally.
 
 schema:
   parameters:
@@ -99,6 +105,11 @@ modules:
         web:
           enabled: true
           ingressClassName: nginx
+          annotations:
+            kubernetes.io/ingress.class: nginx
+            cert-manager.io/cluster-issuer: {{ .Context.certificateIssuers.selfSigned.name }}
+            acme.cert-manager.io/http01-edit-in-place: "true"
+
           hosts:
             - name: airflow-{{ .Release.spec.targetNamespace }}.{{ .Context.ingress.suffix }}
               tls:
@@ -108,8 +119,6 @@ modules:
               tls:
                 enabled: true
                 secretName: airflow-tls
-          annotations:
-            cert-manager.io/cluster-issuer: {{ .Context.certificateIssuers.selfSigned.name }}
 
       # Use the shared CNPG PostgreSQL instance instead of the bundled bitnami subchart
       postgresql:

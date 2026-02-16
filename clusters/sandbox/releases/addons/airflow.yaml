@@ -7,6 +7,22 @@ spec:
   description: "Apache Airflow for workflow orchestration with Spark integration"
   package:
     repository: quay.io/okdp/sandbox-packages-v0.1/airflow
-    tag: 2.9.3-p02
+    tag: 2.9.3-p03
+  # Keep ingress routing stable even when an older airflow package is installed.
+  specPatchByModule:
+    main:
+      values:
+        ingress:
+          web:
+            ingressClassName: nginx
+            annotations:
+              kubernetes.io/ingress.class: nginx
+              cert-manager.io/cluster-issuer: default-issuer
+              nginx.ingress.kubernetes.io/proxy-body-size: "0"
+            hosts:
+              - name: airflow-default.okdp.sandbox
+                tls:
+                  enabled: true
+                  secretName: airflow-web-tls
   targetNamespace: default
   createNamespace: false

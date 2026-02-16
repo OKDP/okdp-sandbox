@@ -1,49 +1,53 @@
-# Airflow DAG Testing
+# Airflow DAGs (OKDP Sandbox)
 
-Ce dossier contient les DAGs d'exemple et une base de tests propre.
+Ce dossier contient 2 DAGs de test pour Airflow:
 
-## DAGs
+- `hello_world.py`: DAG Python classique, exécution quotidienne à minuit UTC.
+- `spark_pi_example.py`: DAG Spark qui crée une ressource `SparkApplication` et attend la fin (`COMPLETED`).
 
-- `hello_world.py`: DAG minimal de validation.
-- `spark_pi_example.py`: soumet une `SparkApplication` via Spark Operator.
+## Prerequis
 
-## Tests unitaires (structure DAG)
+- Airflow accessible sur `https://airflow-default.okdp.sandbox/home`
+- Spark Operator installé
+- ServiceAccount `spark` présent dans le namespace `default`
+
+## Déploiement rapide des DAGs
 
 Depuis la racine du repo:
 
 ```bash
-pytest -q examples/airflow/tests/test_dags.py
+bash examples/airflow/deploy-dags.sh
 ```
 
-Ces tests valident:
-- chargement des DAGs sans erreur d'import,
-- IDs des tâches,
-- paramètres principaux (schedule, tags),
-- configuration de la tâche Spark.
+Le script:
 
-## Tests d'intégration (dans Airflow du cluster)
+1. copie les DAGs dans `/opt/airflow/dags` (scheduler + webserver),
+2. lance `airflow dags reserialize`,
+3. unpause les DAGs.
 
-Script prêt à l'emploi:
+Pour déployer + déclencher immédiatement les 2 DAGs:
 
 ```bash
-./examples/airflow/tests/run_integration_tests.sh [namespace] [release] [exec_date] [dags_src_dir]
+TRIGGER=true bash examples/airflow/deploy-dags.sh
 ```
 
-Exemple:
+## Vérifier l'état
 
 ```bash
-./examples/airflow/tests/run_integration_tests.sh default airflow-main 2026-01-01
+kubectl -n default exec deploy/airflow-main-scheduler -c scheduler -- airflow dags list
+kubectl -n default exec deploy/airflow-main-scheduler -c scheduler -- airflow dags list-runs -d hello_world_midnight
+kubectl -n default exec deploy/airflow-main-scheduler -c scheduler -- airflow dags list-runs -d spark_pi_midnight
+kubectl -n default get sparkapplications.sparkoperator.k8s.io
 ```
 
-Le script exécute:
-- copie les DAGs locaux vers `/opt/airflow/dags` dans le webserver,
-- `airflow tasks test hello_world hello ...`
-- `airflow dags test spark_pi_example ...`
+## Déclenchement manuel (si besoin)
 
-## Étape suivante recommandée
+```bash
+kubectl -n default exec deploy/airflow-main-scheduler -c scheduler -- airflow dags trigger hello_world_midnight
+kubectl -n default exec deploy/airflow-main-scheduler -c scheduler -- airflow dags trigger spark_pi_midnight
+```
 
-Quand ces deux DAGs sont validés, créer un DAG ETL (extract -> transform -> load) avec:
-- capteur/source de données,
-- tâche Spark de transformation,
-- validation qualité des données,
-- publication vers table cible.
+## Notes
+
+- Les DAGs sont planifiés à `00:00` UTC (`schedule: "0 0 * * *"`).
+- Le DAG Spark crée un nom d'application unique par run Airflow.

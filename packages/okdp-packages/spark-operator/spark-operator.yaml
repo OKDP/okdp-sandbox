@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: spark-operator
-tag: 2.4.0-p01
+tag: 2.4.0-p02
 protected: false
 description: |
   Spark Operator 2.4.0 - Kubernetes operator for managing Apache Spark applications
@@ -28,11 +28,11 @@ usage:
     spec:
       type: Scala
       mode: cluster
-      image: "apache/spark:3.5.0"
+      image: "quay.io/okdp/spark-py:spark-3.5.6-python-3.11-scala-2.12-java-17"
       imagePullPolicy: Always
       mainClass: org.apache.spark.examples.SparkPi
-      mainApplicationFile: "local:///opt/spark/examples/jars/spark-examples_2.12-3.5.0.jar"
-      sparkVersion: "3.5.0"
+      mainApplicationFile: "local:///opt/spark/examples/jars/spark-examples_2.12-3.5.6.jar"
+      sparkVersion: "3.5.6"
       restartPolicy:
         type: Never
       driver:

@@ -16,7 +16,7 @@
 
 apiVersion: v1alpha1
 name: cnpg-postgresql
-tag: 17.0-p01
+tag: 17.4.0-p01
 protected: false
 description: |
   Defines multiple logical PostgreSQL databases managed by the CloudNativePG operator within a single PostgreSQL 
@@ -35,9 +35,9 @@ modules:
       fullnameOverride: {{ regexReplaceAll "-rw.*" .Context.databaseServer.endpoint.host "" }}
       
       image:
-        repository: ghcr.io/cloudnative-pg/postgresql
+        repository: quay.io/okdp/sandbox-images/postgresql
         pullPolicy: IfNotPresent
-        tag: 17.0
+        tag: 17.4.0-debian-12-r2
       
       storage:
         size: 2Gi
