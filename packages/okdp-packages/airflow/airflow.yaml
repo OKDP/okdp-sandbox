@@ -10,7 +10,8 @@ usage:
     Apache Airflow has been deployed successfully.
 
     Access the Airflow UI:
-      URL: https://airflow-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+      URL: https://airflow-{{ .Release.spec.targetNamespace }}.{{ .Context.ingress.suffix }}
+      Alternate URL: https://airflow.{{ .Context.ingress.suffix }}
       Default credentials: admin / admin
 
 schema:
@@ -56,6 +57,7 @@ modules:
       executor: LocalExecutor
 
       defaultAirflowTag: "2.9.3"
+      airflowVersion: "2.9.3"
 
       webserver:
         defaultUser:
@@ -98,7 +100,11 @@ modules:
           enabled: true
           ingressClassName: nginx
           hosts:
-            - name: airflow-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+            - name: airflow-{{ .Release.spec.targetNamespace }}.{{ .Context.ingress.suffix }}
+              tls:
+                enabled: true
+                secretName: airflow-tls
+            - name: airflow.{{ .Context.ingress.suffix }}
               tls:
                 enabled: true
                 secretName: airflow-tls

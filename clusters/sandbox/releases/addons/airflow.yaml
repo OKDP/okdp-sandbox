@@ -8,5 +8,5 @@ spec:
   package:
     repository: quay.io/okdp/sandbox-packages-v0.1/airflow
     tag: 2.9.3-p01
-  targetNamespace: airflow
-  createNamespace: true
+  targetNamespace: default
+  createNamespace: false
