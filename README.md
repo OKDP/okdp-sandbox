@@ -27,7 +27,6 @@ OKDP Sandbox provides a ready-to-use data platform environment that includes:
 ## Existing Services
 
 Core services available in the sandbox:
-- Keycloak (identity and authentication)
 - SeaweedFS (object storage)
 - Spark Operator + Spark History Server (Spark workloads and monitoring)
 - Airflow (workflow orchestration and scheduling)
