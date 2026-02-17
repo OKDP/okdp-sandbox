@@ -21,7 +21,7 @@ OKDP Sandbox provides a ready-to-use data platform environment that includes:
 - Spark processing and monitoring (Spark Operator + Spark History Server)
 - Workflow orchestration (Apache Airflow)
 - Interactive data science workspaces (JupyterHub)
-- Data visualization and BI (Apache Superset)
+- Data visualization (Apache Superset)
 - Platform management (OKDP Server & UI)
 
 ## Existing Services
@@ -33,7 +33,7 @@ Core services available in the sandbox:
 - Airflow (workflow orchestration and scheduling)
 - JupyterHub (interactive data science workspaces)
 - Trino + Hive Metastore (SQL query and metadata layer)
-- Superset (BI and dashboards)
+- Superset (dashboards and visual analytics)
 
 ## Prerequisites
 
