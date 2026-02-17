@@ -16,12 +16,12 @@ A complete sandbox environment for testing and evaluating OKDP (Open Kubernetes 
 ## What is OKDP Sandbox?
 
 OKDP Sandbox provides a ready-to-use data platform environment that includes:
-- Identity management (Keycloak)
+- Identity and access management (Keycloak)
 - Object storage (SeaweedFS)
-- Data processing (Spark History Server)
+- Spark processing and monitoring (Spark Operator + Spark History Server)
 - Workflow orchestration (Apache Airflow)
-- Notebooking (JupyterHub)
-- Data visualization (Apache Superset)
+- Interactive data science workspaces (JupyterHub)
+- Data visualization and BI (Apache Superset)
 - Platform management (OKDP Server & UI)
 
 ## Existing Services
@@ -31,7 +31,7 @@ Core services available in the sandbox:
 - SeaweedFS (object storage)
 - Spark Operator + Spark History Server (Spark workloads and monitoring)
 - Airflow (workflow orchestration and scheduling)
-- JupyterHub (notebooking and interactive compute)
+- JupyterHub (interactive data science workspaces)
 - Trino + Hive Metastore (SQL query and metadata layer)
 - Superset (BI and dashboards)
 
