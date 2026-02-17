@@ -7,7 +7,7 @@ spec:
   description: "Apache Airflow for workflow orchestration with Spark integration"
   package:
     repository: quay.io/okdp/sandbox-packages-v0.1/airflow
-    tag: 2.9.3-p03
+    tag: 2.9.3-p04
   # Keep ingress routing stable even when an older airflow package is installed.
   specPatchByModule:
     main:

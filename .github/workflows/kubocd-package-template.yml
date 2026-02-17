@@ -240,6 +240,26 @@ jobs:
               -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name --no-headers \
               | xargs -r -n2 sh -c 'echo "Pending Pod: $0/$1 ==="; kubectl describe pod -n "$0" "$1"; echo'
 
+            echo "**************************************** Unhealthy Pods ****************************************"
+            kubectl get pods -A --no-headers \
+              | awk '$4 ~ /CrashLoopBackOff|Error|ImagePullBackOff|CreateContainerConfigError|CreateContainerError/ {print $1, $2}' \
+              | while read -r ns pod; do
+                  [ -n "$ns" ] || continue
+                  [ -n "$pod" ] || continue
+                  echo "Unhealthy Pod: $ns/$pod ==="
+                  kubectl describe pod -n "$ns" "$pod" || true
+                  containers="$(
+                    kubectl get pod -n "$ns" "$pod" -o jsonpath='{range .spec.initContainers[*]}{.name}{"\n"}{end}{range .spec.containers[*]}{.name}{"\n"}{end}' 2>/dev/null || true
+                  )"
+                  for c in $containers; do
+                    echo "--- logs current: $ns/$pod container=$c ---"
+                    kubectl logs -n "$ns" "$pod" -c "$c" --tail=200 || true
+                    echo "--- logs previous: $ns/$pod container=$c ---"
+                    kubectl logs -n "$ns" "$pod" -c "$c" --previous --tail=200 || true
+                  done
+                  echo
+                done
+
             not_ready="$(kubectl get release -A -o jsonpath='{range .items[?(@.status.phase!="READY")]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' 2>/dev/null || true)"
 
             if [ -z "$not_ready" ]; then
@@ -260,6 +280,8 @@ jobs:
 
           echo "Timed out waiting for READY releases after ${timeout_secs}s"
           kubectl get release -A
+          kubectl get helmrelease -A || true
+          kubectl get jobs -A || true
           echo "Last events log lines:"
           tail -n 200 /tmp/kubectl-events.log || true
           exit 1
