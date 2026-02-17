@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: airflow
-tag: 2.9.3-p04
+tag: 2.9.3-p05
 protected: false
 description: |
   Apache Airflow 2.9.3 - Workflow orchestration platform with Spark Operator integration
@@ -76,11 +76,13 @@ modules:
           password: admin
         resources:
           requests:
-            memory: "128Mi"
-            cpu: "25m"
+            memory: "192Mi"
+            cpu: "100m"
           limits:
-            memory: "256Mi"
-            cpu: "200m"
+            memory: "384Mi"
+            cpu: "500m"
+        startupProbe:
+          failureThreshold: 18
 
       scheduler:
         resources:
@@ -95,11 +97,11 @@ modules:
         enabled: true
         resources:
           requests:
-            memory: "64Mi"
-            cpu: "25m"
-          limits:
             memory: "128Mi"
-            cpu: "100m"
+            cpu: "50m"
+          limits:
+            memory: "512Mi"
+            cpu: "300m"
 
       ingress:
         web:
