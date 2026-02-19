@@ -21,4 +21,4 @@ description: |
   instance (cluster) and includes ownership, access credentials, and lifecycle management through Kubernetes-native CRDs.
 type: application
 version: 0.1.0
-appVersion: "17.0"
+appVersion: "17.4.0"

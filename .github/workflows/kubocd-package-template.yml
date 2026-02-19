@@ -165,15 +165,27 @@ jobs:
           KCD_OCI_GHCR_IO_USER: ${{ github.actor }}
           KCD_OCI_GHCR_IO_SECRET: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create CI registry secret for KuboCD (kubocd-system namespace) 🔐
+      - name: Create CI registry secret for KuboCD (all release namespaces) 🔐
         if: inputs.publish_to_registry == 'false'
         run: |
-          kubectl create secret docker-registry ci-registry-secret \
-            --docker-server=${{ inputs.ci_registry }} \
-            --docker-username="${{ github.actor }}" \
-            --docker-password="${{ secrets.GITHUB_TOKEN }}" \
-            --docker-email="${{ github.actor }}@users.noreply.github.com" \
-            -n kubocd-system
+          release_namespaces="$(
+            find clusters/sandbox/releases -type f \( -name "*.yaml" -o -name "*.yml" \) \
+              -print0 | xargs -0 -n1 yq eval '.metadata.namespace // "default"' | sort -u
+          )"
+
+          echo "Release namespaces:"
+          echo "$release_namespaces"
+
+          for ns in $release_namespaces; do
+            kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
+            kubectl create secret docker-registry ci-registry-secret \
+              --docker-server=${{ inputs.ci_registry }} \
+              --docker-username="${{ github.actor }}" \
+              --docker-password="${{ secrets.GITHUB_TOKEN }}" \
+              --docker-email="${{ github.actor }}@users.noreply.github.com" \
+              -n "$ns" \
+              --dry-run=client -o yaml | kubectl apply -f -
+          done
 
       # Deploy and test installation
       - name: Deploy and test releases on Kind cluster 🚀
@@ -205,22 +217,74 @@ jobs:
         run: |
           echo "**************************************** Storage Classes ****************************************"
           kubectl get sc
-          kubectl get events -A -w &
-          (while true; do
+          kubectl get events -A -w >/tmp/kubectl-events.log 2>&1 &
+          EVENTS_PID=$!
+          trap 'kill $EVENTS_PID 2>/dev/null || true' EXIT
+
+          # Poll release phase explicitly; this is more stable than kubectl wait for this CRD.
+          timeout_secs=1800
+          interval_secs=15
+          elapsed=0
+          ready=0
+
+          while [ "$elapsed" -lt "$timeout_secs" ]; do
             echo "Wait until all KuboCD releases are ready ..."
             echo "************************************** Releases status **************************************"
-            kubectl get release -A
+            kubectl get release -A || true
             echo "**************************************** Pods status ****************************************"
-            kubectl get po -A
+            kubectl get po -A || true
             echo "**************************************** PVC status ****************************************"
-            kubectl get pvc -A
+            kubectl get pvc -A || true
             echo "**************************************** Pending Pods ****************************************"
             kubectl get pods -A --field-selector=status.phase=Pending \
               -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name --no-headers \
-              | xargs -n2 sh -c 'echo "Pending Pod: $0/$1 ==="; kubectl describe pod -n "$0" "$1"; echo'
-            sleep 15
-          done) &
-          kubectl wait --for=jsonpath='{.status.phase}'=READY release --all -A --timeout=600s
+              | xargs -r -n2 sh -c 'echo "Pending Pod: $0/$1 ==="; kubectl describe pod -n "$0" "$1"; echo'
+
+            echo "**************************************** Unhealthy Pods ****************************************"
+            kubectl get pods -A --no-headers \
+              | awk '$4 ~ /CrashLoopBackOff|Error|ImagePullBackOff|CreateContainerConfigError|CreateContainerError/ {print $1, $2}' \
+              | while read -r ns pod; do
+                  [ -n "$ns" ] || continue
+                  [ -n "$pod" ] || continue
+                  echo "Unhealthy Pod: $ns/$pod ==="
+                  kubectl describe pod -n "$ns" "$pod" || true
+                  containers="$(
+                    kubectl get pod -n "$ns" "$pod" -o jsonpath='{range .spec.initContainers[*]}{.name}{"\n"}{end}{range .spec.containers[*]}{.name}{"\n"}{end}' 2>/dev/null || true
+                  )"
+                  for c in $containers; do
+                    echo "--- logs current: $ns/$pod container=$c ---"
+                    kubectl logs -n "$ns" "$pod" -c "$c" --tail=200 || true
+                    echo "--- logs previous: $ns/$pod container=$c ---"
+                    kubectl logs -n "$ns" "$pod" -c "$c" --previous --tail=200 || true
+                  done
+                  echo
+                done
+
+            not_ready="$(kubectl get release -A -o jsonpath='{range .items[?(@.status.phase!="READY")]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' 2>/dev/null || true)"
+
+            if [ -z "$not_ready" ]; then
+              echo "All releases are READY."
+              ready=1
+              break
+            fi
+
+            echo "Releases not ready yet:"
+            echo "$not_ready"
+            sleep "$interval_secs"
+            elapsed=$((elapsed + interval_secs))
+          done
+
+          if [ "$ready" -eq 1 ]; then
+            exit 0
+          fi
+
+          echo "Timed out waiting for READY releases after ${timeout_secs}s"
+          kubectl get release -A
+          kubectl get helmrelease -A || true
+          kubectl get jobs -A || true
+          echo "Last events log lines:"
+          tail -n 200 /tmp/kubectl-events.log || true
+          exit 1
   
       - name: Build and push KuboCD packages into public registry (${{ inputs.registry }}) 📦
         if: inputs.publish_to_registry == 'true'

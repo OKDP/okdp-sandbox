@@ -1,0 +1,7 @@
+# Ignore local artifacts and non-DAG files
+__pycache__/
+*.pyc
+*.pyo
+*.md
+test_*.py
+*_test.py

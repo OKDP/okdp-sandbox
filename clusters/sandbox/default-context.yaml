@@ -81,6 +81,11 @@ spec:
           description: "A collection of hands-on okdp examples"
           packages:
             - name: okdp-examples
+        - id: Workflows
+          name: "Workflow Orchestration"
+          description: "Workflow orchestration and scheduling"
+          packages:
+            - name: airflow
       services:
         - Notebook
         - Spark
@@ -89,6 +94,7 @@ spec:
         - Data-Catalog
         - Storage
         - Applications
+        - Workflows
       kadCatalogsInfo:
         Interactive-Query:
           displayName: "Interactive Query"
@@ -99,6 +105,9 @@ spec:
         Applications:
           displayName: "Applications"
           menuIcon: "fa-solid fa-code"
+        Workflows:
+          displayName: "Workflows"
+          menuIcon: "fa-solid fa-route"
       kadServicesInfo:
         hive-metastore:
           icon: "okdp-notext.svg"
@@ -114,6 +123,13 @@ spec:
             A collection of hands-on examples, helper utilities, Jupyter notebooks, and data workflows 
             that showcases how to work with the OKDP Platform.
           home: "https://github.com/okdp/okdp-examples"
+        airflow:
+          icon: "okdp-notext.svg"
+          menuIcon: "fa-solid fa-route"
+          description: |
+            Apache Airflow is a platform to programmatically author, schedule, and monitor workflows.
+            Use Airflow to orchestrate complex data pipelines and Spark jobs on OKDP.
+          home: "https://airflow.apache.org"
         seaweedfs:
           description: |
             SeaweedFS is a simple and highly scalable distributed file system. There are the objectives to store billions of files and to serve the files fast!
@@ -328,6 +344,37 @@ spec:
       endpoint:
         url: https://spark-history-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
+    airflow:
+      sparkOperator:
+        serviceAccount: spark
+      database:
+        type: postgresql
+        name: airflow
+        host: postgresql-instance-rw.cnpg-system.svc.cluster.local
+        port: 5432
+        credentialsSecret:
+          name: creds-airflow-db
+          usernameKey: username
+          passwordKey: password
+      storage:
+        provider: s3
+        s3:
+          apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.okdp.sandbox
+          bucket: airflow-logs
+          credentialsSecret:
+            name: creds-airflow-s3
+            accessKeyKey: accessKey
+            secretKeyKey: secretKey
+          actions:
+            - Read
+            - Write
+            - List
+          tls:
+            enabled: true
+            insecureSkipVerify: true
+      endpoint:
+        url: https://airflow-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
     examples:
       storage:
         provider: s3
@@ -477,6 +524,10 @@ spec:
               passwordSecret: creds-superset-examples-db
             schemas:
               - main
+          - name: airflow
+            owner:
+              username: "airflow"
+              passwordSecret: creds-airflow-db
       endpoint:
         host: postgresql-instance-rw.cnpg-system.svc.cluster.local
         port: 5432

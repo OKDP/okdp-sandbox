@@ -25,9 +25,9 @@ spec:
   package:
     interval: 30m
     repository: quay.io/okdp/sandbox-packages-v0.1/keycloak
-    tag: 24.4.11-p06
+    tag: 24.4.11-p07
     timeout: 10m
   parameters:
     adminPassword: admin
     adminUser: admin
-  targetNamespace: keycloak 
+  targetNamespace: keycloak

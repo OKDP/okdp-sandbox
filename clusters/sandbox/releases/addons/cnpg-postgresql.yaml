@@ -27,6 +27,6 @@ spec:
   package:
     interval: 30m
     repository: quay.io/okdp/sandbox-packages-v0.1/cnpg-postgresql
-    tag: 17.0-p01
+    tag: 17.4.0-p01
     timeout: 10m
   targetNamespace: cnpg-system
