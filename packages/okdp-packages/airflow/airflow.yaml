@@ -160,13 +160,13 @@ modules:
               - |
                 set -euo pipefail
                 while true; do
-                  if [ -n "${AIRFLOW_DAGS_S3_PREFIX}" ]; then
-                    DAGS_URI="s3://${AIRFLOW_DAGS_S3_BUCKET}/${AIRFLOW_DAGS_S3_PREFIX}"
+                  if [ -n "$AIRFLOW_DAGS_S3_PREFIX" ]; then
+                    DAGS_URI="s3://$AIRFLOW_DAGS_S3_BUCKET/$AIRFLOW_DAGS_S3_PREFIX"
                   else
-                    DAGS_URI="s3://${AIRFLOW_DAGS_S3_BUCKET}"
+                    DAGS_URI="s3://$AIRFLOW_DAGS_S3_BUCKET"
                   fi
-                  echo "Syncing DAGs from ${DAGS_URI}"
-                  if aws --endpoint-url "${AIRFLOW_DAGS_S3_ENDPOINT}" s3 sync "${DAGS_URI}" /opt/airflow/dags --delete --no-progress{{- if .Context.airflow.storage.s3.tls.insecureSkipVerify }} --no-verify-ssl{{- end }}; then
+                  echo "Syncing DAGs from $DAGS_URI"
+                  if aws --endpoint-url "$AIRFLOW_DAGS_S3_ENDPOINT" s3 sync "$DAGS_URI" /opt/airflow/dags --delete --no-progress{{- if .Context.airflow.storage.s3.tls.insecureSkipVerify }} --no-verify-ssl{{- end }}; then
                     echo "DAG sync completed"
                   else
                     echo "DAG sync failed, retrying..."
@@ -231,13 +231,13 @@ modules:
               - |
                 set -euo pipefail
                 while true; do
-                  if [ -n "${AIRFLOW_DAGS_S3_PREFIX}" ]; then
-                    DAGS_URI="s3://${AIRFLOW_DAGS_S3_BUCKET}/${AIRFLOW_DAGS_S3_PREFIX}"
+                  if [ -n "$AIRFLOW_DAGS_S3_PREFIX" ]; then
+                    DAGS_URI="s3://$AIRFLOW_DAGS_S3_BUCKET/$AIRFLOW_DAGS_S3_PREFIX"
                   else
-                    DAGS_URI="s3://${AIRFLOW_DAGS_S3_BUCKET}"
+                    DAGS_URI="s3://$AIRFLOW_DAGS_S3_BUCKET"
                   fi
-                  echo "Syncing DAGs from ${DAGS_URI}"
-                  if aws --endpoint-url "${AIRFLOW_DAGS_S3_ENDPOINT}" s3 sync "${DAGS_URI}" /opt/airflow/dags --delete --no-progress{{- if .Context.airflow.storage.s3.tls.insecureSkipVerify }} --no-verify-ssl{{- end }}; then
+                  echo "Syncing DAGs from $DAGS_URI"
+                  if aws --endpoint-url "$AIRFLOW_DAGS_S3_ENDPOINT" s3 sync "$DAGS_URI" /opt/airflow/dags --delete --no-progress{{- if .Context.airflow.storage.s3.tls.insecureSkipVerify }} --no-verify-ssl{{- end }}; then
                     echo "DAG sync completed"
                   else
                     echo "DAG sync failed, retrying..."
