@@ -7,7 +7,20 @@ spec:
   description: "Apache Airflow for workflow orchestration with Spark integration"
   package:
     repository: quay.io/okdp/sandbox-packages-v0.1/airflow
-    tag: 2.9.3-p06
+    tag: 2.9.3-p07
+  parameters:
+    # Supported modes: local (manual copy), git (gitSync), s3 (sidecar sync)
+    dagsSource: git
+    dagSyncIntervalSeconds: 60
+    dagGitRepo: https://github.com/OKDP/okdp-sandbox.git
+    dagGitBranch: main
+    dagGitRef: HEAD
+    dagGitDepth: 1
+    dagGitSubPath: examples/airflow/dags
+    # dagGitCredentialsSecret: git-credentials
+    # dagS3Bucket: airflow-dags
+    # dagS3Prefix: dags
+    # dagS3Image: bitnami/aws-cli:2.17.0
   # Keep ingress routing stable even when an older airflow package is installed.
   specPatchByModule:
     main:

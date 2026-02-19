@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: airflow
-tag: 2.9.3-p06
+tag: 2.9.3-p07
 protected: false
 description: |
   Apache Airflow 2.9.3 - Workflow orchestration platform with Spark Operator integration
@@ -22,7 +22,51 @@ usage:
 
 schema:
   parameters:
-    properties: {}
+    properties:
+      dagsSource:
+        type: string
+        default: local
+        description: "DAG source mode. Supported values: local, git, s3"
+      dagSyncIntervalSeconds:
+        type: integer
+        default: 60
+        description: "Sync interval for gitSync or S3 sidecar"
+      dagGitRepo:
+        type: string
+        default: https://github.com/OKDP/okdp-sandbox.git
+        description: "Git repository URL used when dagsSource=git"
+      dagGitBranch:
+        type: string
+        default: main
+        description: "Git branch used when dagsSource=git"
+      dagGitRef:
+        type: string
+        default: HEAD
+        description: "Git ref used when dagsSource=git"
+      dagGitDepth:
+        type: integer
+        default: 1
+        description: "Git clone depth when dagsSource=git"
+      dagGitSubPath:
+        type: string
+        default: examples/airflow/dags
+        description: "Sub-path inside the Git repo where DAGs are stored"
+      dagGitCredentialsSecret:
+        type: string
+        default: ""
+        description: "Optional secret with git credentials (GITSYNC_USERNAME/GITSYNC_PASSWORD)"
+      dagS3Bucket:
+        type: string
+        default: ""
+        description: "Optional S3 bucket used when dagsSource=s3 (falls back to context airflow.storage.s3.bucket)"
+      dagS3Prefix:
+        type: string
+        default: dags
+        description: "S3 prefix containing DAG files when dagsSource=s3"
+      dagS3Image:
+        type: string
+        default: bitnami/aws-cli:2.17.0
+        description: "Image used by S3 DAG sync sidecars"
   context:
     properties:
       certificateIssuers:
@@ -50,6 +94,20 @@ schema:
                   name: { type: string, required: true }
                   usernameKey: { type: string, required: true }
                   passwordKey: { type: string, required: true }
+          storage:
+            properties:
+              s3:
+                properties:
+                  apiUrl: { type: string }
+                  bucket: { type: string }
+                  credentialsSecret:
+                    properties:
+                      name: { type: string }
+                      accessKeyKey: { type: string }
+                      secretKeyKey: { type: string }
+                  tls:
+                    properties:
+                      insecureSkipVerify: { type: boolean }
 
 modules:
   - name: main
@@ -64,6 +122,8 @@ modules:
 
       defaultAirflowTag: "2.9.3"
       airflowVersion: "2.9.3"
+      {{- $dagsSource := default "local" .Parameters.dagsSource -}}
+      {{- $dagSyncIntervalSeconds := default 60 .Parameters.dagSyncIntervalSeconds -}}
 
       webserver:
         defaultUser:
@@ -84,6 +144,65 @@ modules:
         startupProbe:
           failureThreshold: 24
           timeoutSeconds: 30
+        {{- if eq $dagsSource "s3" }}
+        extraVolumes:
+          - name: dags-shared
+            emptyDir: {}
+        extraVolumeMounts:
+          - name: dags-shared
+            mountPath: /opt/airflow/dags
+        extraContainers:
+          - name: dags-s3-sync
+            image: {{ default "bitnami/aws-cli:2.17.0" .Parameters.dagS3Image | quote }}
+            imagePullPolicy: IfNotPresent
+            command: ["/bin/sh", "-ec"]
+            args:
+              - |
+                set -euo pipefail
+                while true; do
+                  if [ -n "${AIRFLOW_DAGS_S3_PREFIX}" ]; then
+                    DAGS_URI="s3://${AIRFLOW_DAGS_S3_BUCKET}/${AIRFLOW_DAGS_S3_PREFIX}"
+                  else
+                    DAGS_URI="s3://${AIRFLOW_DAGS_S3_BUCKET}"
+                  fi
+                  echo "Syncing DAGs from ${DAGS_URI}"
+                  if aws --endpoint-url "${AIRFLOW_DAGS_S3_ENDPOINT}" s3 sync "${DAGS_URI}" /opt/airflow/dags --delete --no-progress{{- if .Context.airflow.storage.s3.tls.insecureSkipVerify }} --no-verify-ssl{{- end }}; then
+                    echo "DAG sync completed"
+                  else
+                    echo "DAG sync failed, retrying..."
+                  fi
+                  sleep {{ $dagSyncIntervalSeconds }}
+                done
+            env:
+              - name: AIRFLOW_DAGS_S3_BUCKET
+                value: {{ default .Context.airflow.storage.s3.bucket .Parameters.dagS3Bucket | quote }}
+              - name: AIRFLOW_DAGS_S3_PREFIX
+                value: {{ default "dags" .Parameters.dagS3Prefix | quote }}
+              - name: AIRFLOW_DAGS_S3_ENDPOINT
+                value: {{ .Context.airflow.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix | quote }}
+              - name: AWS_DEFAULT_REGION
+                value: "us-east-1"
+              - name: AWS_ACCESS_KEY_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Context.airflow.storage.s3.credentialsSecret.name }}
+                    key: {{ .Context.airflow.storage.s3.credentialsSecret.accessKeyKey }}
+              - name: AWS_SECRET_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Context.airflow.storage.s3.credentialsSecret.name }}
+                    key: {{ .Context.airflow.storage.s3.credentialsSecret.secretKeyKey }}
+            volumeMounts:
+              - name: dags-shared
+                mountPath: /opt/airflow/dags
+            resources:
+              requests:
+                memory: "64Mi"
+                cpu: "25m"
+              limits:
+                memory: "256Mi"
+                cpu: "200m"
+        {{- end }}
 
       scheduler:
         resources:
@@ -96,6 +215,65 @@ modules:
         startupProbe:
           failureThreshold: 12
           timeoutSeconds: 60
+        {{- if eq $dagsSource "s3" }}
+        extraVolumes:
+          - name: dags-shared
+            emptyDir: {}
+        extraVolumeMounts:
+          - name: dags-shared
+            mountPath: /opt/airflow/dags
+        extraContainers:
+          - name: dags-s3-sync
+            image: {{ default "bitnami/aws-cli:2.17.0" .Parameters.dagS3Image | quote }}
+            imagePullPolicy: IfNotPresent
+            command: ["/bin/sh", "-ec"]
+            args:
+              - |
+                set -euo pipefail
+                while true; do
+                  if [ -n "${AIRFLOW_DAGS_S3_PREFIX}" ]; then
+                    DAGS_URI="s3://${AIRFLOW_DAGS_S3_BUCKET}/${AIRFLOW_DAGS_S3_PREFIX}"
+                  else
+                    DAGS_URI="s3://${AIRFLOW_DAGS_S3_BUCKET}"
+                  fi
+                  echo "Syncing DAGs from ${DAGS_URI}"
+                  if aws --endpoint-url "${AIRFLOW_DAGS_S3_ENDPOINT}" s3 sync "${DAGS_URI}" /opt/airflow/dags --delete --no-progress{{- if .Context.airflow.storage.s3.tls.insecureSkipVerify }} --no-verify-ssl{{- end }}; then
+                    echo "DAG sync completed"
+                  else
+                    echo "DAG sync failed, retrying..."
+                  fi
+                  sleep {{ $dagSyncIntervalSeconds }}
+                done
+            env:
+              - name: AIRFLOW_DAGS_S3_BUCKET
+                value: {{ default .Context.airflow.storage.s3.bucket .Parameters.dagS3Bucket | quote }}
+              - name: AIRFLOW_DAGS_S3_PREFIX
+                value: {{ default "dags" .Parameters.dagS3Prefix | quote }}
+              - name: AIRFLOW_DAGS_S3_ENDPOINT
+                value: {{ .Context.airflow.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix | quote }}
+              - name: AWS_DEFAULT_REGION
+                value: "us-east-1"
+              - name: AWS_ACCESS_KEY_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Context.airflow.storage.s3.credentialsSecret.name }}
+                    key: {{ .Context.airflow.storage.s3.credentialsSecret.accessKeyKey }}
+              - name: AWS_SECRET_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ .Context.airflow.storage.s3.credentialsSecret.name }}
+                    key: {{ .Context.airflow.storage.s3.credentialsSecret.secretKeyKey }}
+            volumeMounts:
+              - name: dags-shared
+                mountPath: /opt/airflow/dags
+            resources:
+              requests:
+                memory: "64Mi"
+                cpu: "25m"
+              limits:
+                memory: "256Mi"
+                cpu: "200m"
+        {{- end }}
 
       triggerer:
         enabled: true
@@ -150,10 +328,20 @@ modules:
         enabled: false
 
       dags:
+        mountPath: /opt/airflow/dags
         persistence:
           enabled: false
         gitSync:
-          enabled: false
+          enabled: {{ eq $dagsSource "git" }}
+          repo: {{ default "https://github.com/OKDP/okdp-sandbox.git" .Parameters.dagGitRepo | quote }}
+          branch: {{ default "main" .Parameters.dagGitBranch | quote }}
+          ref: {{ default "HEAD" .Parameters.dagGitRef | quote }}
+          depth: {{ default 1 .Parameters.dagGitDepth }}
+          subPath: {{ default "examples/airflow/dags" .Parameters.dagGitSubPath | quote }}
+          period: "{{ $dagSyncIntervalSeconds }}s"
+          {{- if .Parameters.dagGitCredentialsSecret }}
+          credentialsSecret: {{ .Parameters.dagGitCredentialsSecret | quote }}
+          {{- end }}
 
       flower:
         enabled: false

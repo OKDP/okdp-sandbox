@@ -31,6 +31,37 @@ Pour déployer + déclencher immédiatement les 2 DAGs:
 TRIGGER=true bash examples/airflow/deploy-dags.sh
 ```
 
+## Modes de provisioning des DAGs
+
+Le package Airflow supporte trois modes (`parameters.dagsSource` dans `clusters/sandbox/releases/addons/airflow.yaml`):
+
+- `local` (par défaut): copie manuelle avec `deploy-dags.sh`
+- `git`: sync automatique via `dags.gitSync`
+- `s3`: sync automatique via sidecar S3 sur scheduler + webserver
+
+Exemple mode Git:
+
+```yaml
+parameters:
+  dagsSource: git
+  dagGitRepo: https://github.com/your-org/your-dags-repo.git
+  dagGitBranch: main
+  dagGitSubPath: dags
+  dagSyncIntervalSeconds: 60
+```
+
+Exemple mode S3:
+
+```yaml
+parameters:
+  dagsSource: s3
+  dagS3Bucket: airflow-dags
+  dagS3Prefix: dags
+  dagSyncIntervalSeconds: 60
+```
+
+Le fichier `examples/airflow/dags/.airflowignore` est fourni comme équivalent de `.gitignore` pour ignorer les artefacts locaux/non-DAG.
+
 ## Vérifier l'état
 
 ```bash
