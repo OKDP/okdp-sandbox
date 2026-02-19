@@ -122,8 +122,8 @@ modules:
 
       defaultAirflowTag: "2.9.3"
       airflowVersion: "2.9.3"
-      {{- $dagsSource := default "local" .Parameters.dagsSource -}}
-      {{- $dagSyncIntervalSeconds := default 60 .Parameters.dagSyncIntervalSeconds -}}
+      {{ $dagsSource := default "local" .Parameters.dagsSource }}
+      {{ $dagSyncIntervalSeconds := default 60 .Parameters.dagSyncIntervalSeconds }}
 
       webserver:
         defaultUser:
