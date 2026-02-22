@@ -35,12 +35,12 @@ echo "Reserializing DAGs..."
 kubectl exec -n "${NAMESPACE}" "${SCHEDULER_POD}" -c scheduler -- airflow dags reserialize
 
 echo "Listing DAGs..."
-kubectl exec -n "${NAMESPACE}" "${SCHEDULER_POD}" -c scheduler -- airflow dags list | grep -E "hello_world_midnight|spark_pi_midnight"
+kubectl exec -n "${NAMESPACE}" "${SCHEDULER_POD}" -c scheduler -- airflow dags list | grep -E "hello_daily|orders_etl_daily"
 
-echo "Testing hello_world_midnight..."
-kubectl exec -n "${NAMESPACE}" "${SCHEDULER_POD}" -c scheduler -- airflow tasks test hello_world_midnight hello_world_task "${EXEC_DATE}"
+echo "Testing hello_daily..."
+kubectl exec -n "${NAMESPACE}" "${SCHEDULER_POD}" -c scheduler -- airflow tasks test hello_daily log_hello "${EXEC_DATE}"
 
-echo "Testing spark_pi_midnight..."
-kubectl exec -n "${NAMESPACE}" "${SCHEDULER_POD}" -c scheduler -- airflow dags test spark_pi_midnight "${EXEC_DATE}"
+echo "Testing orders_etl_daily..."
+kubectl exec -n "${NAMESPACE}" "${SCHEDULER_POD}" -c scheduler -- airflow dags test orders_etl_daily "${EXEC_DATE}"
 
 echo "All integration DAG tests passed."

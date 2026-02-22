@@ -18,24 +18,24 @@ def dag_bag() -> DagBag:
     return bag
 
 
-def test_hello_world_dag_loaded(dag_bag: DagBag) -> None:
-    dag = dag_bag.get_dag("hello_world_midnight")
+def test_hello_daily_dag_loaded(dag_bag: DagBag) -> None:
+    dag = dag_bag.get_dag("hello_daily")
     assert dag is not None
     assert "example" in dag.tags
-    assert "okdp" in dag.tags
+    assert "daily" in dag.tags
 
     task_ids = {task.task_id for task in dag.tasks}
-    assert task_ids == {"hello_world_task"}
-    hello_task = dag.get_task("hello_world_task")
+    assert task_ids == {"log_hello"}
+    hello_task = dag.get_task("log_hello")
     assert isinstance(hello_task, PythonOperator)
 
 
-def test_spark_pi_dag_loaded(dag_bag: DagBag) -> None:
-    dag = dag_bag.get_dag("spark_pi_midnight")
+def test_orders_etl_dag_loaded(dag_bag: DagBag) -> None:
+    dag = dag_bag.get_dag("orders_etl_daily")
     assert dag is not None
-    assert "example" in dag.tags
+    assert "etl" in dag.tags
     assert "spark" in dag.tags
 
-    task = dag.get_task("submit_and_wait_spark_pi")
+    task = dag.get_task("submit_and_wait_orders_etl")
     assert isinstance(task, PythonOperator)
-    assert task.op_kwargs["app_name"] == "spark-pi-{{ ts_nodash | lower }}"
+    assert task.op_kwargs["run_suffix"] == "{{ ts_nodash | lower }}"
