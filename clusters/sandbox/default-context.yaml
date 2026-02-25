@@ -527,7 +527,7 @@ spec:
           - name: airflow
             owner:
               username: "airflow"
-              passwordSecret: creds-airflow-db
+              password: "airflow123"
       endpoint:
         host: postgresql-instance-rw.cnpg-system.svc.cluster.local
         port: 5432

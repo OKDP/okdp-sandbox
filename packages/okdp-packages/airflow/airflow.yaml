@@ -125,28 +125,6 @@ modules:
       {{ $dagsSource := default "local" .Parameters.dagsSource }}
       {{ $dagSyncIntervalSeconds := default 60 .Parameters.dagSyncIntervalSeconds }}
 
-      # Read DB credentials from shared context secret instead of hardcoded values.
-      secret:
-        - envName: AIRFLOW_DB_USER
-          secretName: {{ .Context.airflow.database.credentialsSecret.name }}
-          secretKey: {{ .Context.airflow.database.credentialsSecret.usernameKey }}
-        - envName: AIRFLOW_DB_PASSWORD
-          secretName: {{ .Context.airflow.database.credentialsSecret.name }}
-          secretKey: {{ .Context.airflow.database.credentialsSecret.passwordKey }}
-
-      env:
-        - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD
-          value: >-
-            python -c "import os, urllib.parse as u; user=u.quote_plus(os.environ['AIRFLOW_DB_USER']); pwd=u.quote_plus(os.environ['AIRFLOW_DB_PASSWORD']); print(f'postgresql+psycopg2://{user}:{pwd}@{{ .Context.airflow.database.host }}:{{ .Context.airflow.database.port }}/{{ .Context.airflow.database.name }}?sslmode=disable')"
-        - name: AIRFLOW__CORE__SQL_ALCHEMY_CONN_CMD
-          value: >-
-            python -c "import os, urllib.parse as u; user=u.quote_plus(os.environ['AIRFLOW_DB_USER']); pwd=u.quote_plus(os.environ['AIRFLOW_DB_PASSWORD']); print(f'postgresql+psycopg2://{user}:{pwd}@{{ .Context.airflow.database.host }}:{{ .Context.airflow.database.port }}/{{ .Context.airflow.database.name }}?sslmode=disable')"
-
-      enableBuiltInSecretEnvVars:
-        AIRFLOW__CORE__SQL_ALCHEMY_CONN: false
-        AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: false
-        AIRFLOW_CONN_AIRFLOW_DB: false
-
       webserver:
         defaultUser:
           enabled: true

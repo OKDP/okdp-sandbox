@@ -1,108 +1,81 @@
-# Airflow DAGs (OKDP Sandbox)
+# NYC Taxi Pipeline - Airflow + Spark
 
-Ce dossier contient 2 DAGs de test pour Airflow:
+Pipeline ETL utilisant Airflow pour orchestrer un job Spark sur des données NYC Taxi (11M+ lignes) stockées dans SeaweedFS S3.
 
-- `hello_daily.py`: DAG Python minimal (smoke test), exécution quotidienne à minuit UTC.
-- `orders_etl_daily.py`: DAG Spark ETL via Spark Operator (soumet un `SparkApplication`).
-
-Le code ETL Spark est dans:
-
-- `spark_jobs/orders_etl_job.py`
-
-## Prerequis
-
-- Airflow accessible sur `https://airflow-default.okdp.sandbox/home`
-- Spark Operator installé
-- ServiceAccount `spark` présent dans le namespace `default`
-
-## Déploiement rapide des DAGs
-
-Depuis la racine du repo:
+## Démarrage rapide
 
 ```bash
-bash examples/airflow/deploy-dags.sh
+# 1. Déployer le ConfigMap Spark ETL + le DAG
+./examples/airflow/deploy_nyc_taxi.sh
+
+# 2. Ouvrir Airflow et lancer le DAG "nyc_taxi_spark_pipeline"
+open https://airflow.okdp.sandbox
+
+# 3. Vérifier les résultats dans SeaweedFS S3
+kubectl run --rm -it s3-check --image=amazon/aws-cli:latest --restart=Never \
+  --command -- aws --endpoint-url http://seaweedfs-pmj3xs-s3.default.svc.cluster.local:8333 \
+  --no-verify-ssl s3 ls s3://okdp/examples/data/processed/nyc_taxi/ --recursive
 ```
 
-Le script:
+## Architecture
 
-1. copie les DAGs dans `/opt/airflow/dags` (scheduler + webserver),
-2. copie le script ETL Spark dans `/opt/airflow/dags/spark_jobs`,
-3. lance `airflow dags reserialize`,
-4. unpause les DAGs.
+```
+Airflow DAG (PythonOperator)
+    → SparkApplication (Spark Operator)
+        → Spark Driver + Executor
+            → Lecture: s3a://okdp/examples/data/raw/tripdata/yellow/  (11M lignes)
+            → Nettoyage + Agrégation (168 lignes: 24h × 7 jours)
+            → Écriture: s3a://okdp/examples/data/processed/nyc_taxi/yellow/run_id=.../nyc_taxi_aggregated.csv
+```
 
-Pour déployer + déclencher immédiatement les 2 DAGs:
+## Données
+
+Données NYC Yellow Taxi déjà présentes dans SeaweedFS (package `okdp-examples`) :
+
+```
+s3://okdp/examples/data/raw/tripdata/yellow/
+├── month=2025-01/yellow_tripdata_2025-01.parquet  (59 MB)
+├── month=2025-02/yellow_tripdata_2025-02.parquet  (60 MB)
+└── month=2025-03/yellow_tripdata_2025-03.parquet  (70 MB)
+```
+
+Aucun téléchargement requis.
+
+## Le pipeline
+
+1. **Lecture** — Lit les 3 mois de données Parquet depuis S3 (11M+ lignes)
+2. **Nettoyage** — Filtre les courses invalides (fare ≤ 0, distance ≤ 0, etc.)
+3. **Agrégation** — Regroupe par heure et jour de la semaine (168 lignes)
+4. **Écriture** — Upload le CSV agrégé dans SeaweedFS via le SDK AWS Java
+
+> **Note** : L'écriture utilise le JVM S3 SDK (pas le Hadoop FileOutputCommitter) pour contourner un bug `copyObject` de SeaweedFS.
+
+## Commandes utiles
 
 ```bash
-TRIGGER=true bash examples/airflow/deploy-dags.sh
+# Statut du SparkApplication
+kubectl get sparkapplications -n default
+
+# Logs du driver Spark
+kubectl logs -n default -l spark-role=driver --tail=50
+
+# Lister les DAG runs Airflow
+kubectl exec -n default deploy/airflow-main-scheduler -c scheduler -- \
+  airflow dags list-runs -d nyc_taxi_spark_pipeline -o plain
 ```
 
-## Modes de provisioning des DAGs
+## Structure
 
-Le package Airflow supporte trois modes (`parameters.dagsSource` dans `clusters/sandbox/releases/addons/airflow.yaml`):
-
-- `local` (par défaut): copie manuelle avec `deploy-dags.sh`
-- `git`: sync automatique via `dags.gitSync`
-- `s3`: sync automatique via sidecar S3 sur scheduler + webserver
-
-Exemple mode Git:
-
-```yaml
-parameters:
-  dagsSource: git
-  dagGitRepo: https://github.com/your-org/your-dags-repo.git
-  dagGitBranch: main
-  dagGitSubPath: dags
-  dagSyncIntervalSeconds: 60
+```
+examples/airflow/
+├── README.md
+├── deploy_nyc_taxi.sh              # Script de déploiement
+├── dags/
+│   └── nyc_taxi_pipeline.py        # DAG Airflow (PythonOperator + K8s API)
+└── manifests/
+    └── nyc-taxi-etl-configmap.yaml  # Code PySpark ETL
 ```
 
-Exemple mode S3:
+## License
 
-```yaml
-parameters:
-  dagsSource: s3
-  dagS3Bucket: airflow-dags
-  dagS3Prefix: dags
-  dagSyncIntervalSeconds: 60
-```
-
-Le fichier `examples/airflow/dags/.airflowignore` est fourni comme équivalent de `.gitignore` pour ignorer les artefacts locaux/non-DAG.
-Le dossier `spark_jobs/` y est ignoré côté parsing Airflow (ce n'est pas un DAG).
-
-## Vérifier l'état
-
-```bash
-kubectl -n default exec deploy/airflow-main-scheduler -c scheduler -- airflow dags list
-kubectl -n default exec deploy/airflow-main-scheduler -c scheduler -- airflow dags list-runs -d hello_daily
-kubectl -n default exec deploy/airflow-main-scheduler -c scheduler -- airflow dags list-runs -d orders_etl_daily
-kubectl -n default get sparkapplications.sparkoperator.k8s.io
-```
-
-## Déclenchement manuel (si besoin)
-
-```bash
-kubectl -n default exec deploy/airflow-main-scheduler -c scheduler -- airflow dags trigger hello_daily
-kubectl -n default exec deploy/airflow-main-scheduler -c scheduler -- airflow dags trigger orders_etl_daily
-```
-
-## Configuration S3 portable (important)
-
-Le DAG `orders_etl_daily` n'utilise plus un service SeaweedFS hardcodé de type `seaweedfs-xxxx`.
-
-Résolution S3:
-
-1. `AIRFLOW_ETL_S3_ENDPOINT` (si défini),
-2. auto-détection d'un service Kubernetes `seaweedfs-*-s3` dans le namespace,
-3. fallback URL ingress `https://seaweedfs-seaweedfs-<namespace>.<suffix>`.
-
-Variables optionnelles:
-
-- `AIRFLOW_ETL_S3_BUCKET` (défaut: `airflow-logs`)
-- `AIRFLOW_ETL_S3_INPUT_PREFIX` (défaut: `orders/raw`)
-- `AIRFLOW_ETL_S3_OUTPUT_PREFIX` (défaut: `orders/curated`)
-- `AIRFLOW_INGRESS_SUFFIX` (défaut: `okdp.sandbox`)
-
-## Notes
-
-- Les DAGs sont planifiés à `00:00` UTC (`schedule: "0 0 * * *"`).
-- Le DAG ETL Spark crée un nom d'application unique par run Airflow.
-- Le job Spark lit `orders` en entrée (S3), applique un nettoyage/agrégation simple, puis écrit en zone `curated`.
+Apache 2.0
