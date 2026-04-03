@@ -16,7 +16,7 @@
 
 apiVersion: v1alpha1
 name: okdp-examples
-tag: 1.1.0-p01
+tag: 1.2.0-p01
 protected: false
 description: |
   A collection of hands-on examples, helper utilities, Jupyter notebooks, 
@@ -28,9 +28,6 @@ usage:
 schema:
   parameters:
     properties:
-      bucket: { type: string, required: true, default: "okdp", description: "S3 bucket where the dataset will be stored" }
-      prefix: { type: string, required: true, default: "examples/data/raw/tripdata", description: "S3 key prefix (folder path) under the bucket where the dataset will be uploaded" }
-      dataDownloadUrl: { type: string, required: true, default: "https://d37ci6vzurychx.cloudfront.net/trip-data", description: "Base URL used to download the dataset files before uploading to S3" }
       sparkEventsLogDir: { type: string, required: true, default: "s3a://spark-events/event-logs/", description: "S3 path for Spark event logs, typically s3a://<bucket>/eventLogs" }
 modules:
   - name: main
@@ -38,7 +35,7 @@ modules:
     source:
       oci:
         repository: quay.io/okdp/charts/okdp-examples
-        tag: 1.1.0
+        tag: 1.2.0
     values: |
       {{- $s3ApiUrl := .Context.examples.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
       {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
@@ -48,10 +45,18 @@ modules:
       {{- $trinoEndpoint := $trinoEndpoint | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
       {{- $trinoEndpoint := $trinoEndpoint | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
       
+      {{- $polarisEndpoint := .Context.polaris.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $polarisEndpoint := $polarisEndpoint | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $polarisEndpointUrl := $polarisEndpoint | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      {{- $keycloakIssuerUri := .Context.trino.auth.oidc.issuerUri | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
       replicaCount: 1
       image:
         repository: quay.io/okdp/okdp-examples
-        tag: 1.0.0
+        tag: 1.2.0
         pullPolicy: Always
       
       extraEnvRaw:
@@ -61,6 +66,8 @@ modules:
         {{- end }}
         - name: S3_ENDPOINT
           value: {{ $s3ApiUrl }}
+      
+        # Bronze Layer
         - name: S3_ACCESS_KEY
           valueFrom:
             secretKeyRef:
@@ -71,12 +78,18 @@ modules:
             secretKeyRef:
               name: {{ .Context.examples.storage.s3.credentialsSecret.name }}
               key: {{ .Context.examples.storage.s3.credentialsSecret.secretKeyKey }}
-        - name: BUCKET
-          value: {{ .Parameters.bucket }}
-        - name: BUCKET_PREFIX
-          value: "{{ .Parameters.prefix }}"
-        - name: DATA_URL
-          value: {{ .Parameters.dataDownloadUrl }}
+
+        - name: BRONZE_BUCKET
+          value: {{ trimPrefix "s3://" .Context.examples.mylakehouse.bronze.storageUri | quote }}
+        - name: BRONZE_BUCKET_PREFIX
+          value: {{ .Context.examples.mylakehouse.bronze.prefix }}
+        - name: BRONZE_DATA_URL
+          value: {{ .Context.examples.mylakehouse.bronze.dataDownloadUrl }}
+        - name: SILVER_BUCKET
+          value: {{ trimPrefix "s3://" .Context.examples.mylakehouse.silver.storageUri | quote }}
+        - name: GOLD_BUCKET
+          value: {{ trimPrefix "s3://" .Context.examples.mylakehouse.gold.storageUri | quote }}
+
         - name: TRINO_SERVER_URL
           value: {{ $trinoEndpoint }}
         - name: TRINO_TERMINAL
@@ -95,14 +108,265 @@ modules:
         - name: NO_PROXY
           value: {{ .Context.proxy.noProxy | quote }}
         {{- end }}
+        # Polaris
+        - name: POLARIS_STS_ROLE_ARN
+          value: {{ .Context.seaweedfs.s3.sts.roleArn }}
+        - name: OIDC_ISSUER_URL
+          value: {{ $keycloakIssuerUri }}
+        - name: POLARIS_URL
+          value: {{ $polarisEndpointUrl }}
+        - name: CA_CERT_PATH
+          value: /cacerts/ca.crt
+        {{- range $realm := .Context.polaris.realms }}
+        {{- $realmPrefix := regexReplaceAll "_+" (regexReplaceAll "[^A-Za-z0-9]+" (upper $realm.name) "_") "_" | trimAll "_" -}}
+        {{- $selected := dict "principal" nil "found" false -}}
+        
+        {{- range $p := ($realm.principals | default list) }}
+        {{- if and (not (get $selected "found")) (has "catalog_admin" ($p.roles | default list)) }}
+        {{- $_ := set $selected "principal" $p -}}
+        {{- $_ := set $selected "found" true -}}
+        {{- end }}
+        {{- end }}
+        
+        {{- $principal := get $selected "principal" -}}
+        {{- if not $principal }}
+        {{- fail (printf "no principal with role 'catalog_admin' found in realm %q" $realm.name) }}
+        {{- end }}
+        
+        {{- if not $principal.credentialsSecret }}
+        {{- fail (printf "principal %q in realm %q is missing credentialsSecret" $principal.name $realm.name) }}
+        {{- end }}
+        
+        {{- if not $principal.credentialsSecret.name }}
+        {{- fail (printf "principal %q in realm %q is missing credentialsSecret.name" $principal.name $realm.name) }}
+        {{- end }}
+        
+        {{- if not $principal.credentialsSecret.clientIdKey }}
+        {{- fail (printf "principal %q in realm %q is missing credentialsSecret.clientIdKey" $principal.name $realm.name) }}
+        {{- end }}
+        
+        {{- if not $principal.credentialsSecret.clientSecretKey }}
+        {{- fail (printf "principal %q in realm %q is missing credentialsSecret.clientSecretKey" $principal.name $realm.name) }}
+        {{- end }}
+      
+        - name: {{ printf "%s_POLARIS_OIDC_CLIENT_ID" $realmPrefix }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $principal.credentialsSecret.name }}
+              key: {{ $principal.credentialsSecret.clientIdKey }}
+        
+        - name: {{ printf "%s_POLARIS_OIDC_CLIENT_SECRET" $realmPrefix }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $principal.credentialsSecret.name }}
+              key: {{ $principal.credentialsSecret.clientSecretKey }}
+          {{- end }}
       
       resources:
         requests:
           cpu: 100m
-          memory: 250Mi
+          memory: 512Mi
         limits:
           cpu: 200m
-          memory: 512Mi
+          memory: 1024Mi
+      
+      extraVolumes:
+        - name: cacerts
+          secret:
+            secretName: certs-bundle
+      
+      extraVolumeMounts:
+        - name: cacerts
+          mountPath: /cacerts
+      
+      extraFiles:
+        polaris-catalogs:
+          mountPath: /etc/polaris/catalogs.yaml
+          stringData: |
+            {{ dict "realms" .Context.examples.polaris.realms | toYaml | nindent 6 }}
+  
+      commands:
+        01-prepare_env:
+          01-create-spark-event-log-dir: |
+            echo "👉 Connect into S3"
+            mc alias set mystorage $S3_ENDPOINT "$S3_ACCESS_KEY" "$S3_SECRET_KEY"
+            echo "👉 Storage alias configured successfully."
+            echo "👉 Normalize the log directory $SPARK_EVENT_LOG_DIRECTORY"
+            no_scheme="${SPARK_EVENT_LOG_DIRECTORY#s3a://}"
+            no_scheme="${no_scheme%/}"
+            bucket="${no_scheme%%/*}"
+            prefix="${no_scheme#$bucket}"
+            prefix="${prefix#/}"
+            echo "👉 Bucket: $bucket, Prefix: $prefix"
+            echo "👉 Create the bucket $bucket if not exist"
+            mc mb mystorage/$bucket || true
+            echo "👉 upload a zero-byte object to create the prefix: $bucket/$prefix/.keep"
+            mc pipe "mystorage/$bucket/$prefix/.keep" < /dev/null
+            echo "✅ Spark events log directory $SPARK_EVENT_LOG_DIRECTORY successfully created.";
+          02-create-bronze-buckets: |
+            echo "👉 Connect into S3"
+            mc alias set mystorage $S3_ENDPOINT "$S3_ACCESS_KEY" "$S3_SECRET_KEY"
+
+            echo "👉 Create the bucket $BRONZE_BUCKET if not exist"
+            mc mb mystorage/${BRONZE_BUCKET#s3://} || true
+      
+            echo "👉 Create the bucket $SILVER_BUCKET if not exist"
+            mc mb mystorage/${SILVER_BUCKET#s3://} || true
+      
+            echo "👉 Create the bucket $GOLD_BUCKET if not exist"
+            mc mb mystorage/${GOLD_BUCKET#s3://} || true
+      
+        02-nyc_trip:
+          # https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page
+          01-download-nyc-tripdata: |
+            mkdir -p /data/tripdata
+            cd /data/tripdata;
+            for dataset in yellow green fhv; do
+              for month in 01 02 03; do
+                file="{{ "$" }}{dataset}_tripdata_2025-{{ "$" }}{month}.parquet"
+                url="$BRONZE_DATA_URL/$file";
+                echo "→ $url";
+                if curl -fsSLO "$url"; then
+                  echo "✅ Downloaded: $file";
+                else
+                  echo "⚠️ Missing: $file";
+                fi;
+              done;
+            done;
+            ls -lh /data/tripdata
+            echo "✅ All downloads complete.";
+      
+          02-upload-nyc-tripdata-into-s3: |
+
+            for category in yellow green fhv; do
+              echo "🚀 Processing category: $category"
+              for file in /data/tripdata/{{ "$" }}{category}_*.parquet; do
+                [ -e "$file" ] || continue  # skip if no files match
+                month=$(basename "$file" | sed -E 's/.*_([0-9]{4}-[0-9]{2})\.parquet/\1/')
+                echo "📦 Uploading $file → $BRONZE_BUCKET_PREFIX/$category/month=$month/"
+                mc cp "$file" "mystorage/$BRONZE_BUCKET/$BRONZE_BUCKET_PREFIX/$category/month=$month/"
+              done
+            done
+            
+            echo "👉 Verify bucket structure"
+            mc tree mystorage/$BRONZE_BUCKET
+            mc ls --recursive mystorage/$BRONZE_BUCKET
+      
+          03-nyc-tripdata-trino-external-tables.sql: |
+            trino --server $TRINO_SERVER_URL --insecure <<SQL
+              CREATE SCHEMA IF NOT EXISTS bronze.nyc_tlc;
+            
+              CREATE TABLE IF NOT EXISTS bronze.nyc_tlc.yellow (
+                vendorid INT,
+                tpep_pickup_datetime TIMESTAMP,
+                tpep_dropoff_datetime TIMESTAMP,
+                passenger_count INT,
+                trip_distance DOUBLE,
+                ratecodeid INT,
+                store_and_fwd_flag VARCHAR,
+                pulocationid INT,
+                dolocationid INT,
+                payment_type INT,
+                fare_amount DOUBLE,
+                extra DOUBLE,
+                mta_tax DOUBLE,
+                tip_amount DOUBLE,
+                tolls_amount DOUBLE,
+                improvement_surcharge DOUBLE,
+                total_amount DOUBLE,
+                congestion_surcharge DOUBLE,
+                airport_fee DOUBLE,
+                cbd_congestion_fee DOUBLE,
+                month VARCHAR
+              )
+              WITH (
+                external_location = 's3a://$BRONZE_BUCKET/$BRONZE_BUCKET_PREFIX/yellow/',
+                format = 'PARQUET',
+                partitioned_by = ARRAY['month']
+              );
+            
+              CREATE TABLE IF NOT EXISTS bronze.nyc_tlc.green (
+                vendorid INT,
+                lpep_pickup_datetime TIMESTAMP,
+                lpep_dropoff_datetime TIMESTAMP,
+                store_and_fwd_flag VARCHAR,
+                ratecodeid INT,
+                pulocationid INT,
+                dolocationid INT,
+                passenger_count INT,
+                trip_distance DOUBLE,
+                fare_amount DOUBLE,
+                extra DOUBLE,
+                mta_tax DOUBLE,
+                tip_amount DOUBLE,
+                tolls_amount DOUBLE,
+                improvement_surcharge DOUBLE,
+                total_amount DOUBLE,
+                payment_type INT,
+                trip_type INT,
+                congestion_surcharge DOUBLE,
+                cbd_congestion_fee DOUBLE,
+                month VARCHAR
+              )
+              WITH (
+                external_location = 's3a://$BRONZE_BUCKET/$BRONZE_BUCKET_PREFIX/green/',
+                format = 'PARQUET',
+                partitioned_by = ARRAY['month']
+              );
+            
+              CREATE TABLE IF NOT EXISTS bronze.nyc_tlc.fhv (
+                dispatching_base_num VARCHAR,
+                pickup_datetime TIMESTAMP,
+                dropoff_datetime TIMESTAMP,
+                pulocationid INT,
+                dolocationid INT,
+                sr_flag INT,
+                affiliated_base_number VARCHAR,
+                month VARCHAR
+              )
+              WITH (
+                external_location = 's3a://$BRONZE_BUCKET/$BRONZE_BUCKET_PREFIX/fhv/',
+                format = 'PARQUET',
+                partitioned_by = ARRAY['month']
+              );
+            SQL
+      
+          04-nyc-tripdata-trino-synchronize-partitions: |
+            trino --server $TRINO_SERVER_URL --insecure <<SQL
+              CALL bronze.system.sync_partition_metadata(
+                schema_name => 'nyc_tlc',
+                table_name => 'yellow',
+                mode => 'ADD'
+              );
+              CALL bronze.system.sync_partition_metadata(
+                schema_name => 'nyc_tlc',
+                table_name => 'green',
+                mode => 'ADD'
+              );
+              CALL bronze.system.sync_partition_metadata(
+                schema_name => 'nyc_tlc',
+                table_name => 'fhv',
+                mode => 'ADD'
+              );
+            SQL
+      
+          05-nyc-tripdata-trino-validate: |
+            trino --server $TRINO_SERVER_URL --insecure <<SQL
+              SHOW SCHEMAS FROM bronze;
+            
+              SHOW TABLES FROM bronze.nyc_tlc;
+            
+              DESCRIBE bronze.nyc_tlc.yellow;
+              DESCRIBE bronze.nyc_tlc.green;
+              DESCRIBE bronze.nyc_tlc.fhv;
+            
+              SELECT *
+              FROM bronze.nyc_tlc.yellow
+              LIMIT 10;
+            SQL
+        03-polaris:
+          01-polaris-apply-catalogs: |
+            polaris-admin --catalog-file /etc/polaris/catalogs.yaml
 
 roles:
   - examples

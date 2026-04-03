@@ -1,0 +1,138 @@
+# values.yaml
+# -- Override the name of the chart.
+nameOverride: ""
+# -- Override the full name of the release.
+fullnameOverride: ""
+
+# -- Select which job this release should render.
+# Valid values:
+#   - bootstrap
+#   - principals
+phase: bootstrap
+
+bootstrap:
+
+  image:
+    # -- Bootstrap container image repository.
+    repository: apache/polaris-admin-tool
+    # -- Bootstrap container image tag.
+    tag: 1.3.0-incubating
+    # -- Bootstrap container image pull policy.
+    pullPolicy: IfNotPresent
+
+  # -- Purge realms and all associated entities.
+  purge: false
+
+  database:
+    # -- JDBC URL for Polaris metastore database. If set, this value is used directly and `database.secret` is ignored for JDBC URL.
+    jdbcUrl: ""
+    secret:
+      # -- Secret name containing the database credentials. Required when `database.jdbcUrl` is empty.
+      name: ~
+      # -- Secret key holding the database username.
+      usernameKey: username
+      # -- Secret key holding the database password.
+      passwordKey: password
+
+  annotations:
+    # -- Helm hook events to run bootstrap on (example: post-install,post-upgrade).
+    "helm.sh/hook": "pre-install,pre-upgrade"
+    # -- Helm hook delete policy.
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+
+  # -- Job backoff limit (number of retries before considering the Job failed).
+  backoffLimit: 1
+  # -- TTL (seconds) for finished Jobs. If empty, Job cleanup is disabled.
+  ttlSecondsAfterFinished: 3600
+
+  # -- Job pod restart policy. For Jobs, must be OnFailure or Never.
+  restartPolicy: Never
+
+principals:
+
+  image:
+    # -- Job container image repository (must include /bin/sh and curl).
+    repository: curlimages/curl
+    # -- Job container image tag.
+    tag: 8.18.0
+    # -- Job container image pull policy.
+    pullPolicy: IfNotPresent
+
+  polaris:
+    # -- Base URL of the Polaris service (e.g. https://polaris-default.okdp.sandbox).
+    # Used by the Job to call Polaris management APIs.
+    url: ""
+
+  annotations:
+    # -- Helm hook events to run provisioning on.
+    "helm.sh/hook": "post-install,post-upgrade"
+    # -- Helm hook delete policy.
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+
+  # -- Job backoff limit.
+  backoffLimit: 1
+  # -- TTL (seconds) for finished Jobs. If empty, Job cleanup is disabled.
+  ttlSecondsAfterFinished: 3600
+  # -- Job pod restart policy. For Jobs, must be OnFailure or Never.
+  restartPolicy: Never
+
+  # -- Skip TLS verification when calling Polaris (useful with self-signed certs).
+  insecureSkipVerify: true
+
+  # -- Path to a PEM CA bundle inside the Job container (used by curl for TLS validation).
+  # You said you already have it mounted at /cacerts/ca.crt.
+  caCertPath: /cacerts/ca.crt
+
+  # -- Max seconds to wait for Polaris readiness.
+  waitTimeoutSeconds: 300
+  # -- Seconds between readiness checks.
+  waitIntervalSeconds: 3
+
+# -- List of allowed Polaris realms used by the default realm context resolver.
+# The first realm in this list is treated as the default realm.
+# Any realm not listed here will be rejected.
+#
+# Each realm entry also defines the bootstrap (root) client credentials used to obtain a
+# management token and provision admin principals. The root bootstrap principal should be
+# treated as bootstrap/break-glass only (not for normal day-to-day OIDC flows).
+#
+# If this list is empty OR no realm contains principals entries, the Job will not be rendered.
+# principal → principal role → catalog role → privilege
+# https://polaris.apache.org/in-dev/unreleased/managing-security/access-control
+realms: []
+# - name: SANDBOX
+#   rootPrincipal:
+#     name: root
+#     credentialsSecret:
+#       name: polaris-admin-principals-creds
+#       clientIdKey: client_id
+#       clientSecretKey: client_secret
+#   principals:
+#     - name: service-account-polaris-admin
+#       roles:
+#        - service_admin
+#        - catalog_admin
+
+# -- Extra env vars to add to the Job container (raw K8s env spec).
+# Example:
+# extraEnv:
+#   - name: HTTPS_PROXY
+#     value: http://proxy:3128
+extraEnv: []
+
+# -- Extra volumes to attach to the Job pod (raw K8s volume spec).
+# Example:
+# extraVolumes:
+#   - name: cacerts
+#     secret:
+#       secretName: certs-bundle
+extraVolumes: []
+
+# -- Extra volume mounts to attach to the Job container (raw K8s volumeMount spec).
+# Example:
+# extraVolumeMounts:
+#   - name: cacerts
+#     mountPath: /cacerts
+#     readOnly: true
+extraVolumeMounts: []
+
