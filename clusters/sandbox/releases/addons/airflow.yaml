@@ -1,0 +1,41 @@
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Release
+metadata:
+  name: airflow
+  namespace: default
+spec:
+  description: "Apache Airflow for workflow orchestration with Spark integration"
+  package:
+    repository: quay.io/okdp/sandbox-packages-v0.1/airflow
+    tag: 2.9.3-p07
+  parameters:
+    # Supported modes: local (manual copy), git (gitSync), s3 (sidecar sync)
+    dagsSource: git
+    dagSyncIntervalSeconds: 60
+    dagGitRepo: https://github.com/OKDP/okdp-sandbox.git
+    dagGitBranch: main
+    dagGitRef: HEAD
+    dagGitDepth: 1
+    dagGitSubPath: examples/airflow/dags
+    # dagGitCredentialsSecret: git-credentials
+    # dagS3Bucket: airflow-dags
+    # dagS3Prefix: dags
+    # dagS3Image: bitnami/aws-cli:2.17.0
+  # Keep ingress routing stable even when an older airflow package is installed.
+  specPatchByModule:
+    main:
+      values:
+        ingress:
+          web:
+            ingressClassName: nginx
+            annotations:
+              kubernetes.io/ingress.class: nginx
+              cert-manager.io/cluster-issuer: default-issuer
+              nginx.ingress.kubernetes.io/proxy-body-size: "0"
+            hosts:
+              - name: airflow-default.okdp.sandbox
+                tls:
+                  enabled: true
+                  secretName: airflow-web-tls
+  targetNamespace: default
+  createNamespace: false

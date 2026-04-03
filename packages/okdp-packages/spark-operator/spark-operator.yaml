@@ -1,0 +1,126 @@
+apiVersion: v1alpha1
+name: spark-operator
+tag: 2.4.0-p02
+protected: false
+description: |
+  Spark Operator 2.4.0 - Kubernetes operator for managing Apache Spark applications
+
+  This package provides the Kubeflow Spark Operator which simplifies running Spark applications
+  on Kubernetes using custom resources (SparkApplication CRD). It supports Spark 2.3+.
+usage:
+  text: |
+    Spark Operator has been deployed successfully.
+
+    The operator manages SparkApplication custom resources in configured namespaces.
+    
+    To submit a Spark application:
+    1. Create a namespace for your Spark applications (e.g., spark-apps)
+    2. Create a ServiceAccount with appropriate RBAC permissions
+    3. Submit a SparkApplication manifest
+    
+    Example SparkApplication:
+    ```yaml
+    apiVersion: sparkoperator.k8s.io/v1beta2
+    kind: SparkApplication
+    metadata:
+      name: spark-pi
+      namespace: spark-apps
+    spec:
+      type: Scala
+      mode: cluster
+      image: "quay.io/okdp/spark-py:spark-3.5.6-python-3.11-scala-2.12-java-17"
+      imagePullPolicy: Always
+      mainClass: org.apache.spark.examples.SparkPi
+      mainApplicationFile: "local:///opt/spark/examples/jars/spark-examples_2.12-3.5.6.jar"
+      sparkVersion: "3.5.6"
+      restartPolicy:
+        type: Never
+      driver:
+        cores: 1
+        coreLimit: "1200m"
+        memory: "512m"
+        serviceAccount: spark
+      executor:
+        cores: 1
+        instances: 2
+        memory: "512m"
+    ```
+    
+    Monitor your application using:
+    kubectl get sparkapplications -n spark-apps
+    kubectl describe sparkapplication spark-pi -n spark-apps
+
+schema:
+  parameters:
+    properties:
+      jobNamespaces:
+        type: array
+        items:
+          type: string
+        description: "List of namespaces where Spark jobs can run. If empty string is included, all namespaces will be allowed"
+      metricsEnabled:
+        type: boolean
+        default: true
+        description: "Enable Prometheus metrics"
+      podMonitorEnabled:
+        type: boolean
+        default: false
+        description: "Create PodMonitor for metrics collection"
+      webhookEnabled:
+        type: boolean
+        default: true
+        description: "Enable admission webhook for validation and mutation"
+  context:
+    properties: {}
+
+modules:
+  - name: noname
+    timeout: 10m
+    source:
+      helmRepository:
+        url: https://kubeflow.github.io/spark-operator
+        chart: spark-operator
+        version: 2.4.0
+    values: |
+      # Helm hook configuration
+      hook:
+        upgradeCrd: false
+
+      # Prometheus metrics configuration
+      prometheus:
+        metrics:
+          enabled: {{ .Parameters.metricsEnabled }}
+        podMonitor:
+          create: {{ .Parameters.podMonitorEnabled }}
+
+      # Controller RBAC
+      controller:
+        rbac:
+          createRole: true
+        podSecurityContext:
+          fsGroup: null
+
+      # Webhook configuration
+      webhook:
+        enable: {{ .Parameters.webhookEnabled }}  # enable:, not enabled in helm chart
+        podSecurityContext:
+          fsGroup: null
+
+      # Spark application configuration
+      spark:
+        # List of namespaces where to run spark jobs
+        # If empty string is included, all namespaces will be allowed
+        # Make sure the namespaces already exist.
+        jobNamespaces: {{ .Parameters.jobNamespaces | default (list) | toJson }}
+
+        serviceAccount:
+          # Specifies whether to create a service account for spark applications
+          create: false
+
+        rbac:
+          # Specifies whether to create RBAC resources for spark applications
+          create: false
+
+roles:
+  - sparkOperator
+dependencies: []

@@ -21,10 +21,10 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/cloudnative-pg/postgresql
+  repository: quay.io/okdp/sandbox-images/postgresql
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "17.0"
+  tag: "17.4.0-debian-12-r2"
 
 imagePullSecrets: []
 nameOverride: ""
