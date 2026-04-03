@@ -16,7 +16,7 @@
 
 apiVersion: v1alpha1
 name: spark-history-server
-tag: 3.5.1-p03
+tag: 3.5.1-p04
 protected: false
 description: |
   Spark History Server - Monitoring and debugging interface for Apache Spark applications.
@@ -40,7 +40,7 @@ schema:
   parameters:
     properties:
       eventsLogDir: { type: string, required: true, default: "s3a://spark-events/event-logs/", description: "S3 path for Spark event logs, typically s3a://<bucket>/eventLogs" }
-      adminGroups: { type: string, default: "admins", description: "Comma separated list of admin groups" }
+      adminGroups: { type: string, default: "platform_admin", description: "Comma separated list of admin groups" }
       enableWebProxy: { type: boolean, default: true, description: "Whether to enable Spark History web proxy" }
       webProxyUrlPrefix: { type: string, default: "spark-web-proxy", description: "Spark web proxy url prefix" }
   context:

@@ -26,7 +26,7 @@ spec:
     clusters in Kubernetes environments.
   package:
     interval: 30m
-    repository: quay.io/okdp/sandbox-packages-v0.1/cloudnative-pg
+    repository: quay.io/okdp/sandbox-packages-v0.2/cloudnative-pg
     tag: 17.0-p01
     timeout: 10m
   targetNamespace: cnpg-system
