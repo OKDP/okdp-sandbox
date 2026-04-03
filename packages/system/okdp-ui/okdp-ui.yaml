@@ -46,7 +46,7 @@ modules:
             issuer: https://keycloak.{{ .Context.ingress.suffix }}/realms/master
             redirectUri: https://okdp-ui.{{ .Context.ingress.suffix }}/index.html
             silentRefreshRedirectUri: https://okdp-ui.{{ .Context.ingress.suffix }}/silent-refresh.html
-            clientId: public-oidc-client
+            clientId: okdp-ui
             responseType: code
             scope: openid profile email offline_access roles
             showDebugInformation: true
