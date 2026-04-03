@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# you may obtain a copy of the License at
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -14,7 +14,23 @@
 #  limitations under the License.
 #
 
-postgres_host: postgres
-port: 5432
-database: database
-secret_creds: creds-db
+apiVersion: v2
+name: auth-config
+description: SeaweedFS Auth and IAM/STS configuration
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+home: https://okdp.io/
+icon: https://okdp.io/logos/okdp-notext.svg
+keywords:
+  - spark
+  - pyspark
+  - kubernetes
+  - spark-rbac
+  - okdp
+maintainers:
+  - email: idir.izitounene@kubotal.io
+    name: idirze
+    url: https://github.com/idirze
+sources:
+  - https://github.com/OKDP/okdp-sandbox

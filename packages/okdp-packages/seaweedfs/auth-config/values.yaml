@@ -1,0 +1,166 @@
+# -- Override the chart name (affects resource naming).
+nameOverride: ""
+# -- Override the full release name (affects resource naming).
+fullnameOverride: ""
+
+# -- Extra annotations to add to the ConfigMap metadata.
+annotations: {}
+
+iamConfig:
+  # -- SeaweedFS STS configuration rendered into iam.json.
+  sts:
+    # -- Default duration for vended STS tokens (e.g. "1h", "30m").
+    tokenDuration: "1h"
+    # -- Maximum allowed session length for STS tokens (e.g. "12h").
+    maxSessionLength: "12h"
+    # -- Logical issuer name used by SeaweedFS STS tokens (not the OIDC issuer URL).
+    issuer: "seaweedfs-sts"
+    # -- Base64-encoded signing key used by SeaweedFS to sign STS tokens.
+    # Example: "b64:Zm9vYmFy..." (recommend supplying via a Secret in real deployments)
+    signingKey: ""
+
+  providers:
+    oidc:
+      # -- Enable/disable OIDC provider configuration rendering.
+      enabled: false
+
+      # -- Provider display/name identifier inside the generated IAM config.
+      providerName: "oidc-provider"
+
+      # -- Provider type field to emit (SeaweedFS expects "oidc" for OIDC providers).
+      providerType: "oidc"
+
+      # -- OIDC Issuer URL.
+      # Example: "https://keycloak.example.com/realms/master"
+      issuer: ""
+
+      # -- OIDC client id.
+      # Example: "seaweedfs-s3"
+      clientId: ""
+
+      # -- JWKS URI (do NOT assume Keycloak paths; set explicitly per provider).
+      # Example (Keycloak): "https://keycloak.example.com/realms/master/protocol/openid-connect/certs"
+      # Example (Auth0):   "https://YOUR_DOMAIN/.well-known/jwks.json"
+      jwksUri: ""
+
+      # -- UserInfo endpoint URI (optional; not all providers expose it).
+      # Example (Keycloak): "https://keycloak.example.com/realms/master/protocol/openid-connect/userinfo"
+      userInfoUri: ""
+
+      # -- OIDC scopes input as a single string. The chart will normalize this to `scopes: []` in the generated iam.json.
+      # Notes:
+      # - OAuth/OIDC "scope" is typically SPACE-separated (standard).
+      # - Some people write "+" (often URL-encoding for spaces) or commas. The chart accepts space, "+", or comma.
+      # Examples:
+      #   scope: "openid profile email offline_access groups"
+      #   scope: "openid+profile+email+offline_access+groups"
+      #   scope: "openid,profile,email,offline_access,groups"
+      scope: ""
+
+      # -- OIDC scopes input as an explicit list. If set (non-empty), it takes precedence over `scope`.
+      # Example:
+      #   scopes: ["openid","profile","email","offline_access","groups"]
+      scopes: []
+
+      # -- Extra provider-specific config fields to merge into the provider "config" object.
+      # Use this to add any non-standard keys your provider or SeaweedFS config requires.
+      # Example:
+      # configExtra:
+      #   audience: "my-audience"
+      #   tokenEndpoint: "https://issuer.example.com/oauth/token"
+      configExtra: {}
+
+      roleMapping:
+        # -- Default role ARN if no rule matches. Must be a valid IAM Role ARN.
+        # Format: arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>
+        # Example: "arn:aws:iam::000000000000:role/S3ReadOnlyRole"
+        # N.B.: roleMapping is only relevant for sts:AssumeRoleWithWebIdentity
+        defaultRole: ""
+
+        # -- List of rule mappings to derive a role from token claims.
+        # Each rule matches a claim/value and maps to a role ARN.
+        # Example:
+        # rules:
+        #   - claim: "groups"
+        #     value: "developers"
+        #     role: "arn:aws:iam::000000000000:role/S3WriteRole"
+        rules: []
+
+  # -- IAM policies to define in the SeaweedFS IAM config.
+  # Example:
+  # policies:
+  #   - name: "S3WritePolicy"
+  #     document:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: "Allow"
+  #           Action: ["s3:List*","s3:Get*","s3:Put*","s3:DeleteObject"]
+  #           Resource: ["*"]
+  policies: []
+
+  # -- IAM roles to define in the SeaweedFS IAM config.
+  # Example:
+  # roles:
+  #   - roleName: "S3WriteRole"
+  #     roleArn: "arn:aws:iam::000000000000:role/S3WriteRole"
+  #     attachedPolicies: ["S3WritePolicy"]
+  #     trustPolicy:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Effect: "Allow"
+  #           Principal: "*"
+  #           Action:
+  #             - "sts:AssumeRole"
+  #         - Effect: "Allow"
+  #           Principal: { Federated: "*" }
+  #           Action:
+  #             - "sts:AssumeRoleWithWebIdentity"
+  #           Condition:
+  #             StringEquals:
+  #               seaweed:Issuer: "https://issuer.example.com/realms/master"
+  roles: []
+
+# -- SeaweedFS S3 auth config secret (existingConfigSecret)
+s3Config:
+  # -- Create the SeaweedFS S3 config secret from `identities`
+  enabled: false
+
+  # -- Name of the secret you will reference from SeaweedFS values:
+  # s3:
+  #   enableAuth: true
+  #   existingConfigSecret: MyExistingSecret
+  secretName: ""
+
+  # -- S3 identities rendered into a SeaweedFS-compatible secret (existingConfigSecret)
+  # Example:
+  # identities:
+  #   - name: polaris
+  #     credentialsSecret:
+  #       name: creds-polaris-s3
+  #       accessKeyKey: accessKey
+  #       secretKeyKey: secretKey
+  #     actions: ["Admin","Read","Write","List","Tagging"]
+  identities: []
+
+  # Optional: match SeaweedFS chart “keep + pre-install/pre-upgrade” behavior
+  annotations:
+    "helm.sh/resource-policy": keep
+    "helm.sh/hook": "pre-install,pre-upgrade"
+
+filer:
+  # -- Authentication settings for the filer endpoint.
+  auth:
+    # -- Authentication method for filer access.
+    # Supported values: "basic" (extend if you add other methods later).
+    method: basic
+    basic:
+      # -- Name of the Kubernetes Secret to create/use for NGINX basic auth (htpasswd file) based on username and password.
+      # This Secret is referenced by the ingress annotation:
+      # nginx.ingress.kubernetes.io/auth-secret: <secret-name>
+      create_auth_secret: creds-seaweedfs-filer-basic
+      # -- Basic auth username used to generate the htpasswd entry.
+      username: admin
+      # -- Basic auth password used to generate the htpasswd entry.
+      # Consider supplying via an existing Secret or external secret manager in real deployments.
+      password: admin123
+

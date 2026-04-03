@@ -16,7 +16,7 @@
 
 apiVersion: v1alpha1
 name: seaweedfs
-tag: 4.0.407-p1
+tag: 4.17.0-p1
 protected: false
 description: |
   SeaweedFS is a simple and highly scalable distributed file system. There are the objectives to store billions of files and to serve the files fast!
@@ -52,64 +52,108 @@ schema:
         properties:
           suffix: { type: string, required: true }
 modules:
-  - name: ocp-oauth-htpasswd
+  - name: auth-config
     source:
       local:
-        path: ./ocp-oauth-htpasswd
+        path: ./auth-config
     values: |
-      username: {{ .Parameters.username }}
-      password: {{ .Parameters.password }}
-      auth_secret: auth-user-secret
-      s3_secret: {{ .Context.seaweedfs.s3.s3_secret }}
-      sourceS3Secrets:
-        - name: {{ .Context.seaweedfs.s3.credentialsSecret.name }}
-          actions:
-          {{- range .Context.seaweedfs.s3.actions }}
-            - {{ . }}
-          {{- end }}
-        - name: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.name }}
-          actions:
-          {{- range .Context.hiveMetastore.storage.s3.actions }}
-          - {{ . }}
-          {{- end }}
-        - name: {{ .Context.trino.storage.s3.credentialsSecret.name }}
-          actions:
-          {{- range .Context.trino.storage.s3.actions }}
-          - {{ . }}
-          {{- end }}
-        - name: {{ .Context.jupyter.storage.s3.credentialsSecret.name }}
-          actions:
-          {{- range .Context.jupyter.storage.s3.actions }}
-          - {{ . }}
-          {{- end }}
-        - name: {{ .Context.sparkHistory.storage.s3.credentialsSecret.name }}
-          actions:
-          {{- range .Context.sparkHistory.storage.s3.actions }}
-          - {{ . }}
-          {{- end }}
-        - name: {{ .Context.examples.storage.s3.credentialsSecret.name }}
-          actions:
-          {{- range .Context.examples.storage.s3.actions }}
-          - {{ . }}
-          {{- end }}
-  # Have to create a database per namespace with filemeta table before if
-  # activating external DBMS connection.
-  # - name: postgres-table-init
-  #   source:
-  #     local:
-  #       path: ./postgres-table-init
-  #   values: |
-  #     postgres_host: {{ .Context.seaweedfs.database.host }}
-  #     port: {{ .Context.seaweedfs.database.port }}
-  #     database: {{ .Context.seaweedfs.database.name }}-{{ .Release.spec.targetNamespace }}
-  #     secret_creds: {{ .Context.seaweedfs.database.credentialsSecret.name }}
+
+      iamConfig:
+        sts:
+          tokenDuration: "1h"
+          maxSessionLength: "12h"
+          issuer: "seaweedfs-sts"
+          signingKey: ""
+      
+        # -- IAM policies to define in the SeaweedFS IAM config.
+        policies:
+          - name: "S3WritePolicy"
+            document:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: "Allow"
+                  Action: ["s3:List*","s3:Get*","s3:Put*","s3:DeleteObject"]
+                  Resource: ["*"]
+        
+        # -- IAM roles to define in the SeaweedFS IAM config.
+        roles:
+          - roleName: "S3WriteRole"
+            roleArn: "{{ .Context.seaweedfs.s3.sts.roleArn }}"
+            attachedPolicies: ["S3WritePolicy"]
+            trustPolicy:
+              Version: "2012-10-17"
+              Statement:
+                # Polaris uses Credentials-based STS AssumeRole
+                - Effect: "Allow"
+                  Principal: "*"
+                  Action:
+                    - "sts:AssumeRole"
+      
+      s3Config:
+        enabled: true
+        secretName: {{ .Context.seaweedfs.s3.s3_secret }}
+        identities:
+          - name: {{ .Context.seaweedfs.s3.providerConfig.seaweedfs.identity }}
+            credentialsSecret:
+              name: {{ .Context.seaweedfs.s3.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.seaweedfs.s3.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.seaweedfs.s3.credentialsSecret.secretKeyKey }}
+            actions: {{ .Context.seaweedfs.s3.providerConfig.seaweedfs.actions | default list | toJson }}
+          - name: {{ .Context.hiveMetastore.storage.s3.providerConfig.seaweedfs.identity }}
+            credentialsSecret:
+              name: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.secretKeyKey }}
+            actions: {{ .Context.hiveMetastore.storage.s3.providerConfig.seaweedfs.actions | default list | toJson }}
+          - name: {{ .Context.trino.storage.s3.providerConfig.seaweedfs.identity }}
+            credentialsSecret:
+              name: {{ .Context.trino.storage.s3.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.trino.storage.s3.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.trino.storage.s3.credentialsSecret.secretKeyKey }}
+            actions: {{ .Context.trino.storage.s3.providerConfig.seaweedfs.actions | default list | toJson }}
+          - name: {{ .Context.jupyterHub.storage.s3.providerConfig.seaweedfs.identity }}
+            credentialsSecret:
+              name: {{ .Context.jupyterHub.storage.s3.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.jupyterHub.storage.s3.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.jupyterHub.storage.s3.credentialsSecret.secretKeyKey }}
+            actions: {{ .Context.jupyterHub.storage.s3.providerConfig.seaweedfs.actions | default list | toJson }}
+          - name: {{ .Context.sparkHistory.storage.s3.providerConfig.seaweedfs.identity }}
+            credentialsSecret:
+              name: {{ .Context.sparkHistory.storage.s3.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.sparkHistory.storage.s3.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.sparkHistory.storage.s3.credentialsSecret.secretKeyKey }}
+            actions: {{ .Context.sparkHistory.storage.s3.providerConfig.seaweedfs.actions | default list | toJson }}
+          - name: {{ .Context.examples.storage.s3.providerConfig.seaweedfs.identity }}
+            credentialsSecret:
+              name: {{ .Context.examples.storage.s3.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.examples.storage.s3.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.examples.storage.s3.credentialsSecret.secretKeyKey }}
+            actions: {{ .Context.examples.storage.s3.providerConfig.seaweedfs.actions | default list | toJson }}
+          # The Polaris SeaweedFS identity for STS
+          - name: {{ .Context.polaris.storage.s3.providerConfig.seaweedfs.identity }}
+            credentialsSecret:
+              name: {{ .Context.polaris.storage.s3.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.polaris.storage.s3.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.polaris.storage.s3.credentialsSecret.secretKeyKey }}
+            actions: {{ .Context.polaris.storage.s3.providerConfig.seaweedfs.actions | default list | toJson }}
+
+      filer:
+        auth:
+          method: basic
+          basic:
+            create_auth_secret: creds-seaweedfs-filer-basic
+            username: {{ .Parameters.username }}
+            password: {{ .Parameters.password }}
+
   - name: main
+    dependsOn:
+      - auth-config
     timeout: 10m
     source:
       helmRepository:
         url: https://seaweedfs.github.io/seaweedfs/helm
         chart: seaweedfs
-        version: 4.0.407
+        version: 4.17.0
     values: |
       {{- $seaweedfsS3Url := .Context.seaweedfs.endpoint.s3Url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
       {{- $seaweedfsS3Url := $seaweedfsS3Url | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
@@ -126,6 +170,9 @@ modules:
 
       global:
         imageName: chrislusf/seaweedfs
+      
+      image:
+        tag: "4.17"
 
       master:
         enabled: true
@@ -163,34 +210,6 @@ modules:
           type: "persistentVolumeClaim"
           storageClass: "{{ .Context.storageClass.workspace }}"
           size: "{{ .Parameters.filerLogStorage }}Gi"
-        s3:
-          enabled: true
-          enableAuth: true
-          existingConfigSecret: {{ .Context.seaweedfs.s3.s3_secret }}
-          createBuckets:
-            - name: {{ .Context.hiveMetastore.storage.s3.bucket }}
-              anonymousRead: {{ .Context.hiveMetastore.storage.s3.bucketAnonymousRead }}
-            - name: {{ .Context.sparkHistory.storage.s3.bucket }}
-              anonymousRead: {{ .Context.sparkHistory.storage.s3.bucketAnonymousRead }}
-        # Have to create a database per namespace with filemeta table before if
-        # activating external DBMS connection.
-        # extraEnvironmentVars:
-        #   WEED_LEVELDB2_ENABLED: "false"
-        #   WEED_POSTGRES_ENABLED: "true"
-        #   WEED_POSTGRES_HOSTNAME: "{{ .Context.seaweedfs.database.host }}"
-        #   WEED_POSTGRES_PORT: "{{ .Context.seaweedfs.database.port }}"
-        #   WEED_POSTGRES_DATABASE: "{{ .Context.seaweedfs.database.name }}-{{ .Release.spec.targetNamespace }}"
-        #   WEED_POSTGRES_CONNECTION_MAX_IDLE: "5"
-        #   WEED_POSTGRES_CONNECTION_MAX_OPEN: "75"
-        # secretExtraEnvironmentVars:
-        #   WEED_POSTGRES_USERNAME:
-        #     secretKeyRef:
-        #       name: {{ .Context.seaweedfs.database.credentialsSecret.name }}
-        #       key: username
-        #   WEED_POSTGRES_PASSWORD:
-        #     secretKeyRef:
-        #       name: {{ .Context.seaweedfs.database.credentialsSecret.name }}
-        #       key: password
         ingress:
           enabled: true
           className: nginx
@@ -198,7 +217,7 @@ modules:
             nginx.ingress.kubernetes.io/proxy-body-size: "130m"
             cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
             nginx.ingress.kubernetes.io/auth-type: basic
-            nginx.ingress.kubernetes.io/auth-secret: auth-user-secret
+            nginx.ingress.kubernetes.io/auth-secret: creds-seaweedfs-filer-basic
             nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
           host: {{ $seaweedfsFilerHost }}
           path: "/"
@@ -209,7 +228,29 @@ modules:
                 - {{ $seaweedfsFilerHost }}
       
       s3:
-        enabled: false
+        enabled: {{ .Context.seaweedfs.s3.enabled }}
+        enableAuth: true
+        existingConfigSecret: {{ .Context.seaweedfs.s3.s3_secret }}
+        createBuckets:
+          - name: {{ .Context.hiveMetastore.storage.s3.bucket }}
+            anonymousRead: {{ .Context.hiveMetastore.storage.s3.bucketAnonymousRead }}
+          - name: {{ .Context.sparkHistory.storage.s3.bucket }}
+            anonymousRead: {{ .Context.sparkHistory.storage.s3.bucketAnonymousRead }}
+      
+        extraVolumes: |
+          - name: auth-config
+            configMap:
+              name: {{ .Release.metadata.name }}-auth-config
+  
+        extraVolumeMounts: |
+          - name: auth-config
+            mountPath: /etc/seaweed/iam
+            readOnly: true
+        {{- if .Context.seaweedfs.s3.sts.enabled }}
+        extraArgs:
+          - "-iam.config=/etc/seaweed/iam/iam.json"
+        {{- end }}
+      
         ingress:
           enabled: true
           className: nginx
@@ -217,6 +258,8 @@ modules:
             nginx.ingress.kubernetes.io/proxy-body-size: "130m"
             cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
           host: {{ $seaweedfsS3Host }}
+          path: "/"
+          pathType: Prefix
           tls:
             - secretName: seaweedfs-s3-tls
               hosts:
