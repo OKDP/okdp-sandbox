@@ -38,7 +38,7 @@ spec:
       workspace: standard
 
     okdp:
-      packageRepository: quay.io/okdp/sandbox-packages-v0.1
+      packageRepository: quay.io/okdp/sandbox-packages-v0.2
       clusters:
         - id: sandbox
           name: "OKDP Sandbox Cluster"
@@ -127,33 +127,34 @@ spec:
         port: 5432
         name: hms
         credentialsSecret:
-          name: creds-hms-db
+          name: creds-hive-metastore-db
           usernameKey: username
           passwordKey: password
       storage:
         provider: s3
         s3:
-          apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
           bucket: hive
           bucketAnonymousRead: true
           warehouseDir: hive-warehouse/
           credentialsSecret:
-            name: creds-hms-s3
+            name: creds-hive-metastore-s3
             accessKeyKey: accessKey
             secretKeyKey: secretKey
-          actions:
-            - Read
-            - Write
-            - List
-        tls:
-          enabled: true
-          insecureSkipVerify: true
+          providerConfig:
+            seaweedfs:
+              identity: hiveMetastore
+              actions: [ Read, Write, List ]
+          tls:
+            enabled: true
+            insecureSkipVerify: true
       endpoint:
         url: thrift://hive-metastore.{{ .Release.namespace }}.svc.cluster.local:9083
 
     trino:
-      metastore:
-        uri: thrift://hive-metastore.{{ .Release.namespace }}.svc.cluster.local:9083
+      catalogs:
+        metastore:
+          uri: thrift://hive-metastore.{{ .Release.namespace }}.svc.cluster.local:9083
       auth:
         enabled: true
         method: oidc
@@ -169,21 +170,21 @@ spec:
           usePKCE: true
           insecureSkipVerify: true
           credentialsSecret:
-            name: creds-oidc
+            name: creds-trino-oauth2
             clientIdKey: client_id
             clientSecretKey: client_secret
       storage:
         provider: s3
         s3:
-          apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
           credentialsSecret:
             name: creds-trino-s3
             accessKeyKey: S3_ACCESS_KEY
             secretKeyKey: S3_SECRET_ACCESS
-          actions:
-            - Read
-            - Write
-            - List
+          providerConfig:
+            seaweedfs:
+              identity: trino
+              actions: [ Read, Write, List, Admin ]
           tls:
             enabled: true
             insecureSkipVerify: true
@@ -217,7 +218,7 @@ spec:
         host: ~
         port: 6379
         credentialsSecret:
-          name: creds-redis
+          name: creds-superset-redis
           usernameKey: username
           passwordKey: password
       auth:
@@ -225,18 +226,18 @@ spec:
         method: oidc
         oidc:
           provider: keycloak
-          baseUrl: "https://keycloak.{{ .Context.ingress.suffix }}:443/realms/master/protocol/openid-connect"
+          issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}:443/realms/master"
           scope: "openid profile email groups"
           usePKCE: true
           insecureSkipVerify: true
           credentialsSecret:
-            name: creds-oidc
+            name: creds-superset-oauth2
             clientIdKey: client_id
             clientSecretKey: client_secret
       dataSources: |
         databases:
-        - database_name: trino
-          sqlalchemy_uri: "trino://trino@trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}:443/lakehouse/nyc_tripdata?http_scheme=https&verify=false"
+        - database_name: trino-hms-bronze
+          sqlalchemy_uri: "trino://trino@trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}:443/bronze?http_scheme=https&verify=false"
           extra: |
             {
               "engine_params": {},
@@ -256,19 +257,19 @@ spec:
       endpoint:
         url: https://superset-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
-    jupyter:
+    jupyterHub:
       storage:
         provider: s3
         s3:
-          apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
           credentialsSecret:
-            name: creds-jupyter-s3
+            name: creds-jupyterhub-s3
             accessKeyKey: S3_ACCESS_KEY
             secretKeyKey: S3_SECRET_KEY
-          actions:
-            - Read
-            - Write
-            - List
+          providerConfig:
+            seaweedfs:
+              identity: jupyterhub
+              actions: [ Read, Write, List ]
           tls:
             enabled: true
             insecureSkipVerify: true
@@ -277,13 +278,13 @@ spec:
         method: oidc
         oidc:
           provider: keycloak
-          baseUrl: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect"
+          issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
           credentialsSecret:
-            name: creds-oidc
+            name: creds-jupyterhub-oauth2
             clientIdKey: client_id
             clientSecretKey: client_secret
       endpoint:
-        url: https://jupyter-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+        url: https://jupyterhub-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
     sparkRBAC:
       rbac:
@@ -298,17 +299,17 @@ spec:
       storage:
         provider: s3
         s3:
-          apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
           bucket: spark-events
           bucketAnonymousRead: true
           credentialsSecret:
             name: creds-spark-history-s3
             accessKeyKey: accessKey
             secretKeyKey: secretKey
-          actions:
-            - Read
-            - Write
-            - List
+          providerConfig:
+            seaweedfs:
+              identity: sparkHistory
+              actions: [ Read, Write, List ]
           tls:
             enabled: true
             insecureSkipVerify: true
@@ -322,23 +323,35 @@ spec:
           usePKCE: true
           insecureSkipVerify: true
           credentialsSecret:
-            name: creds-oidc
+            name: creds-spark-history-oauth2
             clientIdKey: client_id
             clientSecretKey: client_secret
       endpoint:
         url: https://spark-history-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
     examples:
+      mylakehouse:
+        bronze:
+          storageUri: s3://bronze
+          prefix: mobility/nyc_tlc
+          dataDownloadUrl: https://d37ci6vzurychx.cloudfront.net/trip-data
+        silver:
+          storageUri: s3://silver
+        gold:
+          storageUri: s3://gold
+
       storage:
         provider: s3
         s3:
-          apiUrl: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
           credentialsSecret:
             name: creds-examples-s3
             accessKeyKey: S3_ACCESS_KEY
             secretKeyKey: S3_SECRET_KEY
-          actions:
-            - Admin
+          providerConfig:
+            seaweedfs:
+              identity: examples
+              actions: [ Admin, Read, Write, List ]
           tls:
             enabled: true
             insecureSkipVerify: true
@@ -370,46 +383,143 @@ spec:
         displayName: "OKDP internal Realm"
         accessTokenLifespan: 3600
       users:
-        - username: usera
-          email: usera@okdp.io
-          firstName: usera
-          lastName: usera
-          password: usera
-          roles: [teama]
-        - username: userb
-          email: userb@okdp.io
-          firstName: userb
-          lastName: userb
-          password: userb
-          roles: [teamb]
+        - username: bob
+          email: bob@okdp.io
+          firstName: bob
+          lastName: bob
+          password: bob
+          roles: [data_engineer]
+        - username: mark
+          email: mark@okdp.io
+          firstName: mark
+          lastName: mark
+          password: mark
+          roles: [data_scientist]
+        - username: nina
+          email: nina@okdp.io
+          firstName: nina
+          lastName: nina
+          password: nina
+          roles: [business_analyst]
+        - username: grace
+          email: grace@okdp.io
+          firstName: grace
+          lastName: grace
+          password: grace
+          roles: [data_steward]
+        - username: alice
+          email: alice@okdp.io
+          firstName: alice
+          lastName: alice
+          password: alice
+          roles: [platform_admin]
+        - username: eve
+          email: eve@okdp.io
+          firstName: eve
+          lastName: eve
+          password: eve
+          roles: [auditor]
         - username: adm
           email: adm@okdp.io
           firstName: adm
           lastName: adm
           password: adm
-          roles: [admins]
-      groups:
-        - name: teama
-        - name: teamb
-        - name: admins
+          roles: [ platform_admin ]
       roles:
-        - name: teama
-        - name: teamb
-        - name: admins
+        - name: data_engineer
+        - name: data_scientist
+        - name: business_analyst
+        - name: platform_admin
+        - name: data_steward
+        - name: auditor
       clients:
-        - clientId: public-oidc-client
-          name: public-oidc-client
+        - clientId: okdp-server
+          name: okdp-server
           publicClient: true
           redirectUris:
             - "https://okdp-server.{{ .Context.ingress.suffix }}/swagger/oauth2-redirect.html"
+          webOrigins:
+            - "https://okdp-server.{{ .Context.ingress.suffix }}"
+        - clientId: okdp-ui
+          name: okdp-ui
+          publicClient: true
+          redirectUris:
             - "https://okdp-ui.{{ .Context.ingress.suffix }}/index.html"
             - "https://okdp-ui.{{ .Context.ingress.suffix }}/silent-refresh.html"
           webOrigins:
-            - "https://okdp-server.{{ .Context.ingress.suffix }}"
             - "https://okdp-ui.{{ .Context.ingress.suffix }}"
-        - clientId: confidential-oidc-client
-          name: confidential-oidc-client
-          secret: secret1
+        - clientId: seaweedfs-s3
+          name: seaweedfs-s3
+          publicClient: true
+        - clientId: superset
+          name: superset
+          secret: mySupersetSecret
+          publicClient: false
+          redirectUris:
+            - "https://*"
+          webOrigins:
+            - "https://*"
+          defaultClientScopes:
+            - web-origins
+            - acr
+            - roles
+            - profile
+            - groups
+            - basic
+            - email
+          optionalClientScopes:
+            - address
+            - phone
+            - organization
+            - offline_access
+            - microprofile-jwt
+        - clientId: jupyterhub
+          name: jupyterhub
+          secret: myJupyterHubSecret
+          publicClient: false
+          redirectUris:
+            - "https://*"
+          webOrigins:
+            - "https://*"
+          defaultClientScopes:
+            - web-origins
+            - acr
+            - roles
+            - profile
+            - groups
+            - basic
+            - email
+          optionalClientScopes:
+            - address
+            - phone
+            - organization
+            - offline_access
+            - microprofile-jwt
+        - clientId: trino
+          name: trino
+          secret: myTrinoSecret
+          publicClient: false
+          redirectUris:
+            - "https://*"
+          webOrigins:
+            - "https://*"
+          defaultClientScopes:
+            - web-origins
+            - acr
+            - roles
+            - profile
+            - groups
+            - basic
+            - email
+          optionalClientScopes:
+            - address
+            - phone
+            - organization
+            - offline_access
+            - microprofile-jwt
+        - clientId: spark-history
+          name: spark-history
+          secret: mySparkHistorySecret
           publicClient: false
           redirectUris:
             - "https://*"
@@ -449,7 +559,6 @@ spec:
                 lightweight.claim: "true"
                 multivalued: "true"
                 userinfo.token.claim: "true"
-
     # Provision the following databases and expose the final endpoint
     databaseServer:
       provider: postgresql
@@ -458,7 +567,7 @@ spec:
           - name: hms
             owner:
               username: "hms"
-              passwordSecret: creds-hms-db
+              passwordSecret: creds-hive-metastore-db
           - name: superset
             owner:
               username: "superset"
@@ -467,7 +576,7 @@ spec:
             owner:
               username: "keycloak"
               passwordSecret: creds-keycloak-db
-          - name: seaweedfs-default
+          - name: seaweedfs
             owner:
               username: "seaweedfs"
               passwordSecret: creds-seaweedfs-db
@@ -483,24 +592,33 @@ spec:
 
     seaweedfs:
       endpoint:
-        filerUrl: https://seaweedfs-seaweedfs-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-        s3Url: https://seaweedfs-seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-      database:
-        name: seaweedfs
-        host: postgresql-instance-rw.cnpg-system.svc.cluster.local
-        port: 5432
-        credentialsSecret:
-          name: creds-seaweedfs-db
-          usernameKey: username
-          passwordKey: password
+        filerUrl: https://seaweedfs-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+        s3Url: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+      filer:
+        database:
+          name: seaweedfs
+          host: postgresql-instance-rw.cnpg-system.svc.cluster.local
+          port: 5432
+          credentialsSecret:
+            name: creds-seaweedfs-db
+            usernameKey: username
+            passwordKey: password
       s3:
-        s3_secret: creds-seaweedfs-secret
+        enabled: true
+        s3_secret: creds-seaweedfs-identities
         credentialsSecret:
             name: creds-seaweedfs-s3
             accessKeyKey: accessKey
             secretKeyKey: secretKey
-        actions:
-            - Admin
+        providerConfig:
+          seaweedfs:
+            identity: seaweedfs
+            actions: [ Admin ]
+
+        sts:
+          enabled: true
+          roleArn: arn:aws:iam::000000000000:role/S3WriteRole
+
       info: |
         We add an ability for KuboCD to reuse/inherit (variable substitution) later.
         All the required access keys for the services are provisioned in the package seaweedfs.yaml itself.
