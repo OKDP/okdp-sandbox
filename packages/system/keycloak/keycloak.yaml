@@ -128,12 +128,17 @@ modules:
                   "email": "{{ $user.email }}",
                   "firstName": "{{ $user.firstName }}",
                   "lastName": "{{ $user.lastName }}",
+                  {{- if $user.password }}
                   "credentials": [
                     {
                       "type": "password",
                       "value": "{{ $user.password }}"
                     }
                   ],
+                  {{- end }}
+                  {{- if $user.serviceAccountClientId }}
+                  "serviceAccountClientId": "{{ $user.serviceAccountClientId }}",
+                  {{- end }}
                   "realmRoles": {{ toJson $user.roles }}
                 }
                 {{- end }}
@@ -184,6 +189,18 @@ modules:
                   {{- end }}
                   {{- if $client.optionalClientScopes }},
                   "optionalClientScopes": {{ toJson $client.optionalClientScopes }}
+                  {{- end }}
+                  {{- if $client.serviceAccountsEnabled }},
+                  "serviceAccountsEnabled": {{ $client.serviceAccountsEnabled }}
+                  {{- end }}
+                  {{- if hasKey $client "standardFlowEnabled" }},
+                  "standardFlowEnabled": {{ $client.standardFlowEnabled }}
+                  {{- end }}
+                  {{- if hasKey $client "implicitFlowEnabled" }},
+                  "implicitFlowEnabled": {{ $client.implicitFlowEnabled }}
+                  {{- end }}
+                  {{- if hasKey $client "directAccessGrantsEnabled" }},
+                  "directAccessGrantsEnabled": {{ $client.directAccessGrantsEnabled }}
                   {{- end }}
                 }
                 {{- end }}
