@@ -76,6 +76,7 @@ spec:
           description: "Central metadata catalog packages"
           packages:
             - name: hive-metastore
+            - name: polaris
         - id: Applications
           name: "OKDP Examples"
           description: "A collection of hands-on okdp examples"
@@ -107,6 +108,14 @@ spec:
             The central repository of metadata for Hive tables and partitions, providing clients including Hive, Impala, and Spark access through the metastore service API. 
             A fundamental building block for modern data lakes.
           home: "https://hive.apache.org"
+        polaris:
+          icon: "okdp-notext.svg"
+          menuIcon: "fa-solid fa-book"
+          description: |
+            Apache Polaris is an open-source, fully-featured catalog for Apache Iceberg™. 
+            It implements Iceberg's REST API, enabling seamless multi-engine interoperability across a wide range of platforms, 
+            including Apache Doris™, Apache Flink®, Apache Spark™, Dremio® OSS, StarRocks, and Trino.
+          home: "https://polaris.apache.org"
         okdp-examples:
           icon: "okdp-notext.svg"
           menuIcon: "fa-solid fa-code"
@@ -155,6 +164,13 @@ spec:
       catalogs:
         metastore:
           uri: thrift://hive-metastore.{{ .Release.namespace }}.svc.cluster.local:9083
+        polaris:
+          url: https://polaris-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          oidc:
+            credentialsSecret:
+              name: creds-trino-oauth2-polaris
+              clientIdKey: client_id
+              clientSecretKey: client_secret
       auth:
         enabled: true
         method: oidc
@@ -254,6 +270,42 @@ spec:
           allow_ctas: true
           allow_cvas: true
           expose_in_sqllab: true
+        - database_name: trino-polaris-silver
+          sqlalchemy_uri: "trino://trino@trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}:443/silver?http_scheme=https&verify=false"
+          extra: |
+            {
+              "engine_params": {},
+              "metadata_params": {},
+              "connect_args": {
+                "http_scheme": "https",
+                "verify": false
+              },
+              "metadata_cache_timeout": {},
+              "schemas_allowed_for_file_upload": []
+            }
+          allow_run_async: true
+          allow_dml: true
+          allow_ctas: true
+          allow_cvas: true
+          expose_in_sqllab: true
+        - database_name: trino-polaris-gold
+          sqlalchemy_uri: "trino://trino@trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}:443/gold?http_scheme=https&verify=false"
+          extra: |
+            {
+              "engine_params": {},
+              "metadata_params": {},
+              "connect_args": {
+                "http_scheme": "https",
+                "verify": false
+              },
+              "metadata_cache_timeout": {},
+              "schemas_allowed_for_file_upload": []
+            }
+          allow_run_async: true
+          allow_dml: true
+          allow_ctas: true
+          allow_cvas: true
+          expose_in_sqllab: true
       endpoint:
         url: https://superset-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
@@ -329,6 +381,168 @@ spec:
       endpoint:
         url: https://spark-history-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
+    polaris:
+      realms:
+        - name: sandbox
+          # Polaris built-in bootstrap 'root' principal for this realm.
+          # Used only by polaris-admin-tool to set the credentials CLIENT_ID/CLIENT_SECRET
+          # (stored as hashes in the metastore DB). Do NOT map normal OIDC logins to 'root' principal.
+          # Docs: https://polaris.apache.org/releases/1.3.0/configuring-polaris-for-production/#bootstrapping
+          rootPrincipal:
+            name: root
+            credentialsSecret:
+              name: creds-polaris-root-okdp-sandbox
+              clientIdKey: client_id
+              clientSecretKey: client_secret
+          # External OIDC-based administrative principals (non root, limited permissions)
+          # Service admin: manages principals/principal-roles and server-level admin operations.
+          # Catalog admin: manages catalog roles, grants, and catalog-level access control.
+          principals:
+            # - In production, split into separate principals (least privilege), e.g.:
+            #   * polaris_service_admin  -> service_admin  (principals/principal-roles, server/realm admin)
+            #   * polaris_catalog_admin  -> catalog_admin  (catalog roles, grants, catalog access control)
+            # - Create additional principals for specific purposes (e.g., CI/CD, automation, etc.) with only the
+            #   roles they need.
+            #
+            # - For the Sandbox env, you may combine multiple admin roles into a single principal for simplicity.
+            # Service Account Polaris Admin (for polaris automation)
+            - name: service-account-polaris-admin
+              clientId: polaris-admin
+              credentialsSecret:
+                name: creds-polaris-oauth2-admin-okdp-sandbox
+                clientIdKey: client_id
+                clientSecretKey: client_secret
+              roles:
+                - service_admin
+                - catalog_admin
+            # Interactive user Polaris Administrator (for polaris console)
+            - name: adm
+              roles:
+                - service_admin
+                - catalog_admin
+      database:
+        name: polaris
+        host: postgresql-instance-rw.cnpg-system.svc.cluster.local
+        port: 5432
+        credentialsSecret:
+          name: creds-polaris-db
+          usernameKey: username
+          passwordKey: password
+      storage:
+        provider: s3
+        s3:
+          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          region: dummy
+          # The access key is used for STS interactions between Polaris and S3 (sts:AssumeRole)
+          # + catalog-side Iceberg metadata ops
+          # The Polaris SeaweedFS identity for STS
+          credentialsSecret:
+            name: creds-polaris-s3
+            accessKeyKey: accessKey
+            secretKeyKey: secretKey
+          providerConfig:
+            seaweedfs:
+              # SeaweedFS matches the accessKey above in the SigV4 request to the configured S3 credentials
+              # under this identity. The identity name can be anything and has importance for debugging issues
+              identity: polaris
+              # SeaweedFS expects an admin identity to authorize it for sts:AssumeRole.
+              # response: code=AccessDenied, type=Sender, message=user
+              # polaris is not authorized to assume role arn:aws:iam::000000000000:role/S3WriteRole
+              actions: [ Read, Write, List, Admin ]
+          tls:
+            enabled: true
+            insecureSkipVerify: true
+      auth:
+        enabled: true
+        method: oidc
+        oidc:
+          provider: keycloak
+          issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+          scope: "openid+profile+email+offline_access+groups"
+          insecureSkipVerify: true
+          credentialsSecret:
+            name: creds-polaris-oauth2
+            clientIdKey: client_id
+            clientSecretKey: client_secret
+          # Map polaris internal principal and roles with OIDC principal and roles
+          # Here, the oidc principal should exist in the OIDC provider as service-account-polaris-admin having roles:
+          # polaris_catalog_admin and polaris_service_admin
+          principalMapper:
+            # service-account-polaris-admin oidc principal maps to polaris service-account-polaris-admin user
+            type: default
+            # You can use 'sub' as stable and immutable identity
+            idClaimPath: ~
+            nameClaimPath: "preferred_username"
+          # Issue: https://github.com/apache/polaris/issues/2373
+          # Polaris activates only the internal principal roles that are actually granted to that principal in Polaris RBAC
+          # Active Polaris roles = (mapped external roles) ∩ (principal roles granted in Polaris)
+          principalRolesMapper:
+            type: default
+            rolesClaimPath: realm_access/roles
+            filter: "^(?!default-roles-.*|offline_access$|uma_authorization$).*$"
+            mappings:
+              # The rules are applied sequentially as ordered transforms
+              # Strip the "polaris_" prefix from admin roles and convert them to Polaris roles:
+              # polaris_service_admin -> PRINCIPAL_ROLE:service_admin
+              # polaris_catalog_admin -> PRINCIPAL_ROLE:catalog_admin
+              # platform_admin -> PRINCIPAL_ROLE:platform_admin
+              - regex: "^polaris_(.*)$"
+                replacement: "PRINCIPAL_ROLE:$1"
+              # Fallback for normal roles, but do NOT touch values already prefixed by Polaris.
+              - regex: "^(?!PRINCIPAL_ROLE:)(?!polaris_)(.*)$"
+                replacement: "PRINCIPAL_ROLE:$1"
+
+      features:
+        DROP_WITH_PURGE_ENABLED: true
+        # ENFORCE_PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_CHECKING: false
+        SUPPORTED_CATALOG_STORAGE_TYPES:
+          - S3
+        realmOverrides: {}
+          # my-realm:
+          #   ENFORCE_PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_CHECKING: true
+      advanced:
+        config:
+          polaris.realm-context.header-name: "Polaris-Realm"
+          # Spark and Trino does not pass the header
+          # polaris.realm-context.require-header: false
+          quarkus.http.cors.enabled: "true"
+        cors:
+          allowedOrigins:
+            - "https://polaris-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}"
+          allowedMethods:
+            - "GET"
+            - "POST"
+            - "PUT"
+            - "DELETE"
+            - "PATCH"
+            - "OPTIONS"
+          allowedHeaders:
+            - "Content-Type"
+            - "Authorization"
+            - "Polaris-Realm"
+            - "X-Request-ID"
+          exposedHeaders:
+            - "*"
+          accessControlMaxAge: "PT10M"
+          accessControlAllowCredentials: true
+      endpoint:
+        url: https://polaris-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
+    polarisConsole:
+      defaultRealm: sandbox
+      apiUrl: https://polaris-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+      auth:
+        enabled: true
+        method: oidc
+        oidc:
+          provider: keycloak
+          issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+          scope: "openid profile email roles offline_access"
+          # Public OIDC client with PKCE enabled
+          clientId: polaris-console
+      endpoint:
+        url: https://polaris-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
     examples:
       mylakehouse:
         bronze:
@@ -357,6 +571,203 @@ spec:
             insecureSkipVerify: true
       trino:
         url: https://trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
+      polaris:
+        realms:
+          - name: sandbox
+            catalogs:
+              - name: silver
+                type: INTERNAL
+                properties:
+                  default-base-location: s3://silver/
+                storageConfigInfo:
+                  storageType: S3
+                  allowedLocations:
+                    - "s3://silver/"
+                  endpoint: "$S3_ENDPOINT"
+                  endpointInternal: "$S3_ENDPOINT"
+                  stsEndpoint: "$S3_ENDPOINT"
+                  pathStyleAccess: true
+                  stsUnavailable: false
+                  region: "dummy"
+                  roleArn: "$POLARIS_STS_ROLE_ARN"
+
+              - name: gold
+                type: INTERNAL
+                properties:
+                  default-base-location: s3://gold/
+                storageConfigInfo:
+                  storageType: S3
+                  allowedLocations:
+                    - "s3://gold/"
+                  endpoint: "$S3_ENDPOINT"
+                  endpointInternal: "$S3_ENDPOINT"
+                  stsEndpoint: "$S3_ENDPOINT"
+                  pathStyleAccess: true
+                  stsUnavailable: false
+                  region: "dummy"
+                  roleArn: "$POLARIS_STS_ROLE_ARN"
+            catalogRoles:
+              # Polaris example roles:
+              # - Catalog readers: read-only access to tables in the catalog
+              # - Catalog contributor: read and write access to tables in the catalog
+              # In the Polaris RBAC example, Catalog contributor also creates namespaces and tables.
+              # Since this deployment example grants privileges only at catalog level, these privileges
+              # apply across the whole catalog.
+              # https://polaris.apache.org/in-dev/unreleased/managing-security/access-control
+              - name: catalog_contributor
+                grants:
+                  - onCatalogs: [silver, gold]
+                    privileges:
+                      - CATALOG_READ_PROPERTIES
+                      - NAMESPACE_CREATE
+                      - NAMESPACE_LIST
+                      - NAMESPACE_READ_PROPERTIES
+                      - TABLE_CREATE
+                      - TABLE_LIST
+                      - TABLE_READ_PROPERTIES
+                      - TABLE_WRITE_PROPERTIES
+                      - TABLE_READ_DATA
+                      - TABLE_WRITE_DATA
+                      - VIEW_CREATE
+                      - VIEW_LIST
+                      - VIEW_READ_PROPERTIES
+                      - VIEW_WRITE_PROPERTIES
+
+              - name: catalog_reader
+                grants:
+                  - onCatalogs: [silver, gold]
+                    privileges:
+                      - CATALOG_READ_PROPERTIES
+                      - NAMESPACE_LIST
+                      - NAMESPACE_READ_PROPERTIES
+                      - TABLE_LIST
+                      - TABLE_READ_PROPERTIES
+                      - TABLE_READ_DATA
+                      - VIEW_LIST
+                      - VIEW_READ_PROPERTIES
+
+              - name: data_administrator
+                grants:
+                  - onCatalogs: [silver, gold]
+                    privileges:
+                      - CATALOG_READ_PROPERTIES
+                      - CATALOG_WRITE_PROPERTIES
+                      # namespace administration
+                      - NAMESPACE_CREATE
+                      - NAMESPACE_LIST
+                      - NAMESPACE_READ_PROPERTIES
+                      - NAMESPACE_WRITE_PROPERTIES
+                      - NAMESPACE_DROP
+                      # metadata administration on tables/views
+                      - TABLE_LIST
+                      - TABLE_READ_PROPERTIES
+                      - TABLE_WRITE_PROPERTIES
+                      - TABLE_DROP
+                      - VIEW_LIST
+                      - VIEW_READ_PROPERTIES
+                      - VIEW_WRITE_PROPERTIES
+                      - VIEW_DROP
+                      # policy lifecycle
+                      - POLICY_CREATE
+                      - POLICY_READ
+                      - POLICY_WRITE
+                      - POLICY_LIST
+                      - POLICY_DROP
+                      - CATALOG_ATTACH_POLICY
+                      - CATALOG_DETACH_POLICY
+
+            principalRoles:
+
+              - name: business_analyst
+                catalogRoles:
+                  - catalog_reader
+
+              - name: data_scientist
+                catalogRoles:
+                  - catalog_reader
+
+              - name: data_steward
+                catalogRoles:
+                  - catalog_reader
+                  - data_administrator
+
+              - name: data_engineer
+                catalogRoles:
+                  - catalog_contributor
+                  - data_administrator
+
+              - name: auditor
+                catalogRoles:
+                  - catalog_reader
+
+              - name: platform_admin
+                catalogRoles:
+                  - catalog_contributor
+                  - data_administrator
+
+              # Polaris management/admin principal roles used for admin-plane access
+              # (for example via OIDC role mapping such as PRINCIPAL_ROLE:service_admin
+              # and PRINCIPAL_ROLE:catalog_admin). Keep them declared in Polaris even if
+              # they have no catalogRoles here, because Polaris requires principal roles
+              # referenced by tokens/principals to already exist. These are not regular
+              # catalog data-access roles like data_engineer or data_scientist.
+              - name: service_admin
+                catalogRoles: []
+
+              - name: catalog_admin
+                catalogRoles: []
+
+            # https://github.com/apache/polaris/issues/2373
+            principals:
+              - name: bob
+                principalRoles:
+                  - data_engineer
+
+              - name: mark
+                principalRoles:
+                  - data_scientist
+
+              - name: nina
+                principalRoles:
+                  - business_analyst
+
+              - name: grace
+                principalRoles:
+                  - data_steward
+
+              - name: alice
+                principalRoles:
+                  - platform_admin
+                  - service_admin
+                  - catalog_admin
+
+              - name: eve
+                principalRoles:
+                  - auditor
+
+              - name: adm
+                principalRoles:
+                  - platform_admin
+                  - service_admin
+                  - catalog_admin
+
+              - name: service-account-trino-polaris
+                principalRoles:
+                  - platform_admin
+                  - service_admin
+                  - catalog_admin
+
+              - name: service-account-my-polaris-spark-etl-app
+                principalRoles:
+                  - data_engineer
+                  - data_scientist
+                  - business_analyst
+
+              - name: service-account-polaris-admin
+                principalRoles:
+                  - service_admin
+                  - catalog_admin
 
     #### OKDP External Dependencies #################################
     ###### Pre-provision the environment for the Sandbox ############
@@ -412,7 +823,7 @@ spec:
           firstName: alice
           lastName: alice
           password: alice
-          roles: [platform_admin]
+          roles: [platform_admin, polaris_service_admin, polaris_catalog_admin]
         - username: eve
           email: eve@okdp.io
           firstName: eve
@@ -424,7 +835,19 @@ spec:
           firstName: adm
           lastName: adm
           password: adm
-          roles: [ platform_admin ]
+          roles: [ platform_admin, polaris_service_admin, polaris_catalog_admin ]
+        - username: my-polaris-spark-etl-app
+          serviceAccountClientId: my-polaris-spark-etl-app
+          roles: [ data_engineer, data_scientist, business_analyst ]
+        # Add the polaris service account user
+        # Here the same service account has service_admin and catalog_admin in Polaris
+        # The service account behaves like a super admin, you can split as your convenience
+        - username: polaris-admin
+          serviceAccountClientId: polaris-admin
+          roles: [ polaris_service_admin, polaris_catalog_admin ]
+        - username: trino-polaris
+          serviceAccountClientId: trino-polaris
+          roles: [ platform_admin, polaris_service_admin, polaris_catalog_admin ]
       roles:
         - name: data_engineer
         - name: data_scientist
@@ -432,6 +855,11 @@ spec:
         - name: platform_admin
         - name: data_steward
         - name: auditor
+        # Add the polaris management roles
+        # These roles can be named anyway,
+        # but they should map to polaris management roles (service_admin, and catalog_admin)
+        - name: polaris_service_admin
+        - name: polaris_catalog_admin
       clients:
         - clientId: okdp-server
           name: okdp-server
@@ -448,6 +876,13 @@ spec:
             - "https://okdp-ui.{{ .Context.ingress.suffix }}/silent-refresh.html"
           webOrigins:
             - "https://okdp-ui.{{ .Context.ingress.suffix }}"
+        - clientId: polaris-console
+          name: polaris-console
+          publicClient: true
+          redirectUris:
+            - "https://polaris-console-default.{{ .Context.ingress.suffix }}/auth/callback"
+          webOrigins:
+            - "https://polaris-console-default.{{ .Context.ingress.suffix }}"
         - clientId: seaweedfs-s3
           name: seaweedfs-s3
           publicClient: true
@@ -539,6 +974,75 @@ spec:
             - organization
             - offline_access
             - microprofile-jwt
+        - clientId: polaris
+          name: polaris
+          secret: myPolarisSecret
+          publicClient: false
+          # Enable service accounts on the polaris client
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          redirectUris:
+            - "https://*"
+          webOrigins:
+            - "https://*"
+          defaultClientScopes:
+            - web-origins
+            - acr
+            - roles
+            - profile
+            - groups
+            - basic
+            - email
+          optionalClientScopes:
+            - address
+            - phone
+            - organization
+            - offline_access
+            - microprofile-jwt
+        - clientId: trino-polaris
+          name: trino-polaris
+          secret: myTrinoPolarisSecret
+          publicClient: false
+          # Enable service accounts on the polaris client
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          defaultClientScopes:
+            - groups
+            - roles
+            - profile
+            - email
+        - clientId: polaris-admin
+          name: polaris-admin
+          secret: myPolarisAdminSecret
+          publicClient: false
+          # Enable service accounts on the polaris client
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          defaultClientScopes:
+            - groups
+            - roles
+            - profile
+            - email
+        - clientId: my-polaris-spark-etl-app
+          name: my-polaris-spark-etl-app
+          secret: mySparkAppSecret
+          publicClient: false
+          # Enable service accounts on the polaris client
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          defaultClientScopes:
+            - groups
+            - roles
+            - profile
+            - email
       clientScopes:
         - name: groups
           description: "Groups scope"
@@ -580,6 +1084,10 @@ spec:
             owner:
               username: "seaweedfs"
               passwordSecret: creds-seaweedfs-db
+          - name: polaris
+            owner:
+              username: "polaris"
+              passwordSecret: creds-polaris-db
           - name: superset-examples
             owner:
               username: "examples"

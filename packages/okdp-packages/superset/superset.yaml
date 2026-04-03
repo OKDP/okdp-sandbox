@@ -16,7 +16,7 @@
 
 apiVersion: v1alpha1
 name: superset
-tag: 5.0.0-p02
+tag: 5.0.0-p03
 protected: false
 description: |
   Apache Superset - Enterprise business intelligence platform for modern data teams.
@@ -34,7 +34,7 @@ usage:
 schema:
   parameters:
     properties:
-      adminGroups: { type: string, default: "admins", description: "Admin groups for superset access" }
+      adminGroups: { type: string, default: "platform_admin", description: "Admin groups for superset access" }
       load_examples: { type: boolean, default: true, description: "Whether to load superset examples" }
   context:
     properties:
@@ -89,7 +89,7 @@ modules:
         oauth:
           enabled: {{ .Context.superset.auth.enabled }}
           provider: "{{ .Context.superset.auth.oidc.provider }}"
-          base_url: {{ .Context.superset.auth.oidc.baseUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
+          base_url: {{ .Context.superset.auth.oidc.issuerUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}/protocol/openid-connect
           scope: "{{ .Context.superset.auth.oidc.scope }}"
           use_pkce: {{ .Context.superset.auth.oidc.usePKCE }}
           ssl_certificate_verify: "{{ ternary "False" "True" .Context.superset.auth.oidc.insecureSkipVerify }}"

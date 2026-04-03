@@ -1,0 +1,142 @@
+{{/*
+
+  Copyright 2026 The OKDP Authors.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+*/}}
+
+{{- if eq (.Values.phase | default "") "bootstrap" }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "polaris-bootstrap.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "polaris-bootstrap.labels" . | nindent 4 }}
+  {{- with .Values.bootstrap.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  backoffLimit: {{ .Values.bootstrap.backoffLimit }}
+  {{- if .Values.bootstrap.ttlSecondsAfterFinished }}
+  ttlSecondsAfterFinished: {{ .Values.bootstrap.ttlSecondsAfterFinished }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "polaris-bootstrap.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: {{ .Values.bootstrap.restartPolicy }}
+      containers:
+        - name: bootstrap
+          image: "{{ .Values.bootstrap.image.repository }}:{{ .Values.bootstrap.image.tag }}"
+          imagePullPolicy: {{ .Values.bootstrap.image.pullPolicy }}
+          env:
+            - name: QUARKUS_DATASOURCE_JDBC_URL
+              {{- if .Values.bootstrap.database.jdbcUrl }}
+              value: {{ .Values.bootstrap.database.jdbcUrl | quote }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "bootstrap.database.secret.name is required when bootstrap.database.jdbcUrl is empty" .Values.bootstrap.database.secret.name | quote }}
+                  key: {{ default "jdbcUrl" .Values.bootstrap.database.secret.jdbcUrlKey | quote }}
+              {{- end }}
+
+            - name: QUARKUS_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "bootstrap.database.secret.name is required" .Values.bootstrap.database.secret.name | quote }}
+                  key: {{ .Values.bootstrap.database.secret.usernameKey | quote }}
+
+            - name: QUARKUS_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "bootstrap.database.secret.name is required" .Values.bootstrap.database.secret.name | quote }}
+                  key: {{ .Values.bootstrap.database.secret.passwordKey | quote }}
+
+            {{- range $i, $r := (.Values.realms | default list) }}
+            - name: REALM_{{ $i }}_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required (printf "realms[%d].rootPrincipal.credentialsSecret.name is required" $i) $r.rootPrincipal.credentialsSecret.name | quote }}
+                  key: {{ required (printf "realms[%d].rootPrincipal.credentialsSecret.clientIdKey is required" $i) $r.rootPrincipal.credentialsSecret.clientIdKey | quote }}
+
+            - name: REALM_{{ $i }}_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required (printf "realms[%d].rootPrincipal.credentialsSecret.name is required" $i) $r.rootPrincipal.credentialsSecret.name | quote }}
+                  key: {{ required (printf "realms[%d].rootPrincipal.credentialsSecret.clientSecretKey is required" $i) $r.rootPrincipal.credentialsSecret.clientSecretKey | quote }}
+            {{- end }}
+
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              set -eu
+
+              LOG=/tmp/bootstrap.log
+              ADMIN="java -jar /deployments/polaris-admin-tool.jar"
+
+              if [ "{{ .Values.bootstrap.purge | default false }}" = "true" ]; then
+                echo "➡️ Purging realms..."
+                $ADMIN purge \
+                {{- range .Values.realms }}
+                  -r {{ .name | quote }} \
+                {{- end }}
+                >"$LOG" 2>&1 || {
+                  if grep -q "is not bootstrapped" "$LOG"; then
+                    echo "➡️ Realms not bootstrapped yet; skipping purge."
+                  else
+                    echo "❌ Unable to purge realms, exiting ..."
+                    cat "$LOG" >&2
+                    exit 1
+                  fi
+                }
+                cat "$LOG"
+              fi
+
+              echo "➡️ Bootstrapping realms..."
+              $ADMIN bootstrap \
+              {{- range $i, $r := (.Values.realms | default list) }}
+                -r {{ $r.name | quote }} \
+                -c {{ printf "%s,${REALM_%d_CLIENT_ID},${REALM_%d_CLIENT_SECRET}" $r.name $i $i | quote }} \
+              {{- end }}
+              >"$LOG" 2>&1 || {
+                if grep -q "has already been bootstrapped" "$LOG"; then
+                  echo "➡️ Seems the realms already bootstrapped. We ignore the error below:"
+                  cat "$LOG"
+                  echo "✅ Realms already bootstrapped."
+                  exit 0
+                fi
+                cat "$LOG" >&2
+                exit 1
+              }
+
+              echo "✅ Realms successfully bootstrapped."
+              cat "$LOG"
+
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

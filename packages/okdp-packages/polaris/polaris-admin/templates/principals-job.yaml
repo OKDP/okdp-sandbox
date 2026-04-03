@@ -1,0 +1,313 @@
+{{/*
+
+  Copyright 2026 The OKDP Authors.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+*/}}
+
+{{- $realms := (.Values.realms | default list) -}}
+{{- $state := dict "hasAny" false -}}
+{{- range $r := $realms -}}
+{{- if gt (len ($r.principals | default list)) 0 -}}
+{{- $_ := set $state "hasAny" true -}}
+{{- end -}}
+{{- end -}}
+
+{{- if and (eq (.Values.phase | default "") "principals") (gt (len $realms) 0) ($state.hasAny) -}}
+{{- $polarisUrl := required "principals.polaris.url is required when phase=principals" .Values.principals.polaris.url -}}
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "polaris-principals.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "polaris-principals.labels" . | nindent 4 }}
+  {{- with .Values.principals.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  backoffLimit: {{ .Values.principals.backoffLimit }}
+  {{- if .Values.principals.ttlSecondsAfterFinished }}
+  ttlSecondsAfterFinished: {{ .Values.principals.ttlSecondsAfterFinished }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "polaris-principals.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: {{ .Values.principals.restartPolicy }}
+      containers:
+        - name: provision
+          image: "{{ .Values.principals.image.repository }}:{{ .Values.principals.image.tag }}"
+          imagePullPolicy: {{ .Values.principals.image.pullPolicy }}
+          env:
+            - name: POLARIS_URL
+              value: {{ $polarisUrl | quote }}
+
+            - name: INSECURE_SKIP_VERIFY
+              value: {{ ternary "true" "false" (.Values.principals.insecureSkipVerify | default false) | quote }}
+
+            - name: CA_CERT_PATH
+              value: {{ (.Values.principals.caCertPath | default "") | quote }}
+
+            - name: CURL_CA_BUNDLE
+              value: {{ (.Values.principals.caCertPath | default "") | quote }}
+
+            - name: WAIT_TIMEOUT_SECONDS
+              value: {{ (.Values.principals.waitTimeoutSeconds | default 300) | quote }}
+
+            - name: WAIT_INTERVAL_SECONDS
+              value: {{ (.Values.principals.waitIntervalSeconds | default 3) | quote }}
+
+            {{- range $i, $r := $realms }}
+            - name: REALM_{{ $i }}_NAME
+              value: {{ required (printf "realms[%d].name is required" $i) $r.name | quote }}
+
+            - name: REALM_{{ $i }}_ROOT_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required (printf "realms[%d].rootPrincipal.credentialsSecret.name is required" $i) $r.rootPrincipal.credentialsSecret.name | quote }}
+                  key: {{ required (printf "realms[%d].rootPrincipal.credentialsSecret.clientIdKey is required" $i) $r.rootPrincipal.credentialsSecret.clientIdKey | quote }}
+
+            - name: REALM_{{ $i }}_ROOT_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required (printf "realms[%d].rootPrincipal.credentialsSecret.name is required" $i) $r.rootPrincipal.credentialsSecret.name | quote }}
+                  key: {{ required (printf "realms[%d].rootPrincipal.credentialsSecret.clientSecretKey is required" $i) $r.rootPrincipal.credentialsSecret.clientSecretKey | quote }}
+            {{- end }}
+
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              set -eu
+
+              BASE_URL="${POLARIS_URL%/}"
+
+              curl_flags="-sS -L"
+              if [ "${INSECURE_SKIP_VERIFY}" = "true" ]; then
+                curl_flags="$curl_flags -k"
+              fi
+
+              if [ -n "${CA_CERT_PATH:-}" ]; then
+                curl_flags="$curl_flags --cacert ${CA_CERT_PATH}"
+              fi
+
+              request() {
+                method="$1"
+                url="$2"
+                realm="$3"
+                token="$4"
+                body="${5:-}"
+                resp_file="${6:?response file required}"
+
+                if [ -n "$body" ]; then
+                  if [ -n "$token" ]; then
+                    curl $curl_flags -o "$resp_file" -w '%{http_code}' -X "$method" \
+                      -H "Polaris-Realm: $realm" \
+                      -H "Content-Type: application/json" \
+                      -H "Authorization: Bearer $token" \
+                      --data "$body" \
+                      "$url" || true
+                  else
+                    curl $curl_flags -o "$resp_file" -w '%{http_code}' -X "$method" \
+                      -H "Polaris-Realm: $realm" \
+                      -H "Content-Type: application/json" \
+                      --data "$body" \
+                      "$url" || true
+                  fi
+                else
+                  if [ -n "$token" ]; then
+                    curl $curl_flags -o "$resp_file" -w '%{http_code}' -X "$method" \
+                      -H "Polaris-Realm: $realm" \
+                      -H "Authorization: Bearer $token" \
+                      "$url" || true
+                  else
+                    curl $curl_flags -o "$resp_file" -w '%{http_code}' -X "$method" \
+                      -H "Polaris-Realm: $realm" \
+                      "$url" || true
+                  fi
+                fi
+              }
+
+              get_token() {
+                realm="$1"
+                client_id="$2"
+                client_secret="$3"
+                token_url="${BASE_URL}/api/catalog/v1/oauth/tokens"
+                tmp="$(mktemp)"
+
+                code=$(curl $curl_flags -o "$tmp" -w '%{http_code}' -X POST "$token_url" \
+                  -H "Polaris-Realm: $realm" \
+                  -H "Content-Type: application/x-www-form-urlencoded" \
+                  --data-urlencode "grant_type=client_credentials" \
+                  --data-urlencode "client_id=$client_id" \
+                  --data-urlencode "client_secret=$client_secret" \
+                  --data-urlencode "scope=PRINCIPAL_ROLE:ALL") || true
+
+                resp="$(cat "$tmp" 2>/dev/null || true)"
+                rm -f "$tmp"
+
+                if [ "$code" != "200" ]; then
+                  echo "Token request failed (realm=$realm, http=$code): $resp" >&2
+                  exit 1
+                fi
+
+                token="$(echo "$resp" | sed -n 's/.*"access_token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+                if [ -z "$token" ]; then
+                  echo "[OAUTH2] Unable to parse access_token (realm=$realm): $resp" >&2
+                  exit 1
+                fi
+
+                echo "$token"
+              }
+
+              ensure_principal_role() {
+                realm="$1"
+                token="$2"
+                role="$3"
+
+                url="${BASE_URL}/api/management/v1/principal-roles"
+                payload="{\"principalRole\":{\"name\":\"$role\",\"federated\":true}}"
+
+                resp_file="$(mktemp)"
+                code="$(request POST "$url" "$realm" "$token" "$payload" "$resp_file")"
+                resp="$(cat "$resp_file" 2>/dev/null || true)"
+                rm -f "$resp_file"
+
+                case "$code" in
+                  200|201)
+                    echo "[PRINCIPAL_ROLE] Principal role '$role' is now present (realm=$realm, http=$code)"
+                    ;;
+                  409)
+                    echo "[PRINCIPAL_ROLE] Principal role '$role' already exists (realm=$realm, http=$code)"
+                    ;;
+                  *)
+                    echo "[PRINCIPAL_ROLE] Could not ensure principal role '$role' (realm=$realm, http=$code, url=$url)" >&2
+                    [ -n "$resp" ] && echo "[PRINCIPAL_ROLE] response: $resp" >&2
+                    exit 1
+                    ;;
+                esac
+              }
+
+              ensure_principal() {
+                realm="$1"
+                token="$2"
+                principal="$3"
+
+                url="${BASE_URL}/api/management/v1/principals"
+                payload="{\"principal\":{\"name\":\"$principal\",\"properties\":{}}}"
+
+                resp_file="$(mktemp)"
+                code="$(request POST "$url" "$realm" "$token" "$payload" "$resp_file")"
+                resp="$(cat "$resp_file" 2>/dev/null || true)"
+                rm -f "$resp_file"
+
+                case "$code" in
+                  200|201)
+                    echo "[PRINCIPAL] Successfully created principal '$principal' (realm=$realm, http=$code)"
+                    ;;
+                  409)
+                    echo "[PRINCIPAL] Principal '$principal' already exists (realm=$realm, http=$code)"
+                    ;;
+                  *)
+                    echo "[PRINCIPAL] Failed to create principal '$principal' (realm=$realm, http=$code, url=$url)" >&2
+                    [ -n "$resp" ] && echo "[PRINCIPAL] response: $resp" >&2
+                    exit 1
+                    ;;
+                esac
+              }
+
+              grant_role() {
+                realm="$1"
+                token="$2"
+                principal="$3"
+                role="$4"
+
+                url="${BASE_URL}/api/management/v1/principals/${principal}/principal-roles"
+                payload="{\"principalRole\":{\"name\":\"$role\"}}"
+
+                resp_file="$(mktemp)"
+                code="$(request PUT "$url" "$realm" "$token" "$payload" "$resp_file")"
+                resp="$(cat "$resp_file" 2>/dev/null || true)"
+                rm -f "$resp_file"
+
+                case "$code" in
+                  200|201|204)
+                    echo "[GRANT_ROLE] Successfully assigned role '$role' to principal '$principal' (realm=$realm, http=$code)"
+                    ;;
+                  409)
+                    echo "[GRANT_ROLE] Role '$role' is already assigned to principal '$principal' (realm=$realm, http=$code)"
+                    ;;
+                  500)
+                    if printf '%s' "$resp" | grep -qi 'duplicate key value violates unique constraint'; then
+                      echo "[GRANT_ROLE] Role '$role' was already assigned to principal '$principal' (realm=$realm, http=$code, handled-as=idempotent-conflict)"
+                    else
+                      echo "[GRANT_ROLE] Could not ensure role '$role' for principal '$principal' (realm=$realm, http=$code, url=$url)" >&2
+                      [ -n "$resp" ] && echo "[GRANT_ROLE] response: $resp" >&2
+                      exit 1
+                    fi
+                    ;;
+                  *)
+                    echo "[GRANT_ROLE] Failed to assign role '$role' to principal '$principal' (realm=$realm, http=$code)" >&2
+                    [ -n "$resp" ] && echo "[GRANT_ROLE] response: $resp" >&2
+                    exit 1
+                    ;;
+                esac
+              }
+
+              {{- range $i, $r := $realms }}
+              realm="${REALM_{{ $i }}_NAME}"
+              root_id="${REALM_{{ $i }}_ROOT_CLIENT_ID}"
+              root_secret="${REALM_{{ $i }}_ROOT_CLIENT_SECRET}"
+
+              {{- $ps := ($r.principals | default list) -}}
+              {{- if eq (len $ps) 0 }}
+              echo "Skipping realm '$realm' (no principals configured)"
+              {{- else }}
+              echo "Provisioning realm '$realm' ..."
+              token="$(get_token "$realm" "$root_id" "$root_secret")"
+
+              {{- range $p := $ps }}
+              p="{{ required (printf "realms[%d].principals[].name is required" $i) $p.name }}"
+              ensure_principal "$realm" "$token" "$p"
+              {{- range $role := ($p.roles | default list) }}
+              r="{{ $role }}"
+              ensure_principal_role "$realm" "$token" "$r"
+              grant_role "$realm" "$token" "$p" "$r"
+              {{- end }}
+              {{- end }}
+
+              echo "All principals were successfully provisioned for realm: '$realm'"
+              {{- end }}
+              {{- end }}
+
+              echo "All principals were successfully provisioned."
+
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+{{- end -}}

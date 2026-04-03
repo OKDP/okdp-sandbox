@@ -19,7 +19,7 @@ name: trinodb
 #tag: 475-p01
 # Currently, the UI requires the version to conform to SemVer (https://simversion.github.io/)
 # https://github.com/OKDP/okdp-ui/blob/main/src/app/shared/utils/utils.ts#L131
-tag: 475.0.0-p01
+tag: 475.0.0-p02
 protected: false
 description: |
   Apache Trino - Distributed SQL query engine designed for large-scale data processing across multiple data sources.
@@ -32,8 +32,8 @@ usage:
 schema:
   parameters:
     properties:
-      numWorkers: { type: integer, default: 3, description: "Number of workers" }
-      workerMemoryGi: { type: number, default: 1, multipleOf: 0.25, description: "Worker memory (GiB) used for Kubernetes requests/limits (recommended: request=limit)." }
+      numWorkers: { type: integer, default: 1, description: "Number of workers" }
+      workerMemoryGi: { type: number, default: 2, multipleOf: 0.25, description: "Worker memory (GiB) used for Kubernetes requests/limits (recommended: request=limit)." }
       workerCpu: { type: number, default: 0.5, multipleOf: 0.25, description: "Worker CPU request in millicores (e.g., 500=0.5 vCPU, 1000=1 vCPU)." }
   context:
     properties:
@@ -65,11 +65,15 @@ modules:
       {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
       {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
       
-      {{- $hmsUri := .Context.trino.metastore.uri | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $hmsUri := .Context.trino.catalogs.metastore.uri | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
       
       {{- $keycloakIssuerUri := .Context.trino.auth.oidc.issuerUri | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
       {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
       {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      {{- $polarisUri := .Context.trino.catalogs.polaris.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $polarisUri := $polarisUri | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $polarisUri := $polarisUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
       
       image:
         repository: trinodb/trino
@@ -82,7 +86,8 @@ modules:
         tpcds: |
           connector.name=tpcds
           tpcds.splits-per-node=4
-        lakehouse: |
+        
+        bronze: |
           connector.name=hive
           hive.metastore.uri={{ $hmsUri }}
           hive.metastore.username={{ .Context.trino.auth.basic.username }}
@@ -94,6 +99,43 @@ modules:
           s3.endpoint={{ $s3ApiUrl }}
           s3.aws-access-key=${ENV:S3_ACCESS_KEY}
           s3.aws-secret-key=${ENV:S3_SECRET_ACCESS}
+        
+        silver: |
+          connector.name=iceberg
+          iceberg.rest-catalog.warehouse=silver
+          iceberg.catalog.type=rest
+          s3.endpoint={{ $s3ApiUrl }}
+          s3.aws-access-key=${ENV:S3_ACCESS_KEY}
+          s3.aws-secret-key=${ENV:S3_SECRET_ACCESS}
+          iceberg.rest-catalog.uri={{ $polarisUri }}/api/catalog
+          iceberg.rest-catalog.oauth2.server-uri={{ $keycloakIssuerUri }}/protocol/openid-connect/token
+          iceberg.rest-catalog.vended-credentials-enabled=true
+          iceberg.rest-catalog.security=OAUTH2
+          iceberg.rest-catalog.oauth2.credential=${ENV:TRINO_POLARIS_OAUTH_CLIENT_ID}:${ENV:TRINO_POLARIS_OAUTH_CLIENT_SECRET}
+          iceberg.rest-catalog.oauth2.scope=profile
+      
+          fs.native-s3.enabled=true
+          s3.region={{ .Context.polaris.storage.s3.region }}
+          s3.path-style-access=true
+        
+        gold: |
+          connector.name=iceberg
+          iceberg.rest-catalog.warehouse=gold
+          iceberg.catalog.type=rest
+          s3.endpoint={{ $s3ApiUrl }}
+          s3.aws-access-key=${ENV:S3_ACCESS_KEY}
+          s3.aws-secret-key=${ENV:S3_SECRET_ACCESS}
+          iceberg.rest-catalog.uri={{ $polarisUri }}/api/catalog
+          iceberg.rest-catalog.oauth2.server-uri={{ $keycloakIssuerUri }}/protocol/openid-connect/token
+          iceberg.rest-catalog.vended-credentials-enabled=true
+          iceberg.rest-catalog.security=OAUTH2
+          iceberg.rest-catalog.oauth2.credential=${ENV:TRINO_POLARIS_OAUTH_CLIENT_ID}:${ENV:TRINO_POLARIS_OAUTH_CLIENT_SECRET}
+          iceberg.rest-catalog.oauth2.scope=profile
+      
+          fs.native-s3.enabled=true
+          s3.region={{ .Context.polaris.storage.s3.region }}
+          s3.path-style-access=true
+      
       envFrom:
         - secretRef:
             name: {{ .Context.trino.storage.s3.credentialsSecret.name }}
@@ -109,6 +151,18 @@ modules:
             secretKeyRef:
               name: {{ .Context.trino.auth.oidc.credentialsSecret.name }}
               key: {{ .Context.trino.auth.oidc.credentialsSecret.clientSecretKey }}
+      
+        - name: TRINO_POLARIS_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.trino.catalogs.polaris.oidc.credentialsSecret.name }}
+              key: {{ .Context.trino.catalogs.polaris.oidc.credentialsSecret.clientIdKey }}
+
+        - name: TRINO_POLARIS_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.trino.catalogs.polaris.oidc.credentialsSecret.name }}
+              key: {{ .Context.trino.catalogs.polaris.oidc.credentialsSecret.clientSecretKey }}
 
       coordinator:
         resources:
