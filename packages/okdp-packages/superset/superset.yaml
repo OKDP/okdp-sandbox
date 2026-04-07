@@ -16,7 +16,7 @@
 
 apiVersion: v1alpha1
 name: superset
-tag: 5.0.0-p03
+tag: 6.0.0-p01
 protected: false
 description: |
   Apache Superset - Enterprise business intelligence platform for modern data teams.
@@ -54,13 +54,13 @@ modules:
     source:
       oci:
         repository: quay.io/okdp/charts/superset
-        tag: 0.15.0-1.1
+        tag: 0.15.2-1.0
     values: |
       {{- $supersetUrl := .Context.superset.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
       {{- $supersetUrl := $supersetUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
       {{- $supersetUrl := $supersetUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
       {{- $supersetHost := regexReplaceAll "^https?://" $supersetUrl "" -}}
-      
+            
       okdp:
         # Superset configuration
         superset:
@@ -103,6 +103,20 @@ modules:
               "{{ .Parameters.adminGroups }}": ["Admin"]
             }      
       superset:
+        image:
+          repository: quay.io/okdp/superset
+          tag: 6.0.0
+          pullPolicy: IfNotPresent
+        initImage:
+          repository: quay.io/okdp/superset
+          tag: 6.0.0-dockerize
+          pullPolicy: IfNotPresent      
+        supersetWebsockets:
+          image:
+            repository: quay.io/okdp/superset
+            tag: 6.0.0-websocket
+            pullPolicy: IfNotPresent
+      
         extraConfigs:
           import_datasources.yaml: |
       {{ .Context.superset.dataSources
