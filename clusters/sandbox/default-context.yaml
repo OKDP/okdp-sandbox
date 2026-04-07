@@ -155,23 +155,35 @@ spec:
           usernameKey: username
           passwordKey: password
       storage:
-        provider: s3
-        s3:
-          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-          bucket: hive
-          bucketAnonymousRead: true
-          warehouseDir: hive-warehouse/
-          credentialsSecret:
-            name: creds-hive-metastore-s3
-            accessKeyKey: accessKey
-            secretKeyKey: secretKey
-          providerConfig:
-            seaweedfs:
-              identity: hiveMetastore
-              actions: [ Read, Write, List ]
-          tls:
-            enabled: true
-            insecureSkipVerify: true
+        provider: seaweedfs
+        bucket: hive
+        bucketAnonymousRead: true
+        warehouseDir: hive-warehouse/
+        credentialsSecret:
+          name: creds-hive-metastore-s3
+          accessKeyKey: accessKey
+          secretKeyKey: secretKey
+        providerConfig:
+          seaweedfs:
+            identity: hiveMetastore
+            actions: [ Read, Write, List ]
+#        provider: s3
+#        s3:
+#          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+#          bucket: hive
+#          bucketAnonymousRead: true
+#          warehouseDir: hive-warehouse/
+#          credentialsSecret:
+#            name: creds-hive-metastore-s3
+#            accessKeyKey: accessKey
+#            secretKeyKey: secretKey
+#          providerConfig:
+#            seaweedfs:
+#              identity: hiveMetastore
+#              actions: [ Read, Write, List ]
+#          tls:
+#            enabled: true
+#            insecureSkipVerify: true
       endpoint:
         url: thrift://hive-metastore.{{ .Release.namespace }}.svc.cluster.local:9083
 
