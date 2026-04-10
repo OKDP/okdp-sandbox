@@ -140,35 +140,23 @@ spec:
           usernameKey: username
           passwordKey: password
       storage:
-        provider: seaweedfs
-        bucket: hive
-        bucketAnonymousRead: true
-        warehouseDir: hive-warehouse/
-        credentialsSecret:
-          name: creds-hive-metastore-s3
-          accessKeyKey: accessKey
-          secretKeyKey: secretKey
-        providerConfig:
-          seaweedfs:
-            identity: hiveMetastore
-            actions: [ Read, Write, List ]
-#        provider: s3
-#        s3:
-#          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-#          bucket: hive
-#          bucketAnonymousRead: true
-#          warehouseDir: hive-warehouse/
-#          credentialsSecret:
-#            name: creds-hive-metastore-s3
-#            accessKeyKey: accessKey
-#            secretKeyKey: secretKey
-#          providerConfig:
-#            seaweedfs:
-#              identity: hiveMetastore
-#              actions: [ Read, Write, List ]
-#          tls:
-#            enabled: true
-#            insecureSkipVerify: true
+        provider: s3
+        s3:
+          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          bucket: hive
+          bucketAnonymousRead: true
+          warehouseDir: hive-warehouse/
+          credentialsSecret:
+            name: creds-hive-metastore-s3
+            accessKeyKey: accessKey
+            secretKeyKey: secretKey
+          providerConfig:
+            seaweedfs:
+              identity: hiveMetastore
+              actions: [ Read, Write, List ]
+          tls:
+            enabled: true
+            insecureSkipVerify: true
       endpoint:
         url: thrift://hive-metastore.{{ .Release.namespace }}.svc.cluster.local:9083
 
@@ -213,9 +201,13 @@ spec:
             seaweedfs:
               identity: trino
               actions: [ Read, Write, List, Admin ]
-          tls:
-            enabled: true
-            insecureSkipVerify: true
+      advanced:
+        config:
+          security:
+            # https://trino.io/docs/current/security/internal-communication.html
+            credentialsSecret:
+              name: creds-trino-security
+              sharedSecret: shared-secret
       endpoint:
         url: https://trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
@@ -262,10 +254,22 @@ spec:
             name: creds-superset-oauth2
             clientIdKey: client_id
             clientSecretKey: client_secret
+      trino:
+        auth:
+          enabled: true
+          method: oidc
+          oidc:
+            issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}:443/realms/master"
+            scope: "openid profile email groups"
+            credentialsSecret:
+              name: creds-superset-oauth2-trino
+              clientIdKey: client_id
+              clientSecretKey: client_secret
       dataSources: |
         databases:
         - database_name: trino-hms-bronze
           sqlalchemy_uri: "trino://trino@trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}:443/bronze?http_scheme=https&verify=false"
+          impersonate_user: true
           extra: |
             {
               "engine_params": {},
@@ -284,6 +288,7 @@ spec:
           expose_in_sqllab: true
         - database_name: trino-polaris-silver
           sqlalchemy_uri: "trino://trino@trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}:443/silver?http_scheme=https&verify=false"
+          impersonate_user: true
           extra: |
             {
               "engine_params": {},
@@ -302,6 +307,7 @@ spec:
           expose_in_sqllab: true
         - database_name: trino-polaris-gold
           sqlalchemy_uri: "trino://trino@trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}:443/gold?http_scheme=https&verify=false"
+          impersonate_user: true
           extra: |
             {
               "engine_params": {},
@@ -347,6 +353,7 @@ spec:
             name: creds-jupyterhub-oauth2
             clientIdKey: client_id
             clientSecretKey: client_secret
+            jupyterHubCryptKey: JUPYTERHUB_CRYPT_KEY
       endpoint:
         url: https://jupyterhub-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
@@ -583,7 +590,16 @@ spec:
             insecureSkipVerify: true
       trino:
         url: https://trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-
+        auth:
+          enabled: true
+          method: oidc
+          oidc:
+            provider: keycloak
+            issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+            credentialsSecret:
+              name: creds-examples-oauth2-trino
+              clientIdKey: client_id
+              clientSecretKey: client_secret
       polaris:
         realms:
           - name: sandbox
@@ -986,6 +1002,41 @@ spec:
             - organization
             - offline_access
             - microprofile-jwt
+        - clientId: superset-trino
+          name: superset-trino
+          secret: mySupersetTrinoSecret
+          publicClient: false
+          redirectUris:
+            - "https://*"
+          webOrigins:
+            - "https://*"
+          defaultClientScopes:
+            - web-origins
+            - acr
+            - roles
+            - profile
+            - groups
+            - basic
+            - email
+          optionalClientScopes:
+            - address
+            - phone
+            - organization
+            - offline_access
+            - microprofile-jwt
+        - clientId: trino-examples
+          name: trino-examples
+          secret: myTrinoExamplesSecret
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          defaultClientScopes:
+            - groups
+            - roles
+            - profile
+            - email
         - clientId: polaris
           name: polaris
           secret: myPolarisSecret
