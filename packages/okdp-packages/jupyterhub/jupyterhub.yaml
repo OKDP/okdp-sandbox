@@ -223,6 +223,11 @@ modules:
           # Ignore InsecureRequestWarning warnings
           PYTHONWARNINGS: "ignore:Unverified HTTPS request"
           PYTHONPATH: "/etc/jupyter/auth"
+          AWS_CA_BUNDLE: /cacerts/ca.crt
+          REQUESTS_CA_BUNDLE: /cacerts/ca.crt
+          CURL_CA_BUNDLE: /cacerts/ca.crt
+          SSL_CERT_FILE: /cacerts/ca.crt
+          TRUSTSTORE_PASSWORD: ""
       
           # https://github.com/jpmorganchase/jupyter-fs
           FS_S3_ENDPOINT_URL: "{{ $s3ApiUrl }}"
@@ -353,22 +358,7 @@ modules:
       
           jupyter_server_config_py:
             mountPath: /etc/jupyter/jupyter_server_config.py
-            stringData: |  
-              {{- if .Context.jupyterHub.storage.s3.tls.insecureSkipVerify }}
-              import ssl
-              import s3fs
-              ssl._create_default_https_context = ssl._create_unverified_context
-              _s3fs_client_init = s3fs.core.S3FileSystem.__init__
-            
-              def _patched_init(self, *args, **kwargs):
-                # inject client_kwargs.verify=False to disable SSL validation
-                kwargs["client_kwargs"] = kwargs.get("client_kwargs", {})
-                kwargs["client_kwargs"]["verify"] = False
-                return _s3fs_client_init(self, *args, **kwargs)
-              
-              s3fs.core.S3FileSystem.__init__ = _patched_init
-              {{- end }}
-      
+            stringData: |      
               c.ServerApp.contents_manager_class = "jupyterfs.MetaManager"
               c.ServerApp.jpserver_extensions = {"jupyterfs.extension": True}
               {{- $root := . }}
@@ -395,6 +385,7 @@ modules:
                       "secret": os.environ["FS_S3_SECRET_KEY"],
                       "client_kwargs": {
                           "endpoint_url": os.environ["FS_S3_ENDPOINT_URL"],
+                          "verify": os.environ["AWS_CA_BUNDLE"],
                       }
                   },
                 }
@@ -482,10 +473,6 @@ modules:
                   --conf spark.history.fs.logDirectory={{ .Parameters.sparkEventsLogDir }}
                   --conf spark.eventLog.compress=true
                   --conf spark.eventLog.rolling.enabled=true
-                  {{- if .Context.jupyterHub.storage.s3.tls.insecureSkipVerify }}
-                  --conf spark.driver.extraJavaOptions="-Dcom.amazonaws.sdk.disableCertChecking=true"
-                  --conf spark.executor.extraJavaOptions="-Dcom.amazonaws.sdk.disableCertChecking=true"
-                  {{- end }}
                   --conf spark.kubernetes.executor.secrets.certs-bundle=/cacerts
                   --conf "spark.driver.extraJavaOptions=-Djavax.net.ssl.trustStore=/cacerts/bundle.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword="
                   --conf "spark.executor.extraJavaOptions=-Djavax.net.ssl.trustStore=/cacerts/bundle.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword="

@@ -129,13 +129,6 @@ modules:
             secretKeyRef:
               name: {{ .Context.polaris.database.credentialsSecret.name }}
               key: {{ .Context.polaris.database.credentialsSecret.passwordKey }}
-        # TLS Configuration
-        {{- if .Context.polaris.auth.oidc.insecureSkipVerify }}
-        - name: QUARKUS_TLS_TRUST_ALL
-          value: "true"
-        - name: QUARKUS_TLS_HOSTNAME_VERIFICATION_ALGORITHM
-          value: "NONE"
-        {{- else }}
         - name: QUARKUS_OIDC_TLS_CONFIGURATION_NAME
           value: "oidc"
         - name: QUARKUS_TLS__OIDC__TRUST_STORE_PEM_CERTS
