@@ -76,6 +76,7 @@ spec:
           description: "Central metadata catalog packages"
           packages:
             - name: hive-metastore
+            - name: polaris
         - id: Applications
           name: "OKDP Examples"
           description: "A collection of hands-on okdp examples"
@@ -131,13 +132,6 @@ spec:
             A collection of hands-on examples, helper utilities, Jupyter notebooks, and data workflows 
             that showcases how to work with the OKDP Platform.
           home: "https://github.com/okdp/okdp-examples"
-        airflow:
-          icon: "okdp-notext.svg"
-          menuIcon: "fa-solid fa-route"
-          description: |
-            Apache Airflow is a platform to programmatically author, schedule, and monitor workflows.
-            Use Airflow to orchestrate complex data pipelines and Spark jobs on OKDP.
-          home: "https://airflow.apache.org"
         seaweedfs:
           description: |
             SeaweedFS is a simple and highly scalable distributed file system. There are the objectives to store billions of files and to serve the files fast!
@@ -191,6 +185,13 @@ spec:
       catalogs:
         metastore:
           uri: thrift://hive-metastore.{{ .Release.namespace }}.svc.cluster.local:9083
+        polaris:
+          url: https://polaris-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          oidc:
+            credentialsSecret:
+              name: creds-trino-oauth2-polaris
+              clientIdKey: client_id
+              clientSecretKey: client_secret
       auth:
         enabled: true
         method: oidc
@@ -270,10 +271,60 @@ spec:
             name: creds-superset-oauth2
             clientIdKey: client_id
             clientSecretKey: client_secret
+      trino:
+        auth:
+          enabled: true
+          method: oidc
+          oidc:
+            issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}:443/realms/master"
+            scope: "openid profile email groups"
+            credentialsSecret:
+              name: creds-superset-oauth2-trino
+              clientIdKey: client_id
+              clientSecretKey: client_secret
       dataSources: |
         databases:
         - database_name: trino-hms-bronze
           sqlalchemy_uri: "trino://trino@trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}:443/bronze?http_scheme=https&verify=false"
+          impersonate_user: true
+          extra: |
+            {
+              "engine_params": {},
+              "metadata_params": {},
+              "connect_args": {
+                "http_scheme": "https",
+                "verify": false
+              },
+              "metadata_cache_timeout": {},
+              "schemas_allowed_for_file_upload": []
+            }
+          allow_run_async: true
+          allow_dml: true
+          allow_ctas: true
+          allow_cvas: true
+          expose_in_sqllab: true
+        - database_name: trino-polaris-silver
+          sqlalchemy_uri: "trino://trino@trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}:443/silver?http_scheme=https&verify=false"
+          impersonate_user: true
+          extra: |
+            {
+              "engine_params": {},
+              "metadata_params": {},
+              "connect_args": {
+                "http_scheme": "https",
+                "verify": false
+              },
+              "metadata_cache_timeout": {},
+              "schemas_allowed_for_file_upload": []
+            }
+          allow_run_async: true
+          allow_dml: true
+          allow_ctas: true
+          allow_cvas: true
+          expose_in_sqllab: true
+        - database_name: trino-polaris-gold
+          sqlalchemy_uri: "trino://trino@trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}:443/gold?http_scheme=https&verify=false"
+          impersonate_user: true
           extra: |
             {
               "engine_params": {},
@@ -838,7 +889,7 @@ spec:
           firstName: alice
           lastName: alice
           password: alice
-          roles: [platform_admin]
+          roles: [platform_admin, polaris_service_admin, polaris_catalog_admin]
         - username: eve
           email: eve@okdp.io
           firstName: eve
@@ -850,7 +901,19 @@ spec:
           firstName: adm
           lastName: adm
           password: adm
-          roles: [ platform_admin ]
+          roles: [ platform_admin, polaris_service_admin, polaris_catalog_admin ]
+        - username: my-polaris-spark-etl-app
+          serviceAccountClientId: my-polaris-spark-etl-app
+          roles: [ data_engineer, data_scientist, business_analyst ]
+        # Add the polaris service account user
+        # Here the same service account has service_admin and catalog_admin in Polaris
+        # The service account behaves like a super admin, you can split as your convenience
+        - username: polaris-admin
+          serviceAccountClientId: polaris-admin
+          roles: [ polaris_service_admin, polaris_catalog_admin ]
+        - username: trino-polaris
+          serviceAccountClientId: trino-polaris
+          roles: [ platform_admin, polaris_service_admin, polaris_catalog_admin ]
       roles:
         - name: data_engineer
         - name: data_scientist
@@ -858,6 +921,11 @@ spec:
         - name: platform_admin
         - name: data_steward
         - name: auditor
+        # Add the polaris management roles
+        # These roles can be named anyway,
+        # but they should map to polaris management roles (service_admin, and catalog_admin)
+        - name: polaris_service_admin
+        - name: polaris_catalog_admin
       clients:
         - clientId: okdp-server
           name: okdp-server
@@ -874,6 +942,13 @@ spec:
             - "https://okdp-ui.{{ .Context.ingress.suffix }}/silent-refresh.html"
           webOrigins:
             - "https://okdp-ui.{{ .Context.ingress.suffix }}"
+        - clientId: polaris-console
+          name: polaris-console
+          publicClient: true
+          redirectUris:
+            - "https://polaris-console-default.{{ .Context.ingress.suffix }}/auth/callback"
+          webOrigins:
+            - "https://polaris-console-default.{{ .Context.ingress.suffix }}"
         - clientId: seaweedfs-s3
           name: seaweedfs-s3
           publicClient: true
@@ -965,6 +1040,110 @@ spec:
             - organization
             - offline_access
             - microprofile-jwt
+        - clientId: superset-trino
+          name: superset-trino
+          secret: mySupersetTrinoSecret
+          publicClient: false
+          redirectUris:
+            - "https://*"
+          webOrigins:
+            - "https://*"
+          defaultClientScopes:
+            - web-origins
+            - acr
+            - roles
+            - profile
+            - groups
+            - basic
+            - email
+          optionalClientScopes:
+            - address
+            - phone
+            - organization
+            - offline_access
+            - microprofile-jwt
+        - clientId: trino-examples
+          name: trino-examples
+          secret: myTrinoExamplesSecret
+          publicClient: false
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          defaultClientScopes:
+            - groups
+            - roles
+            - profile
+            - email
+        - clientId: polaris
+          name: polaris
+          secret: myPolarisSecret
+          publicClient: false
+          # Enable service accounts on the polaris client
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          redirectUris:
+            - "https://*"
+          webOrigins:
+            - "https://*"
+          defaultClientScopes:
+            - web-origins
+            - acr
+            - roles
+            - profile
+            - groups
+            - basic
+            - email
+          optionalClientScopes:
+            - address
+            - phone
+            - organization
+            - offline_access
+            - microprofile-jwt
+        - clientId: trino-polaris
+          name: trino-polaris
+          secret: myTrinoPolarisSecret
+          publicClient: false
+          # Enable service accounts on the polaris client
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          defaultClientScopes:
+            - groups
+            - roles
+            - profile
+            - email
+        - clientId: polaris-admin
+          name: polaris-admin
+          secret: myPolarisAdminSecret
+          publicClient: false
+          # Enable service accounts on the polaris client
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          defaultClientScopes:
+            - groups
+            - roles
+            - profile
+            - email
+        - clientId: my-polaris-spark-etl-app
+          name: my-polaris-spark-etl-app
+          secret: mySparkAppSecret
+          publicClient: false
+          # Enable service accounts on the polaris client
+          serviceAccountsEnabled: true
+          standardFlowEnabled: false
+          implicitFlowEnabled: false
+          directAccessGrantsEnabled: false
+          defaultClientScopes:
+            - groups
+            - roles
+            - profile
+            - email
       clientScopes:
         - name: groups
           description: "Groups scope"

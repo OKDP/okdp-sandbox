@@ -1,6 +1,25 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# you may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
 apiVersion: v1alpha1
 name: trinodb
-tag: 1.0.0-p01
+#tag: 480-p01
+# Currently, the UI requires the version to conform to SemVer (https://simversion.github.io/)
+# https://github.com/OKDP/okdp-ui/blob/main/src/app/shared/utils/utils.ts#L131
+tag: 480.0.0-p01
 protected: false
 description: |
   Apache Trino - Distributed SQL query engine designed for large-scale data processing across multiple data sources.
@@ -9,11 +28,13 @@ description: |
 usage:
   text: |
     Apache Trino provides distributed SQL query engine designed for large-scale data processing.
-    Access the UI at https://{{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+    Access the UI at {{ .Context.trino.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
 schema:
   parameters:
     properties:
-      numWorkers: { type: integer, default: 3, description: "Number of workers" }
+      numWorkers: { type: integer, default: 1, description: "Number of workers" }
+      workerMemoryGi: { type: number, default: 2, multipleOf: 0.25, description: "Worker memory (GiB) used for Kubernetes requests/limits (recommended: request=limit)." }
+      workerCpu: { type: number, default: 0.5, multipleOf: 0.25, description: "Worker CPU request in millicores (e.g., 500=0.5 vCPU, 1000=1 vCPU)." }
   context:
     properties:
       certificateIssuers:
@@ -33,8 +54,125 @@ modules:
       helmRepository:
         url: https://trinodb.github.io/charts/
         chart: trino
-        version: v1.39.1
+        version: v1.42.1
     values: |
+      {{- $trinoEndpoint := .Context.trino.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $trinoEndpoint := $trinoEndpoint | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $trinoEndpoint := $trinoEndpoint | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $trinoEndpoint := regexReplaceAll "^https?://" $trinoEndpoint "" -}}
+      
+      {{- $s3ApiUrl := .Context.trino.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      {{- $hmsUri := .Context.trino.catalogs.metastore.uri | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      
+      {{- $keycloakIssuerUri := .Context.trino.auth.oidc.issuerUri | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      {{- $polarisUri := .Context.trino.catalogs.polaris.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $polarisUri := $polarisUri | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
+      {{- $polarisUri := $polarisUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      image:
+        repository: trinodb/trino
+        tag: 480
+      
+      catalogs:
+        tpch: |
+          connector.name=tpch
+          tpch.splits-per-node=4
+        tpcds: |
+          connector.name=tpcds
+          tpcds.splits-per-node=4
+        
+        bronze: |
+          connector.name=hive
+          hive.metastore.uri={{ $hmsUri }}
+          hive.metastore.username={{ .Context.trino.auth.basic.username }}
+          hive.non-managed-table-writes-enabled=true
+  
+          fs.native-s3.enabled=true
+          s3.region=us-east-1
+          s3.path-style-access=true
+          s3.endpoint={{ $s3ApiUrl }}
+          s3.aws-access-key=${ENV:S3_ACCESS_KEY}
+          s3.aws-secret-key=${ENV:S3_SECRET_ACCESS}
+        
+        silver: |
+          connector.name=iceberg
+          iceberg.rest-catalog.warehouse=silver
+          iceberg.catalog.type=rest
+          s3.endpoint={{ $s3ApiUrl }}
+          s3.aws-access-key=${ENV:S3_ACCESS_KEY}
+          s3.aws-secret-key=${ENV:S3_SECRET_ACCESS}
+          iceberg.rest-catalog.uri={{ $polarisUri }}/api/catalog
+          iceberg.rest-catalog.oauth2.server-uri={{ $keycloakIssuerUri }}/protocol/openid-connect/token
+          iceberg.rest-catalog.vended-credentials-enabled=true
+          iceberg.rest-catalog.security=OAUTH2
+          iceberg.rest-catalog.oauth2.credential=${ENV:TRINO_POLARIS_OAUTH_CLIENT_ID}:${ENV:TRINO_POLARIS_OAUTH_CLIENT_SECRET}
+          iceberg.rest-catalog.oauth2.scope=profile
+      
+          fs.native-s3.enabled=true
+          s3.region={{ .Context.polaris.storage.s3.region }}
+          s3.path-style-access=true
+        
+        gold: |
+          connector.name=iceberg
+          iceberg.rest-catalog.warehouse=gold
+          iceberg.catalog.type=rest
+          s3.endpoint={{ $s3ApiUrl }}
+          s3.aws-access-key=${ENV:S3_ACCESS_KEY}
+          s3.aws-secret-key=${ENV:S3_SECRET_ACCESS}
+          iceberg.rest-catalog.uri={{ $polarisUri }}/api/catalog
+          iceberg.rest-catalog.oauth2.server-uri={{ $keycloakIssuerUri }}/protocol/openid-connect/token
+          iceberg.rest-catalog.vended-credentials-enabled=true
+          iceberg.rest-catalog.security=OAUTH2
+          iceberg.rest-catalog.oauth2.credential=${ENV:TRINO_POLARIS_OAUTH_CLIENT_ID}:${ENV:TRINO_POLARIS_OAUTH_CLIENT_SECRET}
+          iceberg.rest-catalog.oauth2.scope=profile
+      
+          fs.native-s3.enabled=true
+          s3.region={{ .Context.polaris.storage.s3.region }}
+          s3.path-style-access=true
+      
+      envFrom:
+        - secretRef:
+            name: {{ .Context.trino.storage.s3.credentialsSecret.name }}
+      env:
+        - name: OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.trino.auth.oidc.credentialsSecret.name }}
+              key: {{ .Context.trino.auth.oidc.credentialsSecret.clientIdKey }}
+      
+        - name: OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.trino.auth.oidc.credentialsSecret.name }}
+              key: {{ .Context.trino.auth.oidc.credentialsSecret.clientSecretKey }}
+      
+        - name: TRINO_POLARIS_OAUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.trino.catalogs.polaris.oidc.credentialsSecret.name }}
+              key: {{ .Context.trino.catalogs.polaris.oidc.credentialsSecret.clientIdKey }}
+
+        - name: TRINO_POLARIS_OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.trino.catalogs.polaris.oidc.credentialsSecret.name }}
+              key: {{ .Context.trino.catalogs.polaris.oidc.credentialsSecret.clientSecretKey }}
+      
+        - name: TRINO_SHARED_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.trino.advanced.config.security.credentialsSecret.name }}
+              key: {{ .Context.trino.advanced.config.security.credentialsSecret.sharedSecret }}
+      
+        - name: TRUSTSTORE_PASSWORD
+          value: ""
+      
       coordinator:
         resources:
           requests:
@@ -43,57 +181,44 @@ modules:
           limits:
             cpu: "2"
             memory: "8Gi"
+      
         additionalVolumes:
-          - name: generated-files
-            emptyDir: {}
           - name: cacerts
             secret:
               secretName: certs-bundle
-          - name: trino-tls
-            secret:
-              secretName: {{ .Release.metadata.name }}-tls
+  
         additionalVolumeMounts:
-          - name: generated-files
-            mountPath: /etc/trino/generated
-            readOnly: false
           - name: cacerts
             mountPath: /cacerts
-          - name: trino-tls
-            mountPath: /trino-tls
+            readOnly: true
+  
         additionalJVMConfig:
           - "-Djavax.net.ssl.trustStore=/cacerts/bundle.p12"
-          - "-Djavax.net.ssl.trustStorePassword="
-
+          - "-Djavax.net.ssl.trustStorePassword=${ENV:TRUSTSTORE_PASSWORD}"
 
       worker:
         resources:
           requests:
-            cpu: "500m"
-            memory: "1Gi"
+            cpu: "{{ .Parameters.workerCpu }}"
+            memory: "{{ .Parameters.workerMemoryGi }}Gi"
           limits:
-            cpu: "2"
-            memory: "2Gi"
+            cpu: "{{ mulf (float64 .Parameters.workerCpu) 2 }}"
+            memory: "{{ mulf (float64 .Parameters.workerMemoryGi) 2 }}Gi"
+        
         additionalVolumes:
-          - name: generated-files
-            emptyDir: {}
           - name: cacerts
             secret:
               secretName: certs-bundle
-          - name: trino-tls
-            secret:
-              secretName: {{ .Release.metadata.name }}-tls
+      
         additionalVolumeMounts:
-          - name: generated-files
-            mountPath: /etc/trino/generated
-            readOnly: false
           - name: cacerts
             mountPath: /cacerts
-          - name: trino-tls
-            mountPath: /trino-tls
+            readOnly: true
+      
         additionalJVMConfig:
           - "-Djavax.net.ssl.trustStore=/cacerts/bundle.p12"
-          - "-Djavax.net.ssl.trustStorePassword="
-
+          - "-Djavax.net.ssl.trustStorePassword=${ENV:TRUSTSTORE_PASSWORD}"
+      
       ingress:
         enabled: true
         className: nginx
@@ -101,18 +226,15 @@ modules:
           cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
           nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
           nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-          nginx.ingress.kubernetes.io/use-regex: "true"  
-          nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
-          nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-          nginx.ingress.kubernetes.io/ssl-redirect: "true"
+          nginx.ingress.kubernetes.io/use-regex: "true"
         hosts:
-          - host: {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+          - host: {{ $trinoEndpoint }}
             paths:
               - path: /
                 pathType: Prefix
         tls:
           - hosts:
-              - {{ .Release.metadata.name }}.{{ .Context.ingress.suffix }}
+              - {{ $trinoEndpoint }}
             secretName: {{ .Release.metadata.name }}-tls
 
       server:
@@ -126,52 +248,34 @@ modules:
           discovery-server.enabled: "true"
           path: /etc/trino
           https:
-            enabled: true
-            port: 8443
-            keystore:
-              path: "/etc/trino/generated/tls.pem"
+            enabled: false
+        workerExtraConfig: ""
         coordinatorExtraConfig: |
           http-server.process-forwarded=true
           web-ui.authentication.type=oauth2
-          http-server.authentication.type=oauth2
-          http-server.authentication.oauth2.issuer=https://keycloak.{{ .Context.ingress.suffix }}/realms/master
-          http-server.authentication.oauth2.client-id=confidential-oidc-client
-          http-server.authentication.oauth2.client-secret=secret1
-          http-server.authentication.oauth2.auth-url=https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/auth
-          http-server.authentication.oauth2.token-url=https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/token
+          # Enable two authentication flows on the coordinator:
+          # - OAUTH2: interactive browser-based login for human users (UI/CLI with external authentication)
+          # - JWT: non-interactive bearer token authentication for automation/service accounts
+          #   such as scripts, jobs, or CI/CD using --access-token
+          http-server.authentication.type=jwt,oauth2
+          http-server.authentication.oauth2.issuer={{ $keycloakIssuerUri }}
+          http-server.authentication.oauth2.client-id=${ENV:OAUTH_CLIENT_ID}
+          http-server.authentication.oauth2.client-secret=${ENV:OAUTH_CLIENT_SECRET}
+          http-server.authentication.oauth2.auth-url={{ $keycloakIssuerUri }}/protocol/openid-connect/auth
+          http-server.authentication.oauth2.token-url={{ $keycloakIssuerUri }}/protocol/openid-connect/token
           http-server.authentication.oauth2.scopes=openid,email,profile,groups
           http-server.authentication.oauth2.principal-field=preferred_username
-          deprecated.http-server.authentication.oauth2.groups-field=groups
-
-
-      initContainers:
-        coordinator:
-          - name: init-coordinator-coordinator
-            image: busybox:1.36
-            imagePullPolicy: IfNotPresent
-            command: ['sh', '-c', "cat /trino-tls/tls.crt /trino-tls/tls.key > /etc/trino/generated/tls.pem"]
-            volumeMounts:
-              - name: trino-tls
-                mountPath: "/trino-tls"
-              - name: generated-files
-                readOnly: false
-                mountPath: "/etc/trino/generated"
-        worker:
-          - name: init-coordinator-worker
-            image: busybox:1.36
-            imagePullPolicy: IfNotPresent
-            command: ['sh', '-c', "cat /trino-tls/tls.crt /trino-tls/tls.key > /etc/trino/generated/tls.pem"]
-            volumeMounts:
-              - name: trino-tls
-                mountPath: "/trino-tls"
-              - name: generated-files
-                readOnly: false
-                mountPath: "/etc/trino/generated"
+      
+          http-server.authentication.jwt.key-file={{ $keycloakIssuerUri }}/protocol/openid-connect/certs
+          http-server.authentication.jwt.required-issuer={{ $keycloakIssuerUri }}
+          http-server.authentication.jwt.required-audience=account
+          http-server.authentication.jwt.principal-field=client_id
       
       additionalConfigProperties:
-        - internal-communication.shared-secret=random123
+        - internal-communication.shared-secret=${ENV:TRINO_SHARED_SECRET}
 
 roles:
-  - Interactive-query
+  - interactive-query
 dependencies:
-  - ingress 
+  - data-catalog
+  - ingress

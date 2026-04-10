@@ -54,7 +54,7 @@ modules:
     source:
       oci:
         repository: quay.io/okdp/charts/superset
-        tag: 0.15.2-1.0
+        tag: 0.15.2-2.0
     values: |
       {{- $supersetUrl := .Context.superset.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
       {{- $supersetUrl := $supersetUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
@@ -71,6 +71,13 @@ modules:
             PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
             # This will make sure the redirect_uri is properly computed, even with SSL offloading
             ENABLE_PROXY_FIX = True
+            PROXY_FIX_CONFIG = {
+              "x_for": 1,
+              "x_proto": 1,
+              "x_host": 1,
+              "x_port": 1,
+              "x_prefix": 1,
+            }
           feature_flags: &feature_flags |
             # https://github.com/apache/superset/blob/master/RESOURCES/FEATURE_FLAGS.md
             FEATURE_FLAGS = {
@@ -101,7 +108,14 @@ modules:
           oauth2_superset_roles_mapping: &oauth2_superset_roles_mapping |
             AUTH_ROLES_MAPPING = {
               "{{ .Parameters.adminGroups }}": ["Admin"]
-            }      
+            }
+        
+        trino:
+          oauth:
+            enabled: {{ .Context.superset.trino.auth.enabled }}
+            base_url: {{ .Context.superset.auth.oidc.issuerUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}/protocol/openid-connect
+            scope: "{{ .Context.superset.trino.auth.oidc.scope }}"
+      
       superset:
         image:
           repository: quay.io/okdp/superset
@@ -174,6 +188,21 @@ modules:
               secretKeyRef:
                 name: {{ .Context.superset.auth.oidc.credentialsSecret.name }}
                 key: {{ .Context.superset.auth.oidc.credentialsSecret.clientSecretKey }}
+          # OIDC Trino credentials
+          - name: TRINO_OAUTH_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.superset.trino.auth.oidc.credentialsSecret.name }}
+                key: {{ .Context.superset.trino.auth.oidc.credentialsSecret.clientIdKey }}
+          - name: TRINO_OAUTH_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.superset.trino.auth.oidc.credentialsSecret.name }}
+                key: {{ .Context.superset.trino.auth.oidc.credentialsSecret.clientSecretKey }}
+          # CA
+          - name: REQUESTS_CA_BUNDLE
+            value: /cacerts/ca.crt
+      
           {{- if .Context.proxy.httpProxy }}
           - name: HTTP_PROXY
             value: {{ .Context.proxy.httpProxy | quote }}
@@ -252,6 +281,15 @@ modules:
           oauth_to_superset_roles_mapping: *oauth2_superset_roles_mapping
           extra_config: *extra_config
           feature_flags: *feature_flags
+      
+        extraVolumes:
+          - name: cacerts
+            secret:
+              secretName: certs-bundle
+        
+        extraVolumeMounts:
+          - name: cacerts
+            mountPath: /cacerts
 
 roles:
   - dataviz

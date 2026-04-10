@@ -16,7 +16,7 @@
 
 apiVersion: v1alpha1
 name: jupyterhub
-tag: 4.3.1-p03
+tag: 4.3.3-p01
 protected: false
 description: |
   JupyterHub - Multi-user interactive development environment for data science and machine learning.
@@ -73,7 +73,7 @@ modules:
       helmRepository:
         url: https://hub.jupyter.org/helm-chart/
         chart: jupyterhub
-        version: 4.3.1
+        version: 4.3.3
     values: |
       {{- $s3ApiUrl := .Context.jupyterHub.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
       {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
@@ -110,16 +110,37 @@ modules:
               secretKeyRef:
                 name: {{ .Context.jupyterHub.auth.oidc.credentialsSecret.name }}
                 key: {{ .Context.jupyterHub.auth.oidc.credentialsSecret.clientSecretKey }}
+          JUPYTERHUB_CRYPT_KEY:
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.jupyterHub.auth.oidc.credentialsSecret.name }}
+                key: {{ .Context.jupyterHub.auth.oidc.credentialsSecret.jupyterHubCryptKey }}
         config:
+          # https://oauthenticator.readthedocs.io/en/latest/how-to/refresh.html
+          JupyterHub:
+            authenticator_class: generic-oauth
+            load_roles:
+              - name: user
+                scopes:
+                  - self
+                  - admin:auth_state!user
+              - name: server
+                scopes:
+                  - users:activity!user
+                  - access:servers!server
+                  - admin:auth_state!user
           Authenticator:
             auto_login: true
+            enable_auth_state: true
+            auth_refresh_age: 300
+            refresh_pre_spawn: true
           GenericOAuthenticator:
+            login_service: keycloak
             oauth_callback_url: {{ $jupyterUrl }}/hub/oauth_callback
             authorize_url: {{ $keycloakTokenAuthUrl }}/auth
             token_url: {{ $keycloakTokenAuthUrl }}/token
             userdata_url: {{ $keycloakTokenAuthUrl }}/userinfo
             validate_server_cert: false
-            login_service: keycloak
             claim_groups_key: groups
             manage_groups: true
             userdata_params:
@@ -131,9 +152,9 @@ modules:
             username_key: preferred_username
             scope:
             - openid
+            - profile
+            - email
             - groups
-          JupyterHub:
-            authenticator_class: generic-oauth
         networkPolicy:
           enabled: false
         extraConfig:
@@ -144,7 +165,7 @@ modules:
           pullPolicy: Always
           pullSecrets: []
           name: quay.io/jupyterhub/k8s-hub
-          tag: "4.3.1"
+          tag: "4.3.3"
         db:
           type: sqlite-pvc
           pvc:
@@ -201,6 +222,7 @@ modules:
           GIT_SSL_NO_VERIFY: "false"
           # Ignore InsecureRequestWarning warnings
           PYTHONWARNINGS: "ignore:Unverified HTTPS request"
+          PYTHONPATH: "/etc/jupyter/auth"
       
           # https://github.com/jpmorganchase/jupyter-fs
           FS_S3_ENDPOINT_URL: "{{ $s3ApiUrl }}"
@@ -378,6 +400,43 @@ modules:
                 }
                 for b in buckets
               ]
+          notebook_oauth2:
+            mountPath: /etc/jupyter/auth/sitecustomize.py
+            stringData: |
+              import builtins
+              import os
+              import requests
+            
+              def _fresh_access_token():
+                hub_token = os.environ["JUPYTERHUB_API_TOKEN"]
+                hub_api_url = os.environ["JUPYTERHUB_API_URL"]
+                user = os.environ["JUPYTERHUB_USER"]
+                
+                r = requests.get(
+                  f"{hub_api_url}/users/{user}",
+                  headers={"Authorization": f"Bearer {hub_token}"},
+                  timeout=10,
+                )
+                r.raise_for_status()
+                
+                data = r.json()
+                auth_state = data.get("auth_state")
+                if auth_state is None:
+                  raise RuntimeError(f"auth_state is null for user {user}")
+                token = auth_state.get("access_token")
+                if not token:
+                  raise RuntimeError(f"No access_token in auth_state. Keys: {list(auth_state.keys())}")
+                return token
+              
+              def _current_user():
+                user = os.environ.get("JUPYTERHUB_USER")
+                if not user:
+                  raise RuntimeError("JUPYTERHUB_USER is not set")
+                return user
+  
+              builtins.access_token = _fresh_access_token
+              builtins.me = _current_user
+      
         cpu:
           limit: {{ mulf (float64 .Parameters.cpu) 2 }}
           guarantee: {{ .Parameters.cpu }}

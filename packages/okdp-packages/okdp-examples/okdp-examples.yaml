@@ -60,10 +60,8 @@ modules:
         pullPolicy: Always
       
       extraEnvRaw:
-        {{- if .Context.examples.storage.s3.tls.insecureSkipVerify }}
         - name: MC_INSECURE
           value: "1"
-        {{- end }}
         - name: S3_ENDPOINT
           value: {{ $s3ApiUrl }}
       
@@ -94,6 +92,16 @@ modules:
           value: {{ $trinoEndpoint }}
         - name: TRINO_TERMINAL
           value: dumb
+        - name: EXAMPLES_TRINO_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.examples.trino.auth.oidc.credentialsSecret.name }}
+              key: {{ .Context.examples.trino.auth.oidc.credentialsSecret.clientIdKey }}
+        - name: EXAMPLES_TRINO_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Context.examples.trino.auth.oidc.credentialsSecret.name }}
+              key: {{ .Context.examples.trino.auth.oidc.credentialsSecret.clientSecretKey }}
         - name: SPARK_EVENT_LOG_DIRECTORY
           value: {{ .Parameters.sparkEventsLogDir }}
         {{- if .Context.proxy.httpProxy }}
@@ -117,6 +125,10 @@ modules:
           value: {{ $polarisEndpointUrl }}
         - name: CA_CERT_PATH
           value: /cacerts/ca.crt
+        - name: CURL_CA_BUNDLE
+          value: /cacerts/ca.crt
+        - name: TRUSTSTORE_PASSWORD
+          value: ""
         {{- range $realm := .Context.polaris.realms }}
         {{- $realmPrefix := regexReplaceAll "_+" (regexReplaceAll "[^A-Za-z0-9]+" (upper $realm.name) "_") "_" | trimAll "_" -}}
         {{- $selected := dict "principal" nil "found" false -}}
@@ -251,9 +263,23 @@ modules:
             echo "👉 Verify bucket structure"
             mc tree mystorage/$BRONZE_BUCKET
             mc ls --recursive mystorage/$BRONZE_BUCKET
-      
+    
           03-nyc-tripdata-trino-external-tables.sql: |
-            trino --server $TRINO_SERVER_URL --insecure <<SQL
+            ACCESS_TOKEN="$(
+                curl -sS \
+                -X POST "$OIDC_ISSUER_URL/protocol/openid-connect/token" \
+                -H 'Content-Type: application/x-www-form-urlencoded' \
+                --data-urlencode 'grant_type=client_credentials' \
+                --data-urlencode "client_id=$EXAMPLES_TRINO_CLIENT_ID" \
+                --data-urlencode "client_secret=$EXAMPLES_TRINO_CLIENT_SECRET" \
+                | jq -r '.access_token'
+            )"
+            trino --server $TRINO_SERVER_URL \
+                  --access-token "$ACCESS_TOKEN" \
+                  --user "$EXAMPLES_TRINO_CLIENT_ID" \
+                  --truststore-path /cacerts/bundle.p12 \
+                  --truststore-type PKCS12 \
+                  --truststore-password "$TRUSTSTORE_PASSWORD" <<SQL
               CREATE SCHEMA IF NOT EXISTS bronze.nyc_tlc;
             
               CREATE TABLE IF NOT EXISTS bronze.nyc_tlc.yellow (
@@ -332,7 +358,21 @@ modules:
             SQL
       
           04-nyc-tripdata-trino-synchronize-partitions: |
-            trino --server $TRINO_SERVER_URL --insecure <<SQL
+            ACCESS_TOKEN="$(
+                curl -sS \
+                -X POST "$OIDC_ISSUER_URL/protocol/openid-connect/token" \
+                -H 'Content-Type: application/x-www-form-urlencoded' \
+                --data-urlencode 'grant_type=client_credentials' \
+                --data-urlencode "client_id=$EXAMPLES_TRINO_CLIENT_ID" \
+                --data-urlencode "client_secret=$EXAMPLES_TRINO_CLIENT_SECRET" \
+                | jq -r '.access_token'
+            )"
+            trino --server $TRINO_SERVER_URL \
+                  --access-token "$ACCESS_TOKEN" \
+                  --user "$EXAMPLES_TRINO_CLIENT_ID" \
+                  --truststore-path /cacerts/bundle.p12 \
+                  --truststore-type PKCS12 \
+                  --truststore-password "$TRUSTSTORE_PASSWORD" <<SQL
               CALL bronze.system.sync_partition_metadata(
                 schema_name => 'nyc_tlc',
                 table_name => 'yellow',
@@ -351,7 +391,21 @@ modules:
             SQL
       
           05-nyc-tripdata-trino-validate: |
-            trino --server $TRINO_SERVER_URL --insecure <<SQL
+            ACCESS_TOKEN="$(
+                curl -sS \
+                -X POST "$OIDC_ISSUER_URL/protocol/openid-connect/token" \
+                -H 'Content-Type: application/x-www-form-urlencoded' \
+                --data-urlencode 'grant_type=client_credentials' \
+                --data-urlencode "client_id=$EXAMPLES_TRINO_CLIENT_ID" \
+                --data-urlencode "client_secret=$EXAMPLES_TRINO_CLIENT_SECRET" \
+                | jq -r '.access_token'
+            )"
+            trino --server $TRINO_SERVER_URL \
+                  --access-token "$ACCESS_TOKEN" \
+                  --user "$EXAMPLES_TRINO_CLIENT_ID" \
+                  --truststore-path /cacerts/bundle.p12 \
+                  --truststore-type PKCS12 \
+                  --truststore-password "$TRUSTSTORE_PASSWORD" <<SQL
               SHOW SCHEMAS FROM bronze;
             
               SHOW TABLES FROM bronze.nyc_tlc;
