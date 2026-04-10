@@ -99,7 +99,6 @@ modules:
           base_url: {{ .Context.superset.auth.oidc.issuerUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}/protocol/openid-connect
           scope: "{{ .Context.superset.auth.oidc.scope }}"
           use_pkce: {{ .Context.superset.auth.oidc.usePKCE }}
-          ssl_certificate_verify: "{{ ternary "False" "True" .Context.superset.auth.oidc.insecureSkipVerify }}"
           auth_registration: &auth_registration |
             AUTH_USER_REGISTRATION = True
             AUTH_ROLE_PUBLIC = "Public"

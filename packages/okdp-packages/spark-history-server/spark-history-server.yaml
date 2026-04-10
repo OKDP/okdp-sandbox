@@ -127,10 +127,6 @@ modules:
         spark.history.ui.admin.acls.groups: {{ .Parameters.adminGroups }}
       
       extraEnvs:
-        {{- if .Context.sparkHistory.storage.s3.tls.insecureSkipVerify }}
-        - name: SPARK_HISTORY_OPTS
-          value: -Dcom.amazonaws.sdk.disableCertChecking=true
-        {{- end }}
         - name: AWS_ACCESS_KEY_ID
           valueFrom:
             secretKeyRef:

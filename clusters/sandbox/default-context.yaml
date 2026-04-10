@@ -149,35 +149,20 @@ spec:
           usernameKey: username
           passwordKey: password
       storage:
-        provider: seaweedfs
-        bucket: hive
-        bucketAnonymousRead: true
-        warehouseDir: hive-warehouse/
-        credentialsSecret:
-          name: creds-hive-metastore-s3
-          accessKeyKey: accessKey
-          secretKeyKey: secretKey
-        providerConfig:
-          seaweedfs:
-            identity: hiveMetastore
-            actions: [ Read, Write, List ]
-#        provider: s3
-#        s3:
-#          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-#          bucket: hive
-#          bucketAnonymousRead: true
-#          warehouseDir: hive-warehouse/
-#          credentialsSecret:
-#            name: creds-hive-metastore-s3
-#            accessKeyKey: accessKey
-#            secretKeyKey: secretKey
-#          providerConfig:
-#            seaweedfs:
-#              identity: hiveMetastore
-#              actions: [ Read, Write, List ]
-#          tls:
-#            enabled: true
-#            insecureSkipVerify: true
+        provider: s3
+        s3:
+          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          bucket: hive
+          bucketAnonymousRead: true
+          warehouseDir: hive-warehouse/
+          credentialsSecret:
+            name: creds-hive-metastore-s3
+            accessKeyKey: accessKey
+            secretKeyKey: secretKey
+          providerConfig:
+            seaweedfs:
+              identity: hiveMetastore
+              actions: [ Read, Write, List ]
       endpoint:
         url: thrift://hive-metastore.{{ .Release.namespace }}.svc.cluster.local:9083
 
@@ -205,7 +190,6 @@ spec:
           issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
           scope: "openid profile email groups"
           usePKCE: true
-          insecureSkipVerify: true
           credentialsSecret:
             name: creds-trino-oauth2
             clientIdKey: client_id
@@ -222,9 +206,13 @@ spec:
             seaweedfs:
               identity: trino
               actions: [ Read, Write, List, Admin ]
-          tls:
-            enabled: true
-            insecureSkipVerify: true
+      advanced:
+        config:
+          security:
+            # https://trino.io/docs/current/security/internal-communication.html
+            credentialsSecret:
+              name: creds-trino-security
+              sharedSecret: shared-secret
       endpoint:
         url: https://trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
@@ -266,7 +254,6 @@ spec:
           issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}:443/realms/master"
           scope: "openid profile email groups"
           usePKCE: true
-          insecureSkipVerify: true
           credentialsSecret:
             name: creds-superset-oauth2
             clientIdKey: client_id
@@ -357,9 +344,6 @@ spec:
             seaweedfs:
               identity: jupyterhub
               actions: [ Read, Write, List ]
-          tls:
-            enabled: true
-            insecureSkipVerify: true
       auth:
         enabled: true
         method: oidc
@@ -370,6 +354,7 @@ spec:
             name: creds-jupyterhub-oauth2
             clientIdKey: client_id
             clientSecretKey: client_secret
+            jupyterHubCryptKey: JUPYTERHUB_CRYPT_KEY
       endpoint:
         url: https://jupyterhub-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
@@ -397,9 +382,6 @@ spec:
             seaweedfs:
               identity: sparkHistory
               actions: [ Read, Write, List ]
-          tls:
-            enabled: true
-            insecureSkipVerify: true
       auth:
         enabled: true
         method: oidc
@@ -408,7 +390,6 @@ spec:
           issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
           scope: "openid+profile+email+offline_access+groups"
           usePKCE: true
-          insecureSkipVerify: true
           credentialsSecret:
             name: creds-spark-history-oauth2
             clientIdKey: client_id
@@ -451,7 +432,7 @@ spec:
       realms:
         - name: sandbox
           # Polaris built-in bootstrap 'root' principal for this realm.
-          # Used only by polaris-admin-tool to set the credentials CLIENT_ID/CLIENT_SECRET
+          # Used only by svc-polaris-api-admin-tool to set the credentials CLIENT_ID/CLIENT_SECRET
           # (stored as hashes in the metastore DB). Do NOT map normal OIDC logins to 'root' principal.
           # Docs: https://polaris.apache.org/releases/1.3.0/configuring-polaris-for-production/#bootstrapping
           rootPrincipal:
@@ -472,8 +453,8 @@ spec:
             #
             # - For the Sandbox env, you may combine multiple admin roles into a single principal for simplicity.
             # Service Account Polaris Admin (for polaris automation)
-            - name: service-account-polaris-admin
-              clientId: polaris-admin
+            - name: service-account-svc-polaris-api-admin
+              clientId: svc-polaris-api-admin
               credentialsSecret:
                 name: creds-polaris-oauth2-admin-okdp-sandbox
                 clientIdKey: client_id
@@ -515,9 +496,6 @@ spec:
               # response: code=AccessDenied, type=Sender, message=user
               # polaris is not authorized to assume role arn:aws:iam::000000000000:role/S3WriteRole
               actions: [ Read, Write, List, Admin ]
-          tls:
-            enabled: true
-            insecureSkipVerify: true
       auth:
         enabled: true
         method: oidc
@@ -525,16 +503,15 @@ spec:
           provider: keycloak
           issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
           scope: "openid+profile+email+offline_access+groups"
-          insecureSkipVerify: true
           credentialsSecret:
             name: creds-polaris-oauth2
             clientIdKey: client_id
             clientSecretKey: client_secret
           # Map polaris internal principal and roles with OIDC principal and roles
-          # Here, the oidc principal should exist in the OIDC provider as service-account-polaris-admin having roles:
+          # Here, the oidc principal should exist in the OIDC provider as service-account-svc-polaris-api-admin having roles:
           # polaris_catalog_admin and polaris_service_admin
           principalMapper:
-            # service-account-polaris-admin oidc principal maps to polaris service-account-polaris-admin user
+            # service-account-svc-polaris-api-admin oidc principal maps to polaris service-account-svc-polaris-api-admin user
             type: default
             # You can use 'sub' as stable and immutable identity
             idClaimPath: ~
@@ -632,12 +609,18 @@ spec:
             seaweedfs:
               identity: examples
               actions: [ Admin, Read, Write, List ]
-          tls:
-            enabled: true
-            insecureSkipVerify: true
       trino:
         url: https://trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-
+        auth:
+          enabled: true
+          method: oidc
+          oidc:
+            provider: keycloak
+            issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+            credentialsSecret:
+              name: creds-examples-oauth2-trino
+              clientIdKey: client_id
+              clientSecretKey: client_secret
       polaris:
         realms:
           - name: sandbox
