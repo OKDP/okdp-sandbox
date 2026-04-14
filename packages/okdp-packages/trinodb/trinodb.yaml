@@ -56,24 +56,57 @@ modules:
         chart: trino
         version: v1.42.1
     values: |
-      {{- $trinoEndpoint := .Context.trino.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $trinoEndpoint := $trinoEndpoint | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $trinoEndpoint := $trinoEndpoint | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
-      {{- $trinoEndpoint := regexReplaceAll "^https?://" $trinoEndpoint "" -}}
       
-      {{- $s3ApiUrl := .Context.trino.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
+      {{- $release := printf "%v" .Release.metadata.name -}}
+      {{- $domain := printf "%v" .Context.ingress.suffix -}}
       
-      {{- $hmsUri := .Context.trino.catalogs.metastore.uri | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
+      {{- $oidcId := .Context.trino.auth.oidc.provider -}}
+      {{- $oidcProvider := (index .Context $oidcId).provider -}}
       
-      {{- $keycloakIssuerUri := .Context.trino.auth.oidc.issuerUri | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $oidcIssuerUri := $oidcProvider.issuerUri
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
-      {{- $polarisUri := .Context.trino.catalogs.polaris.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $polarisUri := $polarisUri | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $polarisUri := $polarisUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $oidcAuthUrl := $oidcProvider.endpoints.auth
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $oidcTokenUrl := $oidcProvider.endpoints.token
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $oidcJwksUrl := $oidcProvider.endpoints.jwks
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}  
+      
+      {{- $trinoEndpoint := .Context.trino.endpoint.url
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain
+            | trimPrefix "https://"
+            | trimPrefix "http://" -}}
+      
+      {{- $storageId := .Context.trino.storage.provider -}}
+      {{- $storageProvider := (index .Context $storageId).provider -}}
+      
+      {{- $storageApiUrl := $storageProvider.endpoints.api
+          | replace "{{ .Release.namespace }}" $namespace
+          | replace "{{ .Release.metadata.name }}" $release
+          | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      {{- $storageRegion := $storageProvider.region -}}
+      
+      {{- $hmsUri := .Context.trino.catalogs.metastore.uri 
+            | replace "{{ .Release.namespace }}" $namespace -}}
+      
+      {{- $polarisUri := .Context.trino.catalogs.polaris.url 
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
       image:
         repository: trinodb/trino
@@ -90,13 +123,13 @@ modules:
         bronze: |
           connector.name=hive
           hive.metastore.uri={{ $hmsUri }}
-          hive.metastore.username={{ .Context.trino.auth.basic.username }}
+          hive.metastore.username=trino
           hive.non-managed-table-writes-enabled=true
   
           fs.native-s3.enabled=true
-          s3.region=us-east-1
+          s3.region={{ $storageRegion }}
           s3.path-style-access=true
-          s3.endpoint={{ $s3ApiUrl }}
+          s3.endpoint={{ $storageApiUrl }}
           s3.aws-access-key=${ENV:S3_ACCESS_KEY}
           s3.aws-secret-key=${ENV:S3_SECRET_ACCESS}
         
@@ -104,41 +137,41 @@ modules:
           connector.name=iceberg
           iceberg.rest-catalog.warehouse=silver
           iceberg.catalog.type=rest
-          s3.endpoint={{ $s3ApiUrl }}
+          s3.endpoint={{ $storageApiUrl }}
           s3.aws-access-key=${ENV:S3_ACCESS_KEY}
           s3.aws-secret-key=${ENV:S3_SECRET_ACCESS}
           iceberg.rest-catalog.uri={{ $polarisUri }}/api/catalog
-          iceberg.rest-catalog.oauth2.server-uri={{ $keycloakIssuerUri }}/protocol/openid-connect/token
+          iceberg.rest-catalog.oauth2.server-uri={{ $oidcTokenUrl }}
           iceberg.rest-catalog.vended-credentials-enabled=true
           iceberg.rest-catalog.security=OAUTH2
           iceberg.rest-catalog.oauth2.credential=${ENV:TRINO_POLARIS_OAUTH_CLIENT_ID}:${ENV:TRINO_POLARIS_OAUTH_CLIENT_SECRET}
           iceberg.rest-catalog.oauth2.scope=profile
       
           fs.native-s3.enabled=true
-          s3.region={{ .Context.polaris.storage.s3.region }}
+          s3.region={{ $storageRegion }}
           s3.path-style-access=true
         
         gold: |
           connector.name=iceberg
           iceberg.rest-catalog.warehouse=gold
           iceberg.catalog.type=rest
-          s3.endpoint={{ $s3ApiUrl }}
+          s3.endpoint={{ $storageApiUrl }}
           s3.aws-access-key=${ENV:S3_ACCESS_KEY}
           s3.aws-secret-key=${ENV:S3_SECRET_ACCESS}
           iceberg.rest-catalog.uri={{ $polarisUri }}/api/catalog
-          iceberg.rest-catalog.oauth2.server-uri={{ $keycloakIssuerUri }}/protocol/openid-connect/token
+          iceberg.rest-catalog.oauth2.server-uri={{ $oidcTokenUrl }}
           iceberg.rest-catalog.vended-credentials-enabled=true
           iceberg.rest-catalog.security=OAUTH2
           iceberg.rest-catalog.oauth2.credential=${ENV:TRINO_POLARIS_OAUTH_CLIENT_ID}:${ENV:TRINO_POLARIS_OAUTH_CLIENT_SECRET}
           iceberg.rest-catalog.oauth2.scope=profile
       
           fs.native-s3.enabled=true
-          s3.region={{ .Context.polaris.storage.s3.region }}
+          s3.region={{ $storageRegion }}
           s3.path-style-access=true
       
       envFrom:
         - secretRef:
-            name: {{ .Context.trino.storage.s3.credentialsSecret.name }}
+            name: {{ .Context.trino.storage.credentialsSecret.name }}
       env:
         - name: OAUTH_CLIENT_ID
           valueFrom:
@@ -258,16 +291,16 @@ modules:
           # - JWT: non-interactive bearer token authentication for automation/service accounts
           #   such as scripts, jobs, or CI/CD using --access-token
           http-server.authentication.type=jwt,oauth2
-          http-server.authentication.oauth2.issuer={{ $keycloakIssuerUri }}
+          http-server.authentication.oauth2.issuer={{ $oidcIssuerUri }}
           http-server.authentication.oauth2.client-id=${ENV:OAUTH_CLIENT_ID}
           http-server.authentication.oauth2.client-secret=${ENV:OAUTH_CLIENT_SECRET}
-          http-server.authentication.oauth2.auth-url={{ $keycloakIssuerUri }}/protocol/openid-connect/auth
-          http-server.authentication.oauth2.token-url={{ $keycloakIssuerUri }}/protocol/openid-connect/token
+          http-server.authentication.oauth2.auth-url={{ $oidcAuthUrl }}
+          http-server.authentication.oauth2.token-url={{ $oidcTokenUrl }}
           http-server.authentication.oauth2.scopes=openid,email,profile,groups
           http-server.authentication.oauth2.principal-field=preferred_username
       
-          http-server.authentication.jwt.key-file={{ $keycloakIssuerUri }}/protocol/openid-connect/certs
-          http-server.authentication.jwt.required-issuer={{ $keycloakIssuerUri }}
+          http-server.authentication.jwt.key-file={{ $oidcJwksUrl }}
+          http-server.authentication.jwt.required-issuer={{ $oidcIssuerUri }}
           http-server.authentication.jwt.required-audience=account
           http-server.authentication.jwt.principal-field=client_id
       

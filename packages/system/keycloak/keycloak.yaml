@@ -45,6 +45,24 @@ modules:
         repository: registry-1.docker.io/bitnamicharts/keycloak
         tag: 24.4.11
     values: |
+
+      {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
+      {{- $release := printf "%v" .Release.metadata.name -}}
+      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      
+      {{- $databaseId := .Context.defaultIdp.settings.database.provider -}}
+      {{- $databaseProvider := (index .Context $databaseId).provider -}}
+      {{- $databaseHost := $databaseProvider.connection.host
+        | replace "{{ .Release.namespace }}" $namespace
+        | replace "{{ .Release.metadata.name }}" $release
+        | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      {{- $databasePort := printf "%v" $databaseProvider.connection.port -}}
+      
+      {{- $databaseJdbcUrl := $databaseProvider.connection.jdbc 
+        | replace "{{ host }}" $databaseHost
+        | replace "{{ port }}" $databasePort
+        | replace "{{ dbName }}" .Context.defaultIdp.settings.database.name -}}
+      
       global:
         security:
           allowInsecureImages: true
@@ -69,24 +87,24 @@ modules:
       postgresql:
         enabled: false
       externalDatabase:
-        host: {{ .Context.keycloak.database.host }}
-        port: {{ .Context.keycloak.database.port }}
-        database: {{ .Context.keycloak.database.name }}
+        host: "{{ $databaseHost }}"
+        port: "{{ $databasePort }}"
+        database: {{ .Context.defaultIdp.settings.database.name }}
       extraEnvVars:
       - name: KC_DB
         value: 'postgres'
       - name: KC_DB_URL
-        value: 'jdbc:postgresql://{{ .Context.keycloak.database.host }}:{{ .Context.keycloak.database.port }}/{{ .Context.keycloak.database.name }}'
+        value: '{{ $databaseJdbcUrl }}'
       - name: KC_DB_USERNAME
         valueFrom:
           secretKeyRef:
-            name: {{ .Context.keycloak.database.credentialsSecret.name }}
-            key: {{ .Context.keycloak.database.credentialsSecret.usernameKey }}
+            name: {{ .Context.defaultIdp.settings.database.credentialsSecret.name }}
+            key: {{ .Context.defaultIdp.settings.database.credentialsSecret.usernameKey }}
       - name: KC_DB_PASSWORD
         valueFrom:
           secretKeyRef:
-            name: {{ .Context.keycloak.database.credentialsSecret.name }}
-            key: {{ .Context.keycloak.database.credentialsSecret.passwordKey }}
+            name: {{ .Context.defaultIdp.settings.database.credentialsSecret.name }}
+            key: {{ .Context.defaultIdp.settings.database.credentialsSecret.passwordKey }}
       - name: KC_METRICS_ENABLED
         value: "false"
       - name: KC_TRACING_ENABLED
@@ -117,11 +135,11 @@ modules:
         configuration:
           master.json: |
             {
-              "realm": "{{ .Context.keycloak.realm.name }}",
+              "realm": "{{ .Context.defaultIdp.settings.realm.name }}",
               "enabled": true,
-              "displayName": "{{ .Context.keycloak.realm.displayName }}",
+              "displayName": "{{ .Context.defaultIdp.settings.realm.displayName }}",
               "users": [
-                {{- range $index, $user := .Context.keycloak.users }}
+                {{- range $index, $user := .Context.defaultIdp.settings.users }}
                 {{- if $index }},{{ end }}
                 {
                   "username": "{{ $user.username }}",
@@ -146,7 +164,7 @@ modules:
                 {{- end }}
               ],
               "groups": [
-                {{- range $index, $group := .Context.keycloak.groups }}
+                {{- range $index, $group := .Context.defaultIdp.settings.groups }}
                 {{- if $index }},{{ end }}
                 {
                   "name": "{{ $group.name }}"
@@ -155,7 +173,7 @@ modules:
               ],
               "roles": {
                 "realm": [
-                  {{- range $index, $role := .Context.keycloak.roles }}
+                  {{- range $index, $role := .Context.defaultIdp.settings.roles }}
                   {{- if $index }},{{ end }}
                   {
                     "name": "{{ $role.name }}"
@@ -164,7 +182,7 @@ modules:
                 ]
               },
               "clients": [
-                {{- range $index, $client := .Context.keycloak.clients }}
+                {{- range $index, $client := .Context.defaultIdp.settings.clients }}
                 {{- if $index }},{{ end }}
                 {
                   "clientId": "{{ $client.clientId }}",
@@ -208,7 +226,7 @@ modules:
                 {{- end }}
               ],
               "clientScopes": [
-                {{- range $index, $scope := .Context.keycloak.clientScopes }}
+                {{- range $index, $scope := .Context.defaultIdp.settings.clientScopes }}
                 {{- if $index }},{{ end }}
                 {
                   "id": "{{ $scope.name }}-scope-id",
@@ -244,7 +262,7 @@ modules:
                 }
                 {{- end }}
               ],
-              "accessTokenLifespan": {{ .Context.keycloak.realm.accessTokenLifespan }}
+              "accessTokenLifespan": {{ .Context.defaultIdp.settings.realm.accessTokenLifespan }}
             }
 roles:
   - identity

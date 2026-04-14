@@ -56,9 +56,47 @@ modules:
         repository: quay.io/okdp/charts/superset
         tag: 0.15.2-2.0
     values: |
-      {{- $supersetUrl := .Context.superset.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $supersetUrl := $supersetUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $supersetUrl := $supersetUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+
+      {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
+      {{- $release := printf "%v" .Release.metadata.name -}}
+      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      
+      {{- $databaseId := .Context.superset.database.provider -}}
+      {{- $databaseProvider := (index .Context $databaseId).provider -}}
+      {{- $databaseHost := $databaseProvider.connection.host
+        | replace "{{ .Release.namespace }}" $namespace
+        | replace "{{ .Release.metadata.name }}" $release
+        | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      {{- $databasePort := printf "%v" $databaseProvider.connection.port -}}
+      
+      {{- $examplesDatabaseId := .Context.superset.load_examples.database.provider -}}
+      {{- $examplesDatabaseProvider := (index .Context $examplesDatabaseId).provider -}}
+      {{- $examplesDatabaseHost := $examplesDatabaseProvider.connection.host
+        | replace "{{ .Release.namespace }}" $namespace
+        | replace "{{ .Release.metadata.name }}" $release
+        | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      {{- $examplesDatabasePort := printf "%v" $examplesDatabaseProvider.connection.port -}}
+      {{- $examplesDatabaseJdbcUrl := .Context.superset.load_examples.database.connection.jdbc
+        | replace "{{ host }}" $examplesDatabaseHost
+        | replace "{{ port }}" $examplesDatabasePort
+        | replace "{{ dbName }}" .Context.superset.load_examples.database.name 
+        | replace "{{ username }}" "$DB_EXAMPLES_USER"
+        | replace "{{ password }}" "$DB_EXAMPLES_PASS" -}}
+      
+      {{- $oidcId := .Context.superset.auth.oidc.provider -}}
+      {{- $oidcProvider := (index .Context $oidcId).provider -}}
+      
+      {{- $oidcName := $oidcProvider.name -}}
+      
+      {{- $oidcBaseUrl := $oidcProvider.baseUri
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $supersetUrl := .Context.superset.endpoint.url 
+          | replace "{{ .Release.namespace }}" $namespace
+          | replace "{{ .Release.metadata.name }}" $release
+          | replace "{{ .Context.ingress.suffix }}" $domain -}}
       {{- $supersetHost := regexReplaceAll "^https?://" $supersetUrl "" -}}
             
       okdp:
@@ -90,13 +128,13 @@ modules:
             }
           load_examples:
             enabled: {{ .Parameters.load_examples }}
-            jdbc_uri: {{ .Context.superset.load_examples.jdbc_uri }}
+            jdbc_uri: {{ $examplesDatabaseJdbcUrl }}
 
         # Oauth2 configuration
         oauth:
           enabled: {{ .Context.superset.auth.enabled }}
-          provider: "{{ .Context.superset.auth.oidc.provider }}"
-          base_url: {{ .Context.superset.auth.oidc.issuerUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}/protocol/openid-connect
+          provider: "{{ $oidcName }}"
+          base_url: {{ $oidcBaseUrl }}
           scope: "{{ .Context.superset.auth.oidc.scope }}"
           use_pkce: {{ .Context.superset.auth.oidc.usePKCE }}
           auth_registration: &auth_registration |
@@ -112,7 +150,7 @@ modules:
         trino:
           oauth:
             enabled: {{ .Context.superset.trino.auth.enabled }}
-            base_url: {{ .Context.superset.auth.oidc.issuerUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}/protocol/openid-connect
+            base_url: {{ $oidcBaseUrl }}
             scope: "{{ .Context.superset.trino.auth.oidc.scope }}"
       
       superset:
@@ -217,9 +255,9 @@ modules:
           # Examples
           {{- if .Parameters.load_examples }}
           - name: DB_EXAMPLES_HOST
-            value: {{ .Context.superset.load_examples.database.host }}
+            value: {{ $examplesDatabaseHost }}
           - name: DB_EXAMPLES_PORT
-            value: "{{ .Context.superset.load_examples.database.port }}"
+            value: "{{ $examplesDatabasePort }}"
           - name: DB_EXAMPLES_NAME
             value: {{ .Context.superset.load_examples.database.name }}
           - name: DB_EXAMPLES_USER
@@ -237,8 +275,8 @@ modules:
           # Connections to an existing database and cache
           connections:
             # -- PostgreSQL
-            db_host: "{{ .Context.superset.database.host }}"
-            db_port: "{{ .Context.superset.database.port }}"
+            db_host: "{{ $databaseHost }}"
+            db_port: "{{ $databasePort }}"
             db_name: {{ .Context.superset.database.name }}
             db_user: ~
             db_pass: ~

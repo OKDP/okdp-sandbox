@@ -33,6 +33,34 @@ modules:
         repository: quay.io/okdp/charts/okdp-server
         tag: 0.5.0
     values: |
+      
+      {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
+      {{- $release := printf "%v" .Release.metadata.name -}}
+      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      
+      {{- $oidcId := .Context.portal.auth.oidc.provider -}}
+      {{- $oidcProvider := (index .Context $oidcId).provider -}}
+            
+      {{- $oidcIssuerUri := $oidcProvider.issuerUri
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $oidcAuthUrl := $oidcProvider.endpoints.auth
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $oidcTokenUrl := $oidcProvider.endpoints.token
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $oidcJwksUrl := $oidcProvider.endpoints.jwks
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}      
+      
       extraEnvRaw:
         {{- if .Context.proxy.httpProxy }}
         - name: HTTP_PROXY
@@ -48,7 +76,7 @@ modules:
         {{- end }}
       configuration:
         clusters:
-          {{- range .Context.okdp.clusters }}
+          {{- range .Context.portal.clusters }}
           - id: {{ .id }}
             name: {{ .name | quote }}
             env: {{ .env }}
@@ -57,11 +85,11 @@ modules:
           {{- end }}
         
         catalog:
-          {{- range .Context.okdp.catalogs }}
+          {{- range .Context.portal.catalogs }}
           - id: {{ .id }}
             name: {{ .name | quote }}
             description: {{ .description | quote }}
-            repoUrl: {{ $.Context.okdp.packageRepository }}
+            repoUrl: {{ $.Context.portal.packageRepository }}
             packages:
               {{- range .packages }}
               - name: {{ .name }}
@@ -81,8 +109,8 @@ modules:
           authN:
             provider: ["bearer"]
             bearer:
-              issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
-              jwksURL: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/certs"
+              issuerUri: "{{ $oidcIssuerUri }}"
+              jwksURL: "{{ $oidcJwksUrl }}"
               rolesAttributePath: "realm_access.roles"
               groupsAttributePath: "realm_access.groups"
               skipIssuerCheck: false
@@ -128,8 +156,8 @@ modules:
               type: oauth2
               flows:
                 authorizationCode:
-                  authorizationUrl: https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/auth
-                  tokenUrl: https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/token
+                  authorizationUrl: "{{ $oidcAuthUrl }}"
+                  tokenUrl: "{{ $oidcTokenUrl }}"
                   scopes:
                     openid: OpenId Authentication
                     email: User Email

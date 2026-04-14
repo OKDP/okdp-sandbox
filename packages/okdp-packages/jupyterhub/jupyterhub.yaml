@@ -75,22 +75,48 @@ modules:
         chart: jupyterhub
         version: 4.3.3
     values: |
-      {{- $s3ApiUrl := .Context.jupyterHub.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
+      {{- $release := printf "%v" .Release.metadata.name -}}
+      {{- $domain := printf "%v" .Context.ingress.suffix -}}
       
-      {{- $jupyterUrl := .Context.jupyterHub.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $jupyterUrl := $jupyterUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $jupyterUrl := $jupyterUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $oidcId := .Context.jupyterHub.auth.oidc.provider -}}
+      {{- $oidcProvider := (index .Context $oidcId).provider -}}
+      
+      {{- $oidcName := $oidcProvider.name -}}
+      
+      {{- $oidcAuthUrl := $oidcProvider.endpoints.auth
+            | replace "{{ .Release.namespace }}"      $namespace
+            | replace "{{ .Release.metadata.name }}"  $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $oidcTokenUrl := $oidcProvider.endpoints.token
+            | replace "{{ .Release.namespace }}"      $namespace
+            | replace "{{ .Release.metadata.name }}"  $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $oidcUserInfoUrl := $oidcProvider.endpoints.userinfo
+            | replace "{{ .Release.namespace }}"      $namespace
+            | replace "{{ .Release.metadata.name }}"  $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $storageId := .Context.jupyterHub.storage.provider -}}
+      {{- $storageProvider := (index .Context $storageId).provider -}}
+      
+      {{- $storageApiUrl := $storageProvider.endpoints.api
+          | replace "{{ .Release.namespace }}" $namespace
+          | replace "{{ .Release.metadata.name }}" $release
+          | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $jupyterUrl := .Context.jupyterHub.endpoint.url 
+            | replace "{{ .Release.namespace }}"      $namespace
+            | replace "{{ .Release.metadata.name }}"  $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
       {{- $jupyterHost := regexReplaceAll "^https?://" $jupyterUrl "" -}}
       
-      {{- $keycloakAuthUrl := .Context.jupyterHub.auth.oidc.issuerUri | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $keycloakAuthUrl := $keycloakAuthUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $keycloakAuthUrl := $keycloakAuthUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
-      {{- $keycloakTokenAuthUrl := printf "%s/protocol/openid-connect" $keycloakAuthUrl -}}
+      {{- $polarisEndpointAPI := .Context.polaris.endpoint.url 
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release -}}
       
-      {{- $polarisEndpointAPI := .Context.polaris.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $polarisEndpointAPI := $polarisEndpointAPI | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
       {{- $polarisEndpointAPIUrl := $polarisEndpointAPI | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
       {{- $polarisEndpointAPICatalogUrl := printf "%s/api/catalog" $polarisEndpointAPIUrl -}}
       
@@ -135,11 +161,11 @@ modules:
             auth_refresh_age: 300
             refresh_pre_spawn: true
           GenericOAuthenticator:
-            login_service: keycloak
+            login_service: {{ $oidcName }}
             oauth_callback_url: {{ $jupyterUrl }}/hub/oauth_callback
-            authorize_url: {{ $keycloakTokenAuthUrl }}/auth
-            token_url: {{ $keycloakTokenAuthUrl }}/token
-            userdata_url: {{ $keycloakTokenAuthUrl }}/userinfo
+            authorize_url: {{ $oidcAuthUrl }}
+            token_url: {{ $oidcTokenUrl }}
+            userdata_url: {{ $oidcUserInfoUrl }}
             validate_server_cert: false
             claim_groups_key: groups
             manage_groups: true
@@ -230,27 +256,27 @@ modules:
           TRUSTSTORE_PASSWORD: ""
       
           # https://github.com/jpmorganchase/jupyter-fs
-          FS_S3_ENDPOINT_URL: "{{ $s3ApiUrl }}"
+          FS_S3_ENDPOINT_URL: "{{ $storageApiUrl }}"
           FS_S3_ACCESS_KEY:
             valueFrom:
               secretKeyRef:
-                name: "{{ .Context.jupyterHub.storage.s3.credentialsSecret.name }}"
-                key: "{{ .Context.jupyterHub.storage.s3.credentialsSecret.accessKeyKey }}"
+                name: "{{ .Context.jupyterHub.storage.credentialsSecret.name }}"
+                key: "{{ .Context.jupyterHub.storage.credentialsSecret.accessKeyKey }}"
           FS_S3_SECRET_KEY:
             valueFrom:
               secretKeyRef:
-                name: "{{ .Context.jupyterHub.storage.s3.credentialsSecret.name }}"
-                key: "{{ .Context.jupyterHub.storage.s3.credentialsSecret.secretKeyKey }}"
+                name: "{{ .Context.jupyterHub.storage.credentialsSecret.name }}"
+                key: "{{ .Context.jupyterHub.storage.credentialsSecret.secretKeyKey }}"
           EXAMPLES_S3_ACCESS_KEY:
             valueFrom:
               secretKeyRef:
-                name: "{{ .Context.examples.storage.s3.credentialsSecret.name }}"
-                key: "{{ .Context.examples.storage.s3.credentialsSecret.accessKeyKey }}"
+                name: "{{ .Context.examples.storage.credentialsSecret.name }}"
+                key: "{{ .Context.examples.storage.credentialsSecret.accessKeyKey }}"
           EXAMPLES_S3_SECRET_KEY:
             valueFrom:
               secretKeyRef:
-                name: "{{ .Context.examples.storage.s3.credentialsSecret.name  }}"
-                key: "{{ .Context.examples.storage.s3.credentialsSecret.secretKeyKey }}"
+                name: "{{ .Context.examples.storage.credentialsSecret.name  }}"
+                key: "{{ .Context.examples.storage.credentialsSecret.secretKeyKey }}"
       
           # Notebook pod IP used by Spark driver (spark.driver.host) in client mode
           POD_IP:
@@ -467,7 +493,7 @@ modules:
                   --conf spark.executorEnv.SPARK_USER=$(NB_USER)
                   --conf spark.kubernetes.container.image=$(SPARK_EXECUTOR_IMAGE)
                   --conf spark.kubernetes.authenticate.serviceAccountName={{ .Context.sparkRBAC.serviceAccount.name }}
-                  --conf spark.kubernetes.namespace={{ .Release.spec.targetNamespace }}
+                  --conf spark.kubernetes.namespace={{ $namespace }}
                   --conf spark.eventLog.enabled=true
                   --conf spark.eventLog.dir={{ .Parameters.sparkEventsLogDir }}
                   --conf spark.history.fs.logDirectory={{ .Parameters.sparkEventsLogDir }}
@@ -476,7 +502,7 @@ modules:
                   --conf spark.kubernetes.executor.secrets.certs-bundle=/cacerts
                   --conf "spark.driver.extraJavaOptions=-Djavax.net.ssl.trustStore=/cacerts/bundle.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword="
                   --conf "spark.executor.extraJavaOptions=-Djavax.net.ssl.trustStore=/cacerts/bundle.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword="
-                  --conf "spark.hadoop.fs.s3a.endpoint={{ $s3ApiUrl }}"
+                  --conf "spark.hadoop.fs.s3a.endpoint={{ $storageApiUrl }}"
                   --conf "spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem"
                   --conf "spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
                   --conf "spark.hadoop.fs.s3a.access.key=$(EXAMPLES_S3_ACCESS_KEY)"
@@ -492,7 +518,7 @@ modules:
                   --conf "spark.sql.catalog.{{ $catalog.name }}=org.apache.iceberg.spark.SparkCatalog"
                   --conf "spark.sql.catalog.{{ $catalog.name }}.warehouse={{ $catalog.name }}"
                   --conf "spark.sql.catalog.{{ $catalog.name }}.uri={{ $polarisEndpointAPICatalogUrl }}"
-                  --conf "spark.sql.catalog.{{ $catalog.name }}.oauth2-server-uri={{ $keycloakTokenAuthUrl }}/token"
+                  --conf "spark.sql.catalog.{{ $catalog.name }}.oauth2-server-uri={{ $oidcTokenUrl }}"
                   --conf "spark.sql.catalog.{{ $catalog.name }}.header.Polaris-Realm={{ $realm.name }}"
                   --conf "spark.sql.catalog.{{ $catalog.name }}.scope=profile"
                   --conf "spark.sql.catalog.{{ $catalog.name }}.header.X-Iceberg-Access-Delegation=vended-credentials"

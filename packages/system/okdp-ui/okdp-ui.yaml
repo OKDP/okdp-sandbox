@@ -32,6 +32,19 @@ modules:
         repository: quay.io/okdp/charts/okdp-ui
         tag: 0.4.1
     values: |
+      
+      {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
+      {{- $release := printf "%v" .Release.metadata.name -}}
+      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      
+      {{- $oidcId := .Context.portal.auth.oidc.provider -}}
+      {{- $oidcProvider := (index .Context $oidcId).provider -}}
+      
+      {{- $oidcIssuerUri := $oidcProvider.issuerUri
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}} 
+      
       replicaCount: 1
 
       image:
@@ -43,7 +56,7 @@ modules:
         auth:
           provider: oauth2
           oauth2:
-            issuer: https://keycloak.{{ .Context.ingress.suffix }}/realms/master
+            issuer: {{ $oidcIssuerUri }}
             redirectUri: https://okdp-ui.{{ .Context.ingress.suffix }}/index.html
             silentRefreshRedirectUri: https://okdp-ui.{{ .Context.ingress.suffix }}/silent-refresh.html
             clientId: okdp-ui
@@ -57,15 +70,15 @@ modules:
           mode: kubernetes
         catalogs:
           services:
-            {{ toYaml .Context.okdp.services | nindent 6 }}
+            {{ toYaml .Context.portal.services | nindent 6 }}
           kad:
             - all
         
         kadCatalogsInfo:
-          {{ toYaml .Context.okdp.kadCatalogsInfo | nindent 4 }}
+          {{ toYaml .Context.portal.kadCatalogsInfo | nindent 4 }}
         
         kadServicesInfo:
-          {{ toYaml .Context.okdp.kadServicesInfo | nindent 4 }}
+          {{ toYaml .Context.portal.kadServicesInfo | nindent 4 }}
       
       service:
         type: ClusterIP

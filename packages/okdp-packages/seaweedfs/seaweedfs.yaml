@@ -23,7 +23,10 @@ description: |
 usage:
   text: |
     SeaweedFS is a simple and highly scalable distributed file system.
-    Access the console at {{ .Context.seaweedfs.endpoint.filerUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
+    Access the console at {{ .Context.defaultStorage.provider.endpoints.console 
+       | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace 
+       | replace "{{ .Release.metadata.name }}" .Release.metadata.name 
+       | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
 schema:
   parameters:
     properties:
@@ -57,6 +60,17 @@ modules:
       local:
         path: ./auth-config
     values: |
+      {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
+      {{- $release := printf "%v" .Release.metadata.name -}}
+      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      
+      {{- $databaseId := .Context.defaultStorage.settings.filer.database.provider -}}
+      {{- $databaseProvider := (index .Context $databaseId).provider -}}
+      {{- $databaseHost := $databaseProvider.connection.host
+        | replace "{{ .Release.namespace }}" $namespace
+        | replace "{{ .Release.metadata.name }}" $release
+        | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      {{- $databasePort := printf "%v" $databaseProvider.connection.port -}}  
 
       iamConfig:
         sts:
@@ -78,7 +92,7 @@ modules:
         # -- IAM roles to define in the SeaweedFS IAM config.
         roles:
           - roleName: "S3WriteRole"
-            roleArn: "{{ .Context.seaweedfs.s3.sts.roleArn }}"
+            roleArn: "{{ .Context.defaultStorage.settings.s3.sts.roleArn }}"
             attachedPolicies: ["S3WritePolicy"]
             trustPolicy:
               Version: "2012-10-17"
@@ -91,51 +105,51 @@ modules:
       
       s3Config:
         enabled: true
-        secretName: {{ .Context.seaweedfs.s3.s3_secret }}
+        secretName: {{ .Context.defaultStorage.settings.s3.s3_secret }}
         identities:
-          - name: {{ .Context.seaweedfs.s3.providerConfig.seaweedfs.identity }}
+          - name: {{ .Context.defaultStorage.settings.s3.advanced.identities.seaweedfs.identity }}
             credentialsSecret:
-              name: {{ .Context.seaweedfs.s3.credentialsSecret.name }}
-              accessKeyKey: {{ .Context.seaweedfs.s3.credentialsSecret.accessKeyKey }}
-              secretKeyKey: {{ .Context.seaweedfs.s3.credentialsSecret.secretKeyKey }}
-            actions: {{ .Context.seaweedfs.s3.providerConfig.seaweedfs.actions | default list | toJson }}
-          - name: {{ .Context.hiveMetastore.storage.s3.providerConfig.seaweedfs.identity }}
+              name: {{ .Context.defaultStorage.settings.s3.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.defaultStorage.settings.s3.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.defaultStorage.settings.s3.credentialsSecret.secretKeyKey }}
+            actions: {{ .Context.defaultStorage.settings.s3.advanced.identities.seaweedfs.actions | default list | toJson }}
+          - name: {{ .Context.defaultStorage.settings.s3.advanced.identities.hiveMetastore.identity }}
             credentialsSecret:
-              name: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.name }}
-              accessKeyKey: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.accessKeyKey }}
-              secretKeyKey: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.secretKeyKey }}
-            actions: {{ .Context.hiveMetastore.storage.s3.providerConfig.seaweedfs.actions | default list | toJson }}
-          - name: {{ .Context.trino.storage.s3.providerConfig.seaweedfs.identity }}
+              name: {{ .Context.hiveMetastore.storage.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.hiveMetastore.storage.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.hiveMetastore.storage.credentialsSecret.secretKeyKey }}
+            actions: {{ .Context.defaultStorage.settings.s3.advanced.identities.hiveMetastore.actions | default list | toJson }}
+          - name: {{ .Context.defaultStorage.settings.s3.advanced.identities.trino.identity }}
             credentialsSecret:
-              name: {{ .Context.trino.storage.s3.credentialsSecret.name }}
-              accessKeyKey: {{ .Context.trino.storage.s3.credentialsSecret.accessKeyKey }}
-              secretKeyKey: {{ .Context.trino.storage.s3.credentialsSecret.secretKeyKey }}
-            actions: {{ .Context.trino.storage.s3.providerConfig.seaweedfs.actions | default list | toJson }}
-          - name: {{ .Context.jupyterHub.storage.s3.providerConfig.seaweedfs.identity }}
+              name: {{ .Context.trino.storage.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.trino.storage.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.trino.storage.credentialsSecret.secretKeyKey }}
+            actions: {{ .Context.defaultStorage.settings.s3.advanced.identities.trino.actions | default list | toJson }}
+          - name: {{ .Context.defaultStorage.settings.s3.advanced.identities.jupyterHub.identity }}
             credentialsSecret:
-              name: {{ .Context.jupyterHub.storage.s3.credentialsSecret.name }}
-              accessKeyKey: {{ .Context.jupyterHub.storage.s3.credentialsSecret.accessKeyKey }}
-              secretKeyKey: {{ .Context.jupyterHub.storage.s3.credentialsSecret.secretKeyKey }}
-            actions: {{ .Context.jupyterHub.storage.s3.providerConfig.seaweedfs.actions | default list | toJson }}
-          - name: {{ .Context.sparkHistory.storage.s3.providerConfig.seaweedfs.identity }}
+              name: {{ .Context.jupyterHub.storage.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.jupyterHub.storage.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.jupyterHub.storage.credentialsSecret.secretKeyKey }}
+            actions: {{ .Context.defaultStorage.settings.s3.advanced.identities.jupyterHub.actions | default list | toJson }}
+          - name: {{ .Context.defaultStorage.settings.s3.advanced.identities.sparkHistory.identity }}
             credentialsSecret:
-              name: {{ .Context.sparkHistory.storage.s3.credentialsSecret.name }}
-              accessKeyKey: {{ .Context.sparkHistory.storage.s3.credentialsSecret.accessKeyKey }}
-              secretKeyKey: {{ .Context.sparkHistory.storage.s3.credentialsSecret.secretKeyKey }}
-            actions: {{ .Context.sparkHistory.storage.s3.providerConfig.seaweedfs.actions | default list | toJson }}
-          - name: {{ .Context.examples.storage.s3.providerConfig.seaweedfs.identity }}
+              name: {{ .Context.sparkHistory.storage.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.sparkHistory.storage.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.sparkHistory.storage.credentialsSecret.secretKeyKey }}
+            actions: {{ .Context.defaultStorage.settings.s3.advanced.identities.sparkHistory.actions | default list | toJson }}
+          - name: {{ .Context.defaultStorage.settings.s3.advanced.identities.examples.identity }}
             credentialsSecret:
-              name: {{ .Context.examples.storage.s3.credentialsSecret.name }}
-              accessKeyKey: {{ .Context.examples.storage.s3.credentialsSecret.accessKeyKey }}
-              secretKeyKey: {{ .Context.examples.storage.s3.credentialsSecret.secretKeyKey }}
-            actions: {{ .Context.examples.storage.s3.providerConfig.seaweedfs.actions | default list | toJson }}
+              name: {{ .Context.examples.storage.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.examples.storage.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.examples.storage.credentialsSecret.secretKeyKey }}
+            actions: {{ .Context.defaultStorage.settings.s3.advanced.identities.examples.actions | default list | toJson }}
           # The Polaris SeaweedFS identity for STS
-          - name: {{ .Context.polaris.storage.s3.providerConfig.seaweedfs.identity }}
+          - name: {{ .Context.defaultStorage.settings.s3.advanced.identities.polaris.identity }}
             credentialsSecret:
-              name: {{ .Context.polaris.storage.s3.credentialsSecret.name }}
-              accessKeyKey: {{ .Context.polaris.storage.s3.credentialsSecret.accessKeyKey }}
-              secretKeyKey: {{ .Context.polaris.storage.s3.credentialsSecret.secretKeyKey }}
-            actions: {{ .Context.polaris.storage.s3.providerConfig.seaweedfs.actions | default list | toJson }}
+              name: {{ .Context.polaris.storage.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.polaris.storage.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.polaris.storage.credentialsSecret.secretKeyKey }}
+            actions: {{ .Context.defaultStorage.settings.s3.advanced.identities.polaris.actions | default list | toJson }}
 
       filer:
         auth:
@@ -155,12 +169,19 @@ modules:
         chart: seaweedfs
         version: 4.17.0
     values: |
-      {{- $seaweedfsS3Url := .Context.seaweedfs.endpoint.s3Url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $seaweedfsS3Url := $seaweedfsS3Url | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $seaweedfsS3Url := $seaweedfsS3Url | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
-      {{- $seaweedfsFilerUrl := .Context.seaweedfs.endpoint.filerUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $seaweedfsFilerUrl := $seaweedfsFilerUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $seaweedfsFilerUrl := $seaweedfsFilerUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
+      {{- $release := printf "%v" .Release.metadata.name -}}
+      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      
+      {{- $seaweedfsS3Url := .Context.defaultStorage.provider.endpoints.api 
+         | replace "{{ .Release.namespace }}" $namespace
+         | replace "{{ .Release.metadata.name }}" $release
+         | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $seaweedfsFilerUrl := .Context.defaultStorage.provider.endpoints.console 
+         | replace "{{ .Release.namespace }}" $namespace
+         | replace "{{ .Release.metadata.name }}" $release
+         | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
       {{- $seaweedfsS3Host := regexReplaceAll "^https?://" $seaweedfsS3Url "" -}}
       {{- $seaweedfsFilerHost := regexReplaceAll "^https?://" $seaweedfsFilerUrl "" -}}
@@ -228,14 +249,14 @@ modules:
                 - {{ $seaweedfsFilerHost }}
       
       s3:
-        enabled: {{ .Context.seaweedfs.s3.enabled }}
+        enabled: {{ .Context.defaultStorage.settings.s3.enabled }}
         enableAuth: true
-        existingConfigSecret: {{ .Context.seaweedfs.s3.s3_secret }}
+        existingConfigSecret: {{ .Context.defaultStorage.settings.s3.s3_secret }}
         createBuckets:
-          - name: {{ .Context.hiveMetastore.storage.s3.bucket }}
-            anonymousRead: {{ .Context.hiveMetastore.storage.s3.bucketAnonymousRead }}
-          - name: {{ .Context.sparkHistory.storage.s3.bucket }}
-            anonymousRead: {{ .Context.sparkHistory.storage.s3.bucketAnonymousRead }}
+          - name: {{ .Context.hiveMetastore.storage.bucket }}
+            anonymousRead: {{ .Context.defaultStorage.settings.s3.bucketAnonymousRead }}
+          - name: {{ .Context.sparkHistory.storage.bucket }}
+            anonymousRead: {{ .Context.defaultStorage.settings.s3.bucketAnonymousRead }}
       
         extraVolumes: |
           - name: auth-config
@@ -246,7 +267,7 @@ modules:
           - name: auth-config
             mountPath: /etc/seaweed/iam
             readOnly: true
-        {{- if .Context.seaweedfs.s3.sts.enabled }}
+        {{- if .Context.defaultStorage.settings.s3.sts.enabled }}
         extraArgs:
           - "-iam.config=/etc/seaweed/iam/iam.json"
         {{- end }}

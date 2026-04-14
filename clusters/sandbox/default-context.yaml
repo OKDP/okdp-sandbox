@@ -32,12 +32,16 @@ spec:
     certificateIssuers:
       selfSigned:
         name: default-issuer
-        
+
     storageClass:
       data: standard
       workspace: standard
 
-    okdp:
+    portal:
+      auth:
+        enabled: true
+        oidc:
+          provider: defaultIdp
       packageRepository: quay.io/okdp/sandbox-packages-v0.2
       clusters:
         - id: sandbox
@@ -130,30 +134,20 @@ spec:
 
     hiveMetastore:
       database:
-        type: postgresql
-        driver: org.postgresql.Driver
-        host: postgresql-instance-rw.cnpg-system.svc.cluster.local
-        port: 5432
+        provider: defaultDatabaseServer
         name: hms
         credentialsSecret:
           name: creds-hive-metastore-db
           usernameKey: username
           passwordKey: password
       storage:
-        provider: s3
-        s3:
-          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-          bucket: hive
-          bucketAnonymousRead: true
-          warehouseDir: hive-warehouse/
-          credentialsSecret:
-            name: creds-hive-metastore-s3
-            accessKeyKey: accessKey
-            secretKeyKey: secretKey
-          providerConfig:
-            seaweedfs:
-              identity: hiveMetastore
-              actions: [ Read, Write, List ]
+        provider: defaultStorage
+        bucket: hive
+        warehouseDir: hive-warehouse/
+        credentialsSecret:
+          name: creds-hive-metastore-s3
+          accessKeyKey: accessKey
+          secretKeyKey: secretKey
       endpoint:
         url: thrift://hive-metastore.{{ .Release.namespace }}.svc.cluster.local:9083
 
@@ -170,33 +164,19 @@ spec:
               clientSecretKey: client_secret
       auth:
         enabled: true
-        method: oidc
-        basic:
-          username: trino
-          #credentialsSecret:
-          #  name: creds-trino
-          # ....
         oidc:
-          provider: keycloak
-          issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+          provider: defaultIdp
           scope: "openid profile email groups"
-          usePKCE: true
           credentialsSecret:
             name: creds-trino-oauth2
             clientIdKey: client_id
             clientSecretKey: client_secret
       storage:
-        provider: s3
-        s3:
-          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-          credentialsSecret:
-            name: creds-trino-s3
-            accessKeyKey: S3_ACCESS_KEY
-            secretKeyKey: S3_SECRET_ACCESS
-          providerConfig:
-            seaweedfs:
-              identity: trino
-              actions: [ Read, Write, List, Admin ]
+        provider: defaultStorage
+        credentialsSecret:
+          name: creds-trino-s3
+          accessKeyKey: S3_ACCESS_KEY
+          secretKeyKey: S3_SECRET_ACCESS
       advanced:
         config:
           security:
@@ -209,9 +189,8 @@ spec:
 
     superset:
       database:
+        provider: defaultDatabaseServer
         name: superset
-        host: postgresql-instance-rw.cnpg-system.svc.cluster.local
-        port: 5432
         credentialsSecret:
           name: creds-superset-db
           usernameKey: username
@@ -221,11 +200,11 @@ spec:
         name: creds-superset-secret-key
         key: superset_secret_key
       load_examples:
-        jdbc_uri: "postgresql+psycopg2://$DB_EXAMPLES_USER:$DB_EXAMPLES_PASS@$DB_EXAMPLES_HOST:$DB_EXAMPLES_PORT/$DB_EXAMPLES_NAME?options=-csearch_path%3Dmain"
         database:
+          provider: defaultDatabaseServer
+          connection:
+            jdbc: "postgresql+psycopg2://{{ username }}:{{ password }}@{{ host }}:{{ port }}/{{ dbName }}?options=-csearch_path%3Dmain"
           name: superset-examples
-          host: postgresql-instance-rw.cnpg-system.svc.cluster.local
-          port: 5432
           credentialsSecret:
             name: creds-superset-examples-db
             usernameKey: username
@@ -239,10 +218,8 @@ spec:
           passwordKey: password
       auth:
         enabled: true
-        method: oidc
         oidc:
-          provider: keycloak
-          issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}:443/realms/master"
+          provider: defaultIdp
           scope: "openid profile email groups"
           usePKCE: true
           credentialsSecret:
@@ -252,9 +229,8 @@ spec:
       trino:
         auth:
           enabled: true
-          method: oidc
           oidc:
-            issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}:443/realms/master"
+            provider: defaultIdp
             scope: "openid profile email groups"
             credentialsSecret:
               name: creds-superset-oauth2-trino
@@ -324,23 +300,15 @@ spec:
 
     jupyterHub:
       storage:
-        provider: s3
-        s3:
-          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-          credentialsSecret:
-            name: creds-jupyterhub-s3
-            accessKeyKey: S3_ACCESS_KEY
-            secretKeyKey: S3_SECRET_KEY
-          providerConfig:
-            seaweedfs:
-              identity: jupyterhub
-              actions: [ Read, Write, List ]
+        provider: defaultStorage
+        credentialsSecret:
+          name: creds-jupyterhub-s3
+          accessKeyKey: S3_ACCESS_KEY
+          secretKeyKey: S3_SECRET_KEY
       auth:
         enabled: true
-        method: oidc
         oidc:
-          provider: keycloak
-          issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+          provider: defaultIdp
           credentialsSecret:
             name: creds-jupyterhub-oauth2
             clientIdKey: client_id
@@ -360,25 +328,16 @@ spec:
     sparkHistory:
       eventsLogDir: s3a://spark-events/event-logs/
       storage:
-        provider: s3
-        s3:
-          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-          bucket: spark-events
-          bucketAnonymousRead: true
-          credentialsSecret:
-            name: creds-spark-history-s3
-            accessKeyKey: accessKey
-            secretKeyKey: secretKey
-          providerConfig:
-            seaweedfs:
-              identity: sparkHistory
-              actions: [ Read, Write, List ]
+        provider: defaultStorage
+        bucket: spark-events
+        credentialsSecret:
+          name: creds-spark-history-s3
+          accessKeyKey: accessKey
+          secretKeyKey: secretKey
       auth:
         enabled: true
-        method: oidc
         oidc:
-          provider: keycloak
-          issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+          provider: defaultIdp
           scope: "openid+profile+email+offline_access+groups"
           usePKCE: true
           credentialsSecret:
@@ -428,40 +387,25 @@ spec:
                 - service_admin
                 - catalog_admin
       database:
+        provider: defaultDatabaseServer
         name: polaris
-        host: postgresql-instance-rw.cnpg-system.svc.cluster.local
-        port: 5432
         credentialsSecret:
           name: creds-polaris-db
           usernameKey: username
           passwordKey: password
       storage:
-        provider: s3
-        s3:
-          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-          region: dummy
-          # The access key is used for STS interactions between Polaris and S3 (sts:AssumeRole)
-          # + catalog-side Iceberg metadata ops
-          # The Polaris SeaweedFS identity for STS
-          credentialsSecret:
-            name: creds-polaris-s3
-            accessKeyKey: accessKey
-            secretKeyKey: secretKey
-          providerConfig:
-            seaweedfs:
-              # SeaweedFS matches the accessKey above in the SigV4 request to the configured S3 credentials
-              # under this identity. The identity name can be anything and has importance for debugging issues
-              identity: polaris
-              # SeaweedFS expects an admin identity to authorize it for sts:AssumeRole.
-              # response: code=AccessDenied, type=Sender, message=user
-              # polaris is not authorized to assume role arn:aws:iam::000000000000:role/S3WriteRole
-              actions: [ Read, Write, List, Admin ]
+        provider: defaultStorage
+        # The access key is used for STS interactions between Polaris and S3 (sts:AssumeRole)
+        # + catalog-side Iceberg metadata ops
+        # The Polaris SeaweedFS identity for STS
+        credentialsSecret:
+          name: creds-polaris-s3
+          accessKeyKey: accessKey
+          secretKeyKey: secretKey
       auth:
         enabled: true
-        method: oidc
         oidc:
-          provider: keycloak
-          issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+          provider: defaultIdp
           scope: "openid+profile+email+offline_access+groups"
           credentialsSecret:
             name: creds-polaris-oauth2
@@ -536,10 +480,8 @@ spec:
       apiUrl: https://polaris-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
       auth:
         enabled: true
-        method: oidc
         oidc:
-          provider: keycloak
-          issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+          provider: defaultIdp
           scope: "openid profile email roles offline_access"
           # Public OIDC client with PKCE enabled
           clientId: polaris-console
@@ -558,25 +500,17 @@ spec:
           storageUri: s3://gold
 
       storage:
-        provider: s3
-        s3:
-          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-          credentialsSecret:
-            name: creds-examples-s3
-            accessKeyKey: S3_ACCESS_KEY
-            secretKeyKey: S3_SECRET_KEY
-          providerConfig:
-            seaweedfs:
-              identity: examples
-              actions: [ Admin, Read, Write, List ]
+        provider: defaultStorage
+        credentialsSecret:
+          name: creds-examples-s3
+          accessKeyKey: S3_ACCESS_KEY
+          secretKeyKey: S3_SECRET_KEY
       trino:
         url: https://trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
         auth:
           enabled: true
-          method: oidc
           oidc:
-            provider: keycloak
-            issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+            provider: defaultIdp
             credentialsSecret:
               name: creds-examples-oauth2-trino
               clientIdKey: client_id
@@ -599,7 +533,7 @@ spec:
                   pathStyleAccess: true
                   stsUnavailable: false
                   region: "dummy"
-                  roleArn: "$POLARIS_STS_ROLE_ARN"
+                  roleArn: "arn:aws:iam::000000000000:role/S3WriteRole"
 
               - name: gold
                 type: INTERNAL
@@ -615,7 +549,7 @@ spec:
                   pathStyleAccess: true
                   stsUnavailable: false
                   region: "dummy"
-                  roleArn: "$POLARIS_STS_ROLE_ARN"
+                  roleArn: "arn:aws:iam::000000000000:role/S3WriteRole"
             catalogRoles:
               # Polaris example roles:
               # - Catalog readers: read-only access to tables in the catalog
@@ -778,339 +712,412 @@ spec:
                   - service_admin
                   - catalog_admin
 
-    #### OKDP External Dependencies #################################
-    ###### Pre-provision the environment for the Sandbox ############
-    #################################################################
-    # Create all the kubernetes secrets required by the services
-    # The provisioning is local, but you can provide them using external secrets or vault provider
-    # In order to have a predictable behaviour on re-deployment, we provision the secrets statically
-    localSecretsProvider:
-      info: |
-        Currently, the secrets are created inside the package `local-secrets-provider.yaml` itself.
-        We add an ability for KuboCD to reuse/inherit (substitution) the context variables later so that we can list them here.
+    defaultStorage:
+      provider:
+        type: s3
+        name: SeaweedFS
+        region: dummy
+        endpoints:
+          api: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          sts: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          console: https://seaweedfs-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+      # implementation-specific
+      settings:
+        filer:
+          database:
+            provider: defaultDatabaseServer
+            name: seaweedfs
+            credentialsSecret:
+              name: creds-seaweedfs-db
+              usernameKey: username
+              passwordKey: password
+        s3:
+          enabled: true
+          s3_secret: creds-seaweedfs-identities
+          bucketAnonymousRead: true
+          credentialsSecret:
+              name: creds-seaweedfs-s3
+              accessKeyKey: accessKey
+              secretKeyKey: secretKey
 
-    keycloak:
-      database:
+          sts:
+            enabled: true
+            roleArn: arn:aws:iam::000000000000:role/S3WriteRole
+
+          advanced:
+            identities:
+              hiveMetastore:
+                identity: hiveMetastore
+                actions: [ Read, Write, List ]
+              trino:
+                identity: trino
+                actions: [ Read, Write, List, Admin ]
+              jupyterHub:
+                identity: jupyterHub
+                actions: [ Read, Write, List ]
+              sparkHistory:
+                identity: sparkHistory
+                actions: [ Read, Write, List ]
+              # SeaweedFS matches the accessKey above in the SigV4 request to the configured S3 credentials
+              # under this identity. The identity name can be anything and has importance for debugging issues
+              # SeaweedFS expects an admin identity to authorize it for sts:AssumeRole.
+              # response: code=AccessDenied, type=Sender, message=user
+              # polaris is not authorized to assume role arn:aws:iam::000000000000:role/S3WriteRole
+              polaris:
+                identity: polaris
+                actions: [ Read, Write, List, Admin ]
+              examples:
+                identity: examples
+                actions: [ Admin, Read, Write, List ]
+              seaweedfs:
+                identity: seaweedfs
+                actions: [ Admin ]
+
+        info: |
+          We add an ability for KuboCD to reuse/inherit (variable substitution) later.
+          All the required access keys for the services are provisioned in the package seaweedfs.yaml itself.
+
+    defaultIdp:
+      provider:
+        type: oidc
         name: keycloak
-        host: postgresql-instance-rw.cnpg-system.svc.cluster.local
-        port: 5432
-        credentialsSecret:
-          name: creds-keycloak-db
-          usernameKey: username
-          passwordKey: password
-      realm:
-        name: master
-        displayName: "OKDP internal Realm"
-        accessTokenLifespan: 3600
-      users:
-        - username: bob
-          email: bob@okdp.io
-          firstName: bob
-          lastName: bob
-          password: bob
-          roles: [data_engineer]
-        - username: mark
-          email: mark@okdp.io
-          firstName: mark
-          lastName: mark
-          password: mark
-          roles: [data_scientist]
-        - username: nina
-          email: nina@okdp.io
-          firstName: nina
-          lastName: nina
-          password: nina
-          roles: [business_analyst]
-        - username: grace
-          email: grace@okdp.io
-          firstName: grace
-          lastName: grace
-          password: grace
-          roles: [data_steward]
-        - username: alice
-          email: alice@okdp.io
-          firstName: alice
-          lastName: alice
-          password: alice
-          roles: [platform_admin, polaris_service_admin, polaris_catalog_admin]
-        - username: eve
-          email: eve@okdp.io
-          firstName: eve
-          lastName: eve
-          password: eve
-          roles: [auditor]
-        - username: adm
-          email: adm@okdp.io
-          firstName: adm
-          lastName: adm
-          password: adm
-          roles: [ platform_admin, polaris_service_admin, polaris_catalog_admin ]
-        - username: svc-spark-etl-polaris-writer
-          serviceAccountClientId: svc-spark-etl-polaris-writer
-          roles: [ data_engineer, data_scientist, business_analyst ]
-        # Add the polaris service account user
-        # Here the same service account has service_admin and catalog_admin in Polaris
-        # The service account behaves like a super admin, you can split as your convenience
-        - username: svc-polaris-api-admin
-          serviceAccountClientId: svc-polaris-api-admin
-          roles: [ polaris_service_admin, polaris_catalog_admin ]
-        - username: svc-trino-polaris-writer
-          serviceAccountClientId: svc-trino-polaris-writer
-          roles: [ platform_admin, polaris_service_admin, polaris_catalog_admin ]
-      roles:
-        - name: data_engineer
-        - name: data_scientist
-        - name: business_analyst
-        - name: platform_admin
-        - name: data_steward
-        - name: auditor
-        # Add the polaris management roles
-        # These roles can be named anyway,
-        # but they should map to polaris management roles (service_admin, and catalog_admin)
-        - name: polaris_service_admin
-        - name: polaris_catalog_admin
-      clients:
-        - clientId: okdp-server
-          name: okdp-server
-          publicClient: true
-          redirectUris:
-            - "https://okdp-server.{{ .Context.ingress.suffix }}/swagger/oauth2-redirect.html"
-          webOrigins:
-            - "https://okdp-server.{{ .Context.ingress.suffix }}"
-        - clientId: okdp-ui
-          name: okdp-ui
-          publicClient: true
-          redirectUris:
-            - "https://okdp-ui.{{ .Context.ingress.suffix }}/index.html"
-            - "https://okdp-ui.{{ .Context.ingress.suffix }}/silent-refresh.html"
-          webOrigins:
-            - "https://okdp-ui.{{ .Context.ingress.suffix }}"
-        - clientId: polaris-console
-          name: polaris-console
-          publicClient: true
-          redirectUris:
-            - "https://polaris-console-default.{{ .Context.ingress.suffix }}/auth/callback"
-          webOrigins:
-            - "https://polaris-console-default.{{ .Context.ingress.suffix }}"
-        - clientId: seaweedfs-s3
-          name: seaweedfs-s3
-          publicClient: true
-        - clientId: superset
-          name: superset
-          secret: mySupersetSecret
-          publicClient: false
-          redirectUris:
-            - "https://*"
-          webOrigins:
-            - "https://*"
-          defaultClientScopes:
-            - web-origins
-            - acr
-            - roles
-            - profile
-            - groups
-            - basic
-            - email
-          optionalClientScopes:
-            - address
-            - phone
-            - organization
-            - offline_access
-            - microprofile-jwt
-        - clientId: jupyterhub
-          name: jupyterhub
-          secret: myJupyterHubSecret
-          publicClient: false
-          redirectUris:
-            - "https://*"
-          webOrigins:
-            - "https://*"
-          defaultClientScopes:
-            - web-origins
-            - acr
-            - roles
-            - profile
-            - groups
-            - basic
-            - email
-          optionalClientScopes:
-            - address
-            - phone
-            - organization
-            - offline_access
-            - microprofile-jwt
-        - clientId: trino
-          name: trino
-          secret: myTrinoSecret
-          publicClient: false
-          redirectUris:
-            - "https://*"
-          webOrigins:
-            - "https://*"
-          defaultClientScopes:
-            - web-origins
-            - acr
-            - roles
-            - profile
-            - groups
-            - basic
-            - email
-          optionalClientScopes:
-            - address
-            - phone
-            - organization
-            - offline_access
-            - microprofile-jwt
-        - clientId: spark-history
-          name: spark-history
-          secret: mySparkHistorySecret
-          publicClient: false
-          redirectUris:
-            - "https://*"
-          webOrigins:
-            - "https://*"
-          defaultClientScopes:
-            - web-origins
-            - acr
-            - roles
-            - profile
-            - groups
-            - basic
-            - email
-          optionalClientScopes:
-            - address
-            - phone
-            - organization
-            - offline_access
-            - microprofile-jwt
-        - clientId: superset-trino
-          name: superset-trino
-          secret: mySupersetTrinoSecret
-          publicClient: false
-          redirectUris:
-            - "https://*"
-          webOrigins:
-            - "https://*"
-          defaultClientScopes:
-            - web-origins
-            - acr
-            - roles
-            - profile
-            - groups
-            - basic
-            - email
-          optionalClientScopes:
-            - address
-            - phone
-            - organization
-            - offline_access
-            - microprofile-jwt
-        - clientId: polaris
-          name: polaris
-          secret: myPolarisSecret
-          publicClient: false
-          # Enable service accounts on the polaris client
-          serviceAccountsEnabled: true
-          standardFlowEnabled: false
-          implicitFlowEnabled: false
-          directAccessGrantsEnabled: false
-          redirectUris:
-            - "https://*"
-          webOrigins:
-            - "https://*"
-          defaultClientScopes:
-            - web-origins
-            - acr
-            - roles
-            - profile
-            - groups
-            - basic
-            - email
-          optionalClientScopes:
-            - address
-            - phone
-            - organization
-            - offline_access
-            - microprofile-jwt
-        - clientId: svc-trino-polaris-writer
-          name: svc-trino-polaris-writer
-          secret: myTrinoPolarisSecret
-          publicClient: false
-          # Enable service accounts on the polaris client
-          serviceAccountsEnabled: true
-          standardFlowEnabled: false
-          implicitFlowEnabled: false
-          directAccessGrantsEnabled: false
-          defaultClientScopes:
-            - groups
-            - roles
-            - profile
-            - email
-        - clientId: svc-trino-examples-writer
-          name: svc-trino-examples-writer
-          secret: myTrinoExamplesSecret
-          publicClient: false
-          serviceAccountsEnabled: true
-          standardFlowEnabled: false
-          implicitFlowEnabled: false
-          directAccessGrantsEnabled: false
-          defaultClientScopes:
-            - groups
-            - roles
-            - profile
-            - email
-        - clientId: svc-polaris-api-admin
-          name: svc-polaris-api-admin
-          secret: myPolarisAdminSecret
-          publicClient: false
-          # Enable service accounts on the polaris client
-          serviceAccountsEnabled: true
-          standardFlowEnabled: false
-          implicitFlowEnabled: false
-          directAccessGrantsEnabled: false
-          defaultClientScopes:
-            - groups
-            - roles
-            - profile
-            - email
-        - clientId: svc-spark-etl-polaris-writer
-          name: svc-spark-etl-polaris-writer
-          secret: mySparkAppSecret
-          publicClient: false
-          # Enable service accounts on the polaris client
-          serviceAccountsEnabled: true
-          standardFlowEnabled: false
-          implicitFlowEnabled: false
-          directAccessGrantsEnabled: false
-          defaultClientScopes:
-            - groups
-            - roles
-            - profile
-            - email
-      clientScopes:
-        - name: groups
-          description: "Groups scope"
-          protocol: openid-connect
-          attributes:
-            include.in.token.scope: "false"
-            display.on.consent.screen: "true"
-          protocolMappers:
-            - name: roles_map_to_groups
-              protocol: openid-connect
-              protocolMapper: oidc-usermodel-realm-role-mapper
-              config:
-                access.token.claim: "true"
-                claim.name: groups
-                id.token.claim: "true"
-                introspection.token.claim: "true"
-                jsonType.label: String
-                lightweight.claim: "true"
-                multivalued: "true"
-                userinfo.token.claim: "true"
-    # Provision the following databases and expose the final endpoint
-    databaseServer:
-      provider: postgresql
-      postgresql:
+        issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+        baseUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect"
+        endpoints:
+          auth: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/auth"
+          token: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/token"
+          userinfo: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/userinfo"
+          jwks: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/certs"
+      # implementation-specific
+      settings:
+        database:
+          provider: defaultDatabaseServer
+          name: keycloak
+          credentialsSecret:
+            name: creds-keycloak-db
+            usernameKey: username
+            passwordKey: password
+        realm:
+          name: master
+          displayName: "OKDP internal Realm"
+          accessTokenLifespan: 3600
+        users:
+          - username: bob
+            email: bob@okdp.io
+            firstName: bob
+            lastName: bob
+            password: bob
+            roles: [data_engineer]
+          - username: mark
+            email: mark@okdp.io
+            firstName: mark
+            lastName: mark
+            password: mark
+            roles: [data_scientist]
+          - username: nina
+            email: nina@okdp.io
+            firstName: nina
+            lastName: nina
+            password: nina
+            roles: [business_analyst]
+          - username: grace
+            email: grace@okdp.io
+            firstName: grace
+            lastName: grace
+            password: grace
+            roles: [data_steward]
+          - username: alice
+            email: alice@okdp.io
+            firstName: alice
+            lastName: alice
+            password: alice
+            roles: [platform_admin, polaris_service_admin, polaris_catalog_admin]
+          - username: eve
+            email: eve@okdp.io
+            firstName: eve
+            lastName: eve
+            password: eve
+            roles: [auditor]
+          - username: adm
+            email: adm@okdp.io
+            firstName: adm
+            lastName: adm
+            password: adm
+            roles: [ platform_admin, polaris_service_admin, polaris_catalog_admin ]
+          - username: svc-spark-etl-polaris-writer
+            serviceAccountClientId: svc-spark-etl-polaris-writer
+            roles: [ data_engineer, data_scientist, business_analyst ]
+          # Add the polaris service account user
+          # Here the same service account has service_admin and catalog_admin in Polaris
+          # The service account behaves like a super admin, you can split as your convenience
+          - username: svc-polaris-api-admin
+            serviceAccountClientId: svc-polaris-api-admin
+            roles: [ polaris_service_admin, polaris_catalog_admin ]
+          - username: svc-trino-polaris-writer
+            serviceAccountClientId: svc-trino-polaris-writer
+            roles: [ platform_admin, polaris_service_admin, polaris_catalog_admin ]
+        roles:
+          - name: data_engineer
+          - name: data_scientist
+          - name: business_analyst
+          - name: platform_admin
+          - name: data_steward
+          - name: auditor
+          # Add the polaris management roles
+          # These roles can be named anyway,
+          # but they should map to polaris management roles (service_admin, and catalog_admin)
+          - name: polaris_service_admin
+          - name: polaris_catalog_admin
+        clients:
+          - clientId: okdp-server
+            name: okdp-server
+            publicClient: true
+            redirectUris:
+              - "https://okdp-server.{{ .Context.ingress.suffix }}/swagger/oauth2-redirect.html"
+            webOrigins:
+              - "https://okdp-server.{{ .Context.ingress.suffix }}"
+          - clientId: okdp-ui
+            name: okdp-ui
+            publicClient: true
+            redirectUris:
+              - "https://okdp-ui.{{ .Context.ingress.suffix }}/index.html"
+              - "https://okdp-ui.{{ .Context.ingress.suffix }}/silent-refresh.html"
+            webOrigins:
+              - "https://okdp-ui.{{ .Context.ingress.suffix }}"
+          - clientId: polaris-console
+            name: polaris-console
+            publicClient: true
+            redirectUris:
+              - "https://polaris-console-default.{{ .Context.ingress.suffix }}/auth/callback"
+            webOrigins:
+              - "https://polaris-console-default.{{ .Context.ingress.suffix }}"
+          - clientId: seaweedfs-s3
+            name: seaweedfs-s3
+            publicClient: true
+          - clientId: superset
+            name: superset
+            secret: mySupersetSecret
+            publicClient: false
+            redirectUris:
+              - "https://*"
+            webOrigins:
+              - "https://*"
+            defaultClientScopes:
+              - web-origins
+              - acr
+              - roles
+              - profile
+              - groups
+              - basic
+              - email
+            optionalClientScopes:
+              - address
+              - phone
+              - organization
+              - offline_access
+              - microprofile-jwt
+          - clientId: jupyterhub
+            name: jupyterhub
+            secret: myJupyterHubSecret
+            publicClient: false
+            redirectUris:
+              - "https://*"
+            webOrigins:
+              - "https://*"
+            defaultClientScopes:
+              - web-origins
+              - acr
+              - roles
+              - profile
+              - groups
+              - basic
+              - email
+            optionalClientScopes:
+              - address
+              - phone
+              - organization
+              - offline_access
+              - microprofile-jwt
+          - clientId: trino
+            name: trino
+            secret: myTrinoSecret
+            publicClient: false
+            redirectUris:
+              - "https://*"
+            webOrigins:
+              - "https://*"
+            defaultClientScopes:
+              - web-origins
+              - acr
+              - roles
+              - profile
+              - groups
+              - basic
+              - email
+            optionalClientScopes:
+              - address
+              - phone
+              - organization
+              - offline_access
+              - microprofile-jwt
+          - clientId: spark-history
+            name: spark-history
+            secret: mySparkHistorySecret
+            publicClient: false
+            redirectUris:
+              - "https://*"
+            webOrigins:
+              - "https://*"
+            defaultClientScopes:
+              - web-origins
+              - acr
+              - roles
+              - profile
+              - groups
+              - basic
+              - email
+            optionalClientScopes:
+              - address
+              - phone
+              - organization
+              - offline_access
+              - microprofile-jwt
+          - clientId: superset-trino
+            name: superset-trino
+            secret: mySupersetTrinoSecret
+            publicClient: false
+            redirectUris:
+              - "https://*"
+            webOrigins:
+              - "https://*"
+            defaultClientScopes:
+              - web-origins
+              - acr
+              - roles
+              - profile
+              - groups
+              - basic
+              - email
+            optionalClientScopes:
+              - address
+              - phone
+              - organization
+              - offline_access
+              - microprofile-jwt
+          - clientId: polaris
+            name: polaris
+            secret: myPolarisSecret
+            publicClient: false
+            # Enable service accounts on the polaris client
+            serviceAccountsEnabled: true
+            standardFlowEnabled: false
+            implicitFlowEnabled: false
+            directAccessGrantsEnabled: false
+            redirectUris:
+              - "https://*"
+            webOrigins:
+              - "https://*"
+            defaultClientScopes:
+              - web-origins
+              - acr
+              - roles
+              - profile
+              - groups
+              - basic
+              - email
+            optionalClientScopes:
+              - address
+              - phone
+              - organization
+              - offline_access
+              - microprofile-jwt
+          - clientId: svc-trino-polaris-writer
+            name: svc-trino-polaris-writer
+            secret: myTrinoPolarisSecret
+            publicClient: false
+            # Enable service accounts on the polaris client
+            serviceAccountsEnabled: true
+            standardFlowEnabled: false
+            implicitFlowEnabled: false
+            directAccessGrantsEnabled: false
+            defaultClientScopes:
+              - groups
+              - roles
+              - profile
+              - email
+          - clientId: svc-trino-examples-writer
+            name: svc-trino-examples-writer
+            secret: myTrinoExamplesSecret
+            publicClient: false
+            serviceAccountsEnabled: true
+            standardFlowEnabled: false
+            implicitFlowEnabled: false
+            directAccessGrantsEnabled: false
+            defaultClientScopes:
+              - groups
+              - roles
+              - profile
+              - email
+          - clientId: svc-polaris-api-admin
+            name: svc-polaris-api-admin
+            secret: myPolarisAdminSecret
+            publicClient: false
+            # Enable service accounts on the polaris client
+            serviceAccountsEnabled: true
+            standardFlowEnabled: false
+            implicitFlowEnabled: false
+            directAccessGrantsEnabled: false
+            defaultClientScopes:
+              - groups
+              - roles
+              - profile
+              - email
+          - clientId: svc-spark-etl-polaris-writer
+            name: svc-spark-etl-polaris-writer
+            secret: mySparkAppSecret
+            publicClient: false
+            # Enable service accounts on the polaris client
+            serviceAccountsEnabled: true
+            standardFlowEnabled: false
+            implicitFlowEnabled: false
+            directAccessGrantsEnabled: false
+            defaultClientScopes:
+              - groups
+              - roles
+              - profile
+              - email
+        clientScopes:
+          - name: groups
+            description: "Groups scope"
+            protocol: openid-connect
+            attributes:
+              include.in.token.scope: "false"
+              display.on.consent.screen: "true"
+            protocolMappers:
+              - name: roles_map_to_groups
+                protocol: openid-connect
+                protocolMapper: oidc-usermodel-realm-role-mapper
+                config:
+                  access.token.claim: "true"
+                  claim.name: groups
+                  id.token.claim: "true"
+                  introspection.token.claim: "true"
+                  jsonType.label: String
+                  lightweight.claim: "true"
+                  multivalued: "true"
+                  userinfo.token.claim: "true"
+
+    # Provision the following databases and configure the provider part.
+    defaultDatabaseServer:
+      provider:
+        type: postgresql
+        driver: org.postgresql.Driver
+        connection:
+          host: postgresql-instance-rw.cnpg-system.svc.cluster.local
+          port: 5432
+          jdbc: jdbc:postgresql://{{ host }}:{{ port }}/{{ dbName }}
+      # implementation-specific
+      settings:
         databases:
           - name: hms
             owner:
@@ -1138,39 +1145,11 @@ spec:
               passwordSecret: creds-superset-examples-db
             schemas:
               - main
-      endpoint:
-        host: postgresql-instance-rw.cnpg-system.svc.cluster.local
-        port: 5432
 
-    seaweedfs:
-      endpoint:
-        filerUrl: https://seaweedfs-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-        s3Url: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-      filer:
-        database:
-          name: seaweedfs
-          host: postgresql-instance-rw.cnpg-system.svc.cluster.local
-          port: 5432
-          credentialsSecret:
-            name: creds-seaweedfs-db
-            usernameKey: username
-            passwordKey: password
-      s3:
-        enabled: true
-        s3_secret: creds-seaweedfs-identities
-        credentialsSecret:
-            name: creds-seaweedfs-s3
-            accessKeyKey: accessKey
-            secretKeyKey: secretKey
-        providerConfig:
-          seaweedfs:
-            identity: seaweedfs
-            actions: [ Admin ]
-
-        sts:
-          enabled: true
-          roleArn: arn:aws:iam::000000000000:role/S3WriteRole
-
+    # Create all the kubernetes secrets required by the services
+    # The provisioning is local, but you can provide them using external secrets or vault provider
+    # In order to have a predictable behaviour on re-deployment, we provision the secrets statically
+    localSecretsProvider:
       info: |
-        We add an ability for KuboCD to reuse/inherit (variable substitution) later.
-        All the required access keys for the services are provisioned in the package seaweedfs.yaml itself.
+        Currently, the secrets are created inside the package `local-secrets-provider.yaml` itself.
+        We add an ability for KuboCD to reuse/inherit (substitution) the context variables later so that we can list them here.

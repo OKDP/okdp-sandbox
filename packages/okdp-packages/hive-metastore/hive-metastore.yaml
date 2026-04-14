@@ -39,12 +39,34 @@ modules:
         repository: quay.io/okdp/charts/hive-metastore
         tag: 1.4.0
     values: |
-      {{- $s3ApiUrl := .Context.hiveMetastore.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
+      {{- $release := printf "%v" .Release.metadata.name -}}
+      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      
+      {{- $databaseId := .Context.hiveMetastore.database.provider -}}
+      {{- $databaseProvider := (index .Context $databaseId).provider -}}
+      
+      {{- $databaseHost := $databaseProvider.connection.host
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $databasePort := printf "%v" $databaseProvider.connection.port -}}
+      {{- $databaseType := $databaseProvider.type -}}
+      {{- $databaseDriver := $databaseProvider.driver -}}
+      
+      {{- $storageId := .Context.hiveMetastore.storage.provider -}}
+      {{- $storageProvider := (index .Context $storageId).provider -}}
+      
+      {{- $storageApiUrl := $storageProvider.endpoints.api
+          | replace "{{ .Release.namespace }}" $namespace
+          | replace "{{ .Release.metadata.name }}" $release
+          | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      {{- $storageType := $storageProvider.type -}}
       
       {{- $endpoint := .Context.hiveMetastore.endpoint.url
-        | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace }}
+        | replace "{{ .Release.namespace }}" $namespace }}
       {{- $noProto := $endpoint
           | trimPrefix "thrift://"
           | trimPrefix "thrift+ssl://" }}
@@ -63,10 +85,10 @@ modules:
       serviceName: {{ $serviceName }}
       
       db:
-        driverRef: org.postgresql.Driver
-        driverName: postgresql
-        host: {{ .Context.hiveMetastore.database.host }}
-        port: {{ .Context.hiveMetastore.database.port }}
+        driverRef: {{ $databaseDriver }}
+        driverName: {{ $databaseType }}
+        host: {{ $databaseHost }}
+        port: {{ $databasePort }}
         databaseName: {{ .Context.hiveMetastore.database.name }}
         user:
           name: ~
@@ -83,18 +105,18 @@ modules:
       - name: THRIFT_LISTENING_PORT
         value: {{ $port | quote }}
       
-      cloud_storage: "{{ .Context.hiveMetastore.storage.provider }}"
-      {{- if eq .Context.hiveMetastore.storage.provider "s3" }}
+      cloud_storage: "{{ $storageType }}"
+      {{- if eq $storageType "s3" }}
       s3:
-        url: {{ $s3ApiUrl }}
+        url: {{ $storageApiUrl }}
         # Misleading issue on hive-metastore chart, warehouseDirectory is a bucket (prefix not available)
-        warehouseDirectory: {{ .Context.hiveMetastore.storage.s3.bucket }}
+        warehouseDirectory: {{ .Context.hiveMetastore.storage.bucket }}
         accessKey:
-          secretName: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.name }}
-          propertyName: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.accessKeyKey }}
+          secretName: {{ .Context.hiveMetastore.storage.credentialsSecret.name }}
+          propertyName: {{ .Context.hiveMetastore.storage.credentialsSecret.accessKeyKey }}
         secretKey:
-          secretName: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.name }}
-          propertyName: {{ .Context.hiveMetastore.storage.s3.credentialsSecret.secretKeyKey }}
+          secretName: {{ .Context.hiveMetastore.storage.credentialsSecret.name }}
+          propertyName: {{ .Context.hiveMetastore.storage.credentialsSecret.secretKeyKey }}
       gcs:
         enabled: false
       {{- end }}
@@ -109,6 +131,7 @@ modules:
 
 roles:
   - data-catalog
+  - metastore-catalog
 dependencies:
   - database-server
   - storage
