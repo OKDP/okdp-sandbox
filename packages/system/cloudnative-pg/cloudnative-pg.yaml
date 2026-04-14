@@ -16,7 +16,7 @@
 
 apiVersion: v1alpha1
 name: cloudnative-pg
-tag: 17.0-p01
+tag: 1.29.0-p01
 protected: false
 description: |
   CloudNativePG is the Kubernetes operator that covers the full lifecycle of a highly available PostgreSQL database cluster 
@@ -33,14 +33,14 @@ modules:
       helmRepository:
         url: https://cloudnative-pg.github.io/charts/
         chart: cloudnative-pg
-        version: 0.26.1
+        version: 0.28.0
     values: |
       config:
         clusterWide: true
       image:
         repository: ghcr.io/cloudnative-pg/cloudnative-pg
         pullPolicy: IfNotPresent
-        tag: "1.27.1"
+        tag: "1.29.0"
       resources:
         requests:
           cpu: 500m

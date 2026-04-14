@@ -48,6 +48,23 @@ modules:
         path: ./polaris-admin
     values: |
       
+      {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
+      {{- $release := printf "%v" .Release.metadata.name -}}
+      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      
+      {{- $databaseId := .Context.polaris.database.provider -}}
+      {{- $databaseProvider := (index .Context $databaseId).provider -}}
+      {{- $databaseHost := $databaseProvider.connection.host
+        | replace "{{ .Release.namespace }}" $namespace
+        | replace "{{ .Release.metadata.name }}" $release
+        | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      {{- $databasePort := printf "%v" $databaseProvider.connection.port -}}   
+      
+      {{- $databaseJdbcUrl := $databaseProvider.connection.jdbc 
+        | replace "{{ host }}" $databaseHost
+        | replace "{{ port }}" $databasePort
+        | replace "{{ dbName }}" .Context.polaris.database.name -}}
+      
       phase: "bootstrap"
       
       bootstrap:
@@ -60,7 +77,7 @@ modules:
           pullPolicy: IfNotPresent
   
         database:
-          jdbcUrl: "jdbc:postgresql://{{ .Context.polaris.database.host }}:{{ .Context.polaris.database.port }}/{{ .Context.polaris.database.name }}"
+          jdbcUrl: "{{ $databaseJdbcUrl }}"
           secret:
             name: {{ .Context.polaris.database.credentialsSecret.name }}
             usernameKey: {{ .Context.polaris.database.credentialsSecret.usernameKey }}
@@ -79,18 +96,48 @@ modules:
         chart: polaris
         version: 1.3.0-incubating
     values: |
-      {{- $polarisEndpointAPI := .Context.polaris.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $polarisEndpointAPI := $polarisEndpointAPI | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $polarisEndpointAPIUrl := $polarisEndpointAPI | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
+      {{- $release := printf "%v" .Release.metadata.name -}}
+      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      
+      {{- $databaseId := .Context.polaris.database.provider -}}
+      {{- $databaseProvider := (index .Context $databaseId).provider -}}
+      {{- $databaseHost := $databaseProvider.connection.host
+        | replace "{{ .Release.namespace }}" $namespace
+        | replace "{{ .Release.metadata.name }}" $release
+        | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      {{- $databasePort := printf "%v" $databaseProvider.connection.port -}}      
+      
+      {{- $databaseJdbcUrl := $databaseProvider.connection.jdbc 
+        | replace "{{ host }}" $databaseHost
+        | replace "{{ port }}" $databasePort
+        | replace "{{ dbName }}" .Context.polaris.database.name -}}
+      
+      {{- $oidcId := .Context.polaris.auth.oidc.provider -}}
+      {{- $oidcProvider := (index .Context $oidcId).provider -}}
+      
+      {{- $oidcIssuerUri := $oidcProvider.issuerUri
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $polarisEndpointAPI := .Context.polaris.endpoint.url 
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release -}}
+      
+      {{- $polarisEndpointAPIUrl := $polarisEndpointAPI | replace "{{ .Context.ingress.suffix }}" $domain -}}
       {{- $polarisEndpointAPIHost := regexReplaceAll "^https?://" $polarisEndpointAPIUrl "" -}}
       
-      {{- $s3ApiUrl := .Context.polaris.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $s3ApiUrl := $s3ApiUrl | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $storageId := .Context.polaris.storage.provider -}}
+      {{- $storageProvider := (index .Context $storageId).provider -}}
       
-      {{- $keycloakIssuerUri := .Context.polaris.auth.oidc.issuerUri | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $storageApiUrl := $storageProvider.endpoints.api
+          | replace "{{ .Release.namespace }}" $namespace
+          | replace "{{ .Release.metadata.name }}" $release
+          | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $storageRegion := $storageProvider.region -}}
       
       image:
         repository: apache/polaris
@@ -100,25 +147,25 @@ modules:
       extraEnv:
         # S3
         - name: AWS_REGION
-          value: {{ .Context.polaris.storage.s3.region }}
+          value: {{ $storageRegion }}
         - name: AWS_ENDPOINT_URL_S3
-          value: {{ $s3ApiUrl }}
+          value: {{ $storageApiUrl }}
         - name: AWS_ENDPOINT_URL_STS
-          value: {{ $s3ApiUrl }}
+          value: {{ $storageApiUrl }}
         # The Polaris SeaweedFS identity for STS
         - name: AWS_ACCESS_KEY_ID
           valueFrom:
             secretKeyRef:
-              name: {{ .Context.polaris.storage.s3.credentialsSecret.name }}
-              key: {{ .Context.polaris.storage.s3.credentialsSecret.accessKeyKey }}
+              name: {{ .Context.polaris.storage.credentialsSecret.name }}
+              key: {{ .Context.polaris.storage.credentialsSecret.accessKeyKey }}
         - name: AWS_SECRET_ACCESS_KEY
           valueFrom:
             secretKeyRef:
-              name: {{ .Context.polaris.storage.s3.credentialsSecret.name }}
-              key: {{ .Context.polaris.storage.s3.credentialsSecret.secretKeyKey }}
+              name: {{ .Context.polaris.storage.credentialsSecret.name }}
+              key: {{ .Context.polaris.storage.credentialsSecret.secretKeyKey }}
         # Polaris Database
         - name: QUARKUS_DATASOURCE_JDBC_URL
-          value: jdbc:postgresql://{{ .Context.polaris.database.host }}:{{ .Context.polaris.database.port }}/{{ .Context.polaris.database.name }}
+          value: {{ $databaseJdbcUrl }}
         - name: QUARKUS_DATASOURCE_USERNAME
           valueFrom:
             secretKeyRef:
@@ -133,7 +180,6 @@ modules:
           value: "oidc"
         - name: QUARKUS_TLS__OIDC__TRUST_STORE_PEM_CERTS
           value: "/cacerts/ca.crt"
-        {{- end }}
         # OIDC, Enable multi-tenancy (Multiple realms)
         - name: QUARKUS_OIDC_TENANT-ENABLED
           value: "true"
@@ -169,7 +215,7 @@ modules:
         type: mixed
   
       oidc:
-        authServeUrl: {{ $keycloakIssuerUri }}
+        authServeUrl: {{ $oidcIssuerUri }}
         client:
           id: ~
           secret:
@@ -226,9 +272,16 @@ modules:
       local:
         path: ./polaris-admin
     values: |
-      {{- $polarisEndpointAPI := .Context.polaris.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $polarisEndpointAPI := $polarisEndpointAPI | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $polarisEndpointAPIUrl := $polarisEndpointAPI | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      
+      {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
+      {{- $release := printf "%v" .Release.metadata.name -}}
+      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      
+      {{- $polarisEndpointAPI := .Context.polaris.endpoint.url 
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release -}}
+      
+      {{- $polarisEndpointAPIUrl := $polarisEndpointAPI | replace "{{ .Context.ingress.suffix }}" $domain -}}
       {{- $polarisEndpointAPIHost := regexReplaceAll "^https?://" $polarisEndpointAPIUrl "" -}}
       
       phase: "principals"
@@ -266,18 +319,29 @@ modules:
         repository: quay.io/okdp/charts/polaris-console
         tag: 0.1.0
     values: |
-      {{- $polarisEndpointAPI := .Context.polarisConsole.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $polarisEndpointAPI := $polarisEndpointAPI | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $polarisEndpointAPIUrl := $polarisEndpointAPI | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+
+      {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
+      {{- $release := printf "%v" .Release.metadata.name -}}
+      {{- $domain := printf "%v" .Context.ingress.suffix -}}
       
-      {{- $polarisEndpointConsole := .Context.polarisConsole.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $polarisEndpointConsole := $polarisEndpointConsole | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $polarisEndpointConsoleUrl := $polarisEndpointConsole | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
+      {{- $oidcId := .Context.polarisConsole.auth.oidc.provider -}}
+      {{- $oidcProvider := (index .Context $oidcId).provider -}}
+      
+      {{- $oidcIssuerUri := $oidcProvider.issuerUri
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $polarisEndpointAPI := .Context.polarisConsole.apiUrl 
+             | replace "{{ .Release.namespace }}" $namespace
+             | replace "{{ .Release.metadata.name }}" $release -}}
+      {{- $polarisEndpointAPIUrl := $polarisEndpointAPI | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $polarisEndpointConsole := .Context.polarisConsole.endpoint.url 
+             | replace "{{ .Release.namespace }}" $namespace
+             | replace "{{ .Release.metadata.name }}" $release -}}
+      {{- $polarisEndpointConsoleUrl := $polarisEndpointConsole | replace "{{ .Context.ingress.suffix }}" $domain -}}
       {{- $polarisEndpointConsoleHost := regexReplaceAll "^https?://" $polarisEndpointConsoleUrl "" -}}
-      
-      {{- $keycloakIssuerUri := .Context.polarisConsole.auth.oidc.issuerUri | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace -}}
-      {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Release.metadata.name }}" .Release.metadata.name -}}
-      {{- $keycloakIssuerUri := $keycloakIssuerUri | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
     
       image:
         repository: quay.io/okdp/polaris-console
@@ -290,7 +354,7 @@ modules:
         oauthTokenUrl: "{{ $polarisEndpointAPIUrl }}/api/catalog/v1/oauth/tokens"
       
       extraEnv:
-        VITE_OIDC_ISSUER_URL: "{{ $keycloakIssuerUri }}"
+        VITE_OIDC_ISSUER_URL: "{{ $oidcIssuerUri }}"
         VITE_OIDC_CLIENT_ID: "{{ .Context.polarisConsole.auth.oidc.clientId }}"
         VITE_OIDC_REDIRECT_URI: "{{ $polarisEndpointConsoleUrl }}/auth/callback"
         VITE_OIDC_SCOPE: "{{ .Context.polarisConsole.auth.oidc.scope }}"
@@ -313,6 +377,7 @@ modules:
 
 roles:
   - data-catalog
+  - iceberg-catalog
 dependencies:
   - identity
   - storage
