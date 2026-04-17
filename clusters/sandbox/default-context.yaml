@@ -38,10 +38,9 @@ spec:
       workspace: standard
 
     portal:
-      auth:
+      oidc:
         enabled: true
-        oidc:
-          provider: defaultIdp
+        provider: defaultIdp
       packageRepository: quay.io/okdp/sandbox-packages-v0.2
       clusters:
         - id: sandbox
@@ -157,7 +156,7 @@ spec:
           name: creds-hive-metastore-s3
           accessKeyKey: accessKey
           secretKeyKey: secretKey
-      endpoint:
+      endpoints:
         url: thrift://hive-metastore.{{ .Release.namespace }}.svc.cluster.local:9083
 
     trino:
@@ -171,21 +170,20 @@ spec:
               name: creds-trino-oauth2-polaris
               clientIdKey: client_id
               clientSecretKey: client_secret
-      auth:
-        enabled: true
-        oidc:
-          provider: defaultIdp
-          scope: "openid profile email groups"
-          credentialsSecret:
-            name: creds-trino-oauth2
-            clientIdKey: client_id
-            clientSecretKey: client_secret
       storage:
         provider: defaultStorage
         credentialsSecret:
           name: creds-trino-s3
           accessKeyKey: S3_ACCESS_KEY
           secretKeyKey: S3_SECRET_ACCESS
+      oidc:
+        enabled: true
+        provider: defaultIdp
+        scope: "openid profile email groups"
+        credentialsSecret:
+          name: creds-trino-oauth2
+          clientIdKey: client_id
+          clientSecretKey: client_secret
       advanced:
         config:
           security:
@@ -193,7 +191,7 @@ spec:
             credentialsSecret:
               name: creds-trino-security
               sharedSecret: shared-secret
-      endpoint:
+      endpoints:
         url: https://trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
     superset:
@@ -205,14 +203,18 @@ spec:
           usernameKey: username
           passwordKey: password
       # Secret Key for Superset's Flask App
-      secret:
-        name: creds-superset-secret-key
-        key: superset_secret_key
+      advanced:
+        config:
+          security:
+            # https://trino.io/docs/current/security/internal-communication.html
+            credentialsSecret:
+              name: creds-superset-secret-key
+              key: superset_secret_key
       load_examples:
         database:
           provider: defaultDatabaseServer
           connection:
-            jdbc: "postgresql+psycopg2://{{ username }}:{{ password }}@{{ host }}:{{ port }}/{{ dbName }}?options=-csearch_path%3Dmain"
+            jdbcUrl: "postgresql+psycopg2://{{ username }}:{{ password }}@{{ connection.host }}:{{ connection.port }}/{{ dbName }}?options=-csearch_path%3Dmain"
           name: superset-examples
           credentialsSecret:
             name: creds-superset-examples-db
@@ -225,26 +227,24 @@ spec:
           name: creds-superset-redis
           usernameKey: username
           passwordKey: password
-      auth:
+      oidc:
         enabled: true
+        provider: defaultIdp
+        scope: "openid profile email groups"
+        usePKCE: true
+        credentialsSecret:
+          name: creds-superset-oauth2
+          clientIdKey: client_id
+          clientSecretKey: client_secret
+      trino:
         oidc:
+          enabled: true
           provider: defaultIdp
           scope: "openid profile email groups"
-          usePKCE: true
           credentialsSecret:
-            name: creds-superset-oauth2
+            name: creds-superset-oauth2-trino
             clientIdKey: client_id
             clientSecretKey: client_secret
-      trino:
-        auth:
-          enabled: true
-          oidc:
-            provider: defaultIdp
-            scope: "openid profile email groups"
-            credentialsSecret:
-              name: creds-superset-oauth2-trino
-              clientIdKey: client_id
-              clientSecretKey: client_secret
       dataSources: |
         databases:
         - database_name: trino-hms-bronze
@@ -304,7 +304,7 @@ spec:
           allow_ctas: true
           allow_cvas: true
           expose_in_sqllab: true
-      endpoint:
+      endpoints:
         url: https://superset-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
     jupyterHub:
@@ -314,16 +314,15 @@ spec:
           name: creds-jupyterhub-s3
           accessKeyKey: S3_ACCESS_KEY
           secretKeyKey: S3_SECRET_KEY
-      auth:
+      oidc:
         enabled: true
-        oidc:
-          provider: defaultIdp
-          credentialsSecret:
-            name: creds-jupyterhub-oauth2
-            clientIdKey: client_id
-            clientSecretKey: client_secret
-            jupyterHubCryptKey: JUPYTERHUB_CRYPT_KEY
-      endpoint:
+        provider: defaultIdp
+        credentialsSecret:
+          name: creds-jupyterhub-oauth2
+          clientIdKey: client_id
+          clientSecretKey: client_secret
+          jupyterHubCryptKey: JUPYTERHUB_CRYPT_KEY
+      endpoints:
         url: https://jupyterhub-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
     sparkRBAC:
@@ -343,17 +342,16 @@ spec:
           name: creds-spark-history-s3
           accessKeyKey: accessKey
           secretKeyKey: secretKey
-      auth:
+      oidc:
         enabled: true
-        oidc:
-          provider: defaultIdp
-          scope: "openid+profile+email+offline_access+groups"
-          usePKCE: true
-          credentialsSecret:
-            name: creds-spark-history-oauth2
-            clientIdKey: client_id
-            clientSecretKey: client_secret
-      endpoint:
+        provider: defaultIdp
+        scope: "openid+profile+email+offline_access+groups"
+        usePKCE: true
+        credentialsSecret:
+          name: creds-spark-history-oauth2
+          clientIdKey: client_id
+          clientSecretKey: client_secret
+      endpoints:
         url: https://spark-history-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
     airflow:
@@ -442,42 +440,41 @@ spec:
           name: creds-polaris-s3
           accessKeyKey: accessKey
           secretKeyKey: secretKey
-      auth:
+      oidc:
         enabled: true
-        oidc:
-          provider: defaultIdp
-          scope: "openid+profile+email+offline_access+groups"
-          credentialsSecret:
-            name: creds-polaris-oauth2
-            clientIdKey: client_id
-            clientSecretKey: client_secret
-          # Map polaris internal principal and roles with OIDC principal and roles
-          # Here, the oidc principal should exist in the OIDC provider as service-account-svc-polaris-api-admin having roles:
-          # polaris_catalog_admin and polaris_service_admin
-          principalMapper:
-            # service-account-svc-polaris-api-admin oidc principal maps to polaris service-account-svc-polaris-api-admin user
-            type: default
-            # You can use 'sub' as stable and immutable identity
-            idClaimPath: ~
-            nameClaimPath: "preferred_username"
-          # Issue: https://github.com/apache/polaris/issues/2373
-          # Polaris activates only the internal principal roles that are actually granted to that principal in Polaris RBAC
-          # Active Polaris roles = (mapped external roles) ∩ (principal roles granted in Polaris)
-          principalRolesMapper:
-            type: default
-            rolesClaimPath: realm_access/roles
-            filter: "^(?!default-roles-.*|offline_access$|uma_authorization$).*$"
-            mappings:
-              # The rules are applied sequentially as ordered transforms
-              # Strip the "polaris_" prefix from admin roles and convert them to Polaris roles:
-              # polaris_service_admin -> PRINCIPAL_ROLE:service_admin
-              # polaris_catalog_admin -> PRINCIPAL_ROLE:catalog_admin
-              # platform_admin -> PRINCIPAL_ROLE:platform_admin
-              - regex: "^polaris_(.*)$"
-                replacement: "PRINCIPAL_ROLE:$1"
-              # Fallback for normal roles, but do NOT touch values already prefixed by Polaris.
-              - regex: "^(?!PRINCIPAL_ROLE:)(?!polaris_)(.*)$"
-                replacement: "PRINCIPAL_ROLE:$1"
+        provider: defaultIdp
+        scope: "openid+profile+email+offline_access+groups"
+        credentialsSecret:
+          name: creds-polaris-oauth2
+          clientIdKey: client_id
+          clientSecretKey: client_secret
+        # Map polaris internal principal and roles with OIDC principal and roles
+        # Here, the oidc principal should exist in the OIDC provider as service-account-svc-polaris-api-admin having roles:
+        # polaris_catalog_admin and polaris_service_admin
+        principalMapper:
+          # service-account-svc-polaris-api-admin oidc principal maps to polaris service-account-svc-polaris-api-admin user
+          type: default
+          # You can use 'sub' as stable and immutable identity
+          idClaimPath: ~
+          nameClaimPath: "preferred_username"
+        # Issue: https://github.com/apache/polaris/issues/2373
+        # Polaris activates only the internal principal roles that are actually granted to that principal in Polaris RBAC
+        # Active Polaris roles = (mapped external roles) ∩ (principal roles granted in Polaris)
+        principalRolesMapper:
+          type: default
+          rolesClaimPath: realm_access/roles
+          filter: "^(?!default-roles-.*|offline_access$|uma_authorization$).*$"
+          mappings:
+            # The rules are applied sequentially as ordered transforms
+            # Strip the "polaris_" prefix from admin roles and convert them to Polaris roles:
+            # polaris_service_admin -> PRINCIPAL_ROLE:service_admin
+            # polaris_catalog_admin -> PRINCIPAL_ROLE:catalog_admin
+            # platform_admin -> PRINCIPAL_ROLE:platform_admin
+            - regex: "^polaris_(.*)$"
+              replacement: "PRINCIPAL_ROLE:$1"
+            # Fallback for normal roles, but do NOT touch values already prefixed by Polaris.
+            - regex: "^(?!PRINCIPAL_ROLE:)(?!polaris_)(.*)$"
+              replacement: "PRINCIPAL_ROLE:$1"
 
       features:
         DROP_WITH_PURGE_ENABLED: true
@@ -512,20 +509,19 @@ spec:
             - "*"
           accessControlMaxAge: "PT10M"
           accessControlAllowCredentials: true
-      endpoint:
+      endpoints:
         url: https://polaris-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
     polarisConsole:
       defaultRealm: sandbox
       apiUrl: https://polaris-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-      auth:
+      oidc:
         enabled: true
-        oidc:
-          provider: defaultIdp
-          scope: "openid profile email roles offline_access"
-          # Public OIDC client with PKCE enabled
-          clientId: polaris-console
-      endpoint:
+        provider: defaultIdp
+        scope: "openid profile email roles offline_access"
+        # Public OIDC client with PKCE enabled
+        clientId: polaris-console
+      endpoints:
         url: https://polaris-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
 
     examples:
@@ -547,14 +543,13 @@ spec:
           secretKeyKey: S3_SECRET_KEY
       trino:
         url: https://trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-        auth:
+        oidc:
           enabled: true
-          oidc:
-            provider: defaultIdp
-            credentialsSecret:
-              name: creds-examples-oauth2-trino
-              clientIdKey: client_id
-              clientSecretKey: client_secret
+          provider: defaultIdp
+          credentialsSecret:
+            name: creds-examples-oauth2-trino
+            clientIdKey: client_id
+            clientSecretKey: client_secret
       polaris:
         realms:
           - name: sandbox
@@ -758,10 +753,12 @@ spec:
         name: SeaweedFS
         region: dummy
         endpoints:
-          api: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-          sts: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-          console: https://seaweedfs-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-      # implementation-specific
+          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          stsUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          consoleUrl: https://seaweedfs-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+      # Sandbox implementation-specific
+      # Consider this part already provided by your platform
+      # settings: {}
       settings:
         filer:
           database:
@@ -824,11 +821,13 @@ spec:
         issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
         baseUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect"
         endpoints:
-          auth: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/auth"
-          token: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/token"
-          userinfo: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/userinfo"
-          jwks: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/certs"
-      # implementation-specific
+          authUrl: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/auth"
+          tokenUrl: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/token"
+          userinfoUrl: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/userinfo"
+          jwksUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/certs"
+      # Sandbox implementation-specific
+      # Consider this part already provided by your IDP
+      # settings: {}
       settings:
         database:
           provider: defaultDatabaseServer
@@ -1155,8 +1154,10 @@ spec:
         connection:
           host: postgresql-instance-rw.cnpg-system.svc.cluster.local
           port: 5432
-          jdbc: jdbc:postgresql://{{ host }}:{{ port }}/{{ dbName }}
-      # implementation-specific
+          jdbcUrl: jdbc:postgresql://{{ connection.host }}:{{ connection.port }}/{{ dbName }}
+      # Sandbox implementation-specific
+      # Consider this part already provided by your platform
+      # settings: {}
       settings:
         databases:
           - name: hms

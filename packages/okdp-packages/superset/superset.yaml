@@ -26,7 +26,7 @@ usage:
   text: |
     Apache Superset provides modern data visualization and exploration capabilities.
     Access the UI at {{ 
-     .Context.superset.endpoint.url 
+     .Context.superset.endpoints.url 
      | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace 
      | replace "{{ .Release.metadata.name }}" .Release.metadata.name 
      | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix 
@@ -76,14 +76,14 @@ modules:
         | replace "{{ .Release.metadata.name }}" $release
         | replace "{{ .Context.ingress.suffix }}" $domain -}}
       {{- $examplesDatabasePort := printf "%v" $examplesDatabaseProvider.connection.port -}}
-      {{- $examplesDatabaseJdbcUrl := .Context.superset.load_examples.database.connection.jdbc
-        | replace "{{ host }}" $examplesDatabaseHost
-        | replace "{{ port }}" $examplesDatabasePort
+      {{- $examplesDatabaseJdbcUrl := .Context.superset.load_examples.database.connection.jdbcUrl
+        | replace "{{ connection.host }}" $examplesDatabaseHost
+        | replace "{{ connection.port }}" $examplesDatabasePort
         | replace "{{ dbName }}" .Context.superset.load_examples.database.name 
         | replace "{{ username }}" "$DB_EXAMPLES_USER"
         | replace "{{ password }}" "$DB_EXAMPLES_PASS" -}}
       
-      {{- $oidcId := .Context.superset.auth.oidc.provider -}}
+      {{- $oidcId := .Context.superset.oidc.provider -}}
       {{- $oidcProvider := (index .Context $oidcId).provider -}}
       
       {{- $oidcName := $oidcProvider.name -}}
@@ -93,7 +93,7 @@ modules:
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
-      {{- $supersetUrl := .Context.superset.endpoint.url 
+      {{- $supersetUrl := .Context.superset.endpoints.url 
           | replace "{{ .Release.namespace }}" $namespace
           | replace "{{ .Release.metadata.name }}" $release
           | replace "{{ .Context.ingress.suffix }}" $domain -}}
@@ -132,11 +132,11 @@ modules:
 
         # Oauth2 configuration
         oauth:
-          enabled: {{ .Context.superset.auth.enabled }}
+          enabled: {{ .Context.superset.oidc.enabled }}
           provider: "{{ $oidcName }}"
           base_url: {{ $oidcBaseUrl }}
-          scope: "{{ .Context.superset.auth.oidc.scope }}"
-          use_pkce: {{ .Context.superset.auth.oidc.usePKCE }}
+          scope: "{{ .Context.superset.oidc.scope }}"
+          use_pkce: {{ .Context.superset.oidc.usePKCE }}
           auth_registration: &auth_registration |
             AUTH_USER_REGISTRATION = True
             AUTH_ROLE_PUBLIC = "Public"
@@ -149,9 +149,9 @@ modules:
         
         trino:
           oauth:
-            enabled: {{ .Context.superset.trino.auth.enabled }}
+            enabled: {{ .Context.superset.trino.oidc.enabled }}
             base_url: {{ $oidcBaseUrl }}
-            scope: "{{ .Context.superset.trino.auth.oidc.scope }}"
+            scope: "{{ .Context.superset.trino.oidc.scope }}"
       
       superset:
         image:
@@ -190,8 +190,8 @@ modules:
           - name: SUPERSET_SECRET_KEY
             valueFrom:
               secretKeyRef:
-                name: {{ .Context.superset.secret.name }}
-                key: {{ .Context.superset.secret.key }}
+                name: {{ .Context.superset.advanced.config.security.credentialsSecret.name }}
+                key: {{ .Context.superset.advanced.config.security.credentialsSecret.key }}
           # Superset/DB credentials
           - name: DB_USER
             valueFrom:
@@ -218,24 +218,24 @@ modules:
           - name: AUTH_OAUTH_CLIENT_ID
             valueFrom:
               secretKeyRef:
-                name: {{ .Context.superset.auth.oidc.credentialsSecret.name }}
-                key: {{ .Context.superset.auth.oidc.credentialsSecret.clientIdKey }}
+                name: {{ .Context.superset.oidc.credentialsSecret.name }}
+                key: {{ .Context.superset.oidc.credentialsSecret.clientIdKey }}
           - name: AUTH_OAUTH_CLIENT_SECRET
             valueFrom:
               secretKeyRef:
-                name: {{ .Context.superset.auth.oidc.credentialsSecret.name }}
-                key: {{ .Context.superset.auth.oidc.credentialsSecret.clientSecretKey }}
+                name: {{ .Context.superset.oidc.credentialsSecret.name }}
+                key: {{ .Context.superset.oidc.credentialsSecret.clientSecretKey }}
           # OIDC Trino credentials
           - name: TRINO_OAUTH_CLIENT_ID
             valueFrom:
               secretKeyRef:
-                name: {{ .Context.superset.trino.auth.oidc.credentialsSecret.name }}
-                key: {{ .Context.superset.trino.auth.oidc.credentialsSecret.clientIdKey }}
+                name: {{ .Context.superset.trino.oidc.credentialsSecret.name }}
+                key: {{ .Context.superset.trino.oidc.credentialsSecret.clientIdKey }}
           - name: TRINO_OAUTH_CLIENT_SECRET
             valueFrom:
               secretKeyRef:
-                name: {{ .Context.superset.trino.auth.oidc.credentialsSecret.name }}
-                key: {{ .Context.superset.trino.auth.oidc.credentialsSecret.clientSecretKey }}
+                name: {{ .Context.superset.trino.oidc.credentialsSecret.name }}
+                key: {{ .Context.superset.trino.oidc.credentialsSecret.clientSecretKey }}
           # CA
           - name: REQUESTS_CA_BUNDLE
             value: /cacerts/ca.crt

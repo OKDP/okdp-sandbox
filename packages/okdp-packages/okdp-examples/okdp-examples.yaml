@@ -42,7 +42,7 @@ modules:
       {{- $release := printf "%v" .Release.metadata.name -}}
       {{- $domain := printf "%v" .Context.ingress.suffix -}}
       
-      {{- $oidcId := .Context.examples.trino.auth.oidc.provider -}}
+      {{- $oidcId := .Context.examples.trino.oidc.provider -}}
       {{- $oidcProvider := (index .Context $oidcId).provider -}}
       
       {{- $oidcIssuerUri := $oidcProvider.issuerUri
@@ -53,17 +53,17 @@ modules:
       {{- $storageId := .Context.examples.storage.provider -}}
       {{- $storageProvider := (index .Context $storageId).provider -}}
       
-      {{- $storageApiUrl := $storageProvider.endpoints.api
+      {{- $storageApiUrl := $storageProvider.endpoints.apiUrl
           | replace "{{ .Release.namespace }}" $namespace
           | replace "{{ .Release.metadata.name }}" $release
           | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
-      {{- $trinoEndpoint := .Context.trino.endpoint.url 
+      {{- $trinoEndpoint := .Context.trino.endpoints.url 
              | replace "{{ .Release.namespace }}" $namespace
              | replace "{{ .Release.metadata.name }}" $release
              | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
-      {{- $polarisEndpointUrl := .Context.polaris.endpoint.url 
+      {{- $polarisEndpointUrl := .Context.polaris.endpoints.url 
              | replace "{{ .Release.namespace }}" $namespace
              | replace "{{ .Release.metadata.name }}" $release
              | replace "{{ .Context.ingress.suffix }}" $domain -}}
@@ -110,13 +110,13 @@ modules:
         - name: EXAMPLES_TRINO_CLIENT_ID
           valueFrom:
             secretKeyRef:
-              name: {{ .Context.examples.trino.auth.oidc.credentialsSecret.name }}
-              key: {{ .Context.examples.trino.auth.oidc.credentialsSecret.clientIdKey }}
+              name: {{ .Context.examples.trino.oidc.credentialsSecret.name }}
+              key: {{ .Context.examples.trino.oidc.credentialsSecret.clientIdKey }}
         - name: EXAMPLES_TRINO_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: {{ .Context.examples.trino.auth.oidc.credentialsSecret.name }}
-              key: {{ .Context.examples.trino.auth.oidc.credentialsSecret.clientSecretKey }}
+              name: {{ .Context.examples.trino.oidc.credentialsSecret.name }}
+              key: {{ .Context.examples.trino.oidc.credentialsSecret.clientSecretKey }}
         - name: SPARK_EVENT_LOG_DIRECTORY
           value: {{ .Parameters.sparkEventsLogDir }}
         {{- if .Context.proxy.httpProxy }}

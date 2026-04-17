@@ -59,13 +59,13 @@ modules:
       {{- $storageId := .Context.hiveMetastore.storage.provider -}}
       {{- $storageProvider := (index .Context $storageId).provider -}}
       
-      {{- $storageApiUrl := $storageProvider.endpoints.api
+      {{- $storageApiUrl := $storageProvider.endpoints.apiUrl
           | replace "{{ .Release.namespace }}" $namespace
           | replace "{{ .Release.metadata.name }}" $release
           | replace "{{ .Context.ingress.suffix }}" $domain -}}
       {{- $storageType := $storageProvider.type -}}
       
-      {{- $endpoint := .Context.hiveMetastore.endpoint.url
+      {{- $endpoint := .Context.hiveMetastore.endpoints.url
         | replace "{{ .Release.namespace }}" $namespace }}
       {{- $noProto := $endpoint
           | trimPrefix "thrift://"

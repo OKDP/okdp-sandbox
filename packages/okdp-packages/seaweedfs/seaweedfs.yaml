@@ -23,7 +23,7 @@ description: |
 usage:
   text: |
     SeaweedFS is a simple and highly scalable distributed file system.
-    Access the console at {{ .Context.defaultStorage.provider.endpoints.console 
+    Access the console at {{ .Context.defaultStorage.provider.endpoints.consoleUrl 
        | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace 
        | replace "{{ .Release.metadata.name }}" .Release.metadata.name 
        | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
@@ -173,12 +173,12 @@ modules:
       {{- $release := printf "%v" .Release.metadata.name -}}
       {{- $domain := printf "%v" .Context.ingress.suffix -}}
       
-      {{- $seaweedfsS3Url := .Context.defaultStorage.provider.endpoints.api 
+      {{- $seaweedfsS3Url := .Context.defaultStorage.provider.endpoints.apiUrl 
          | replace "{{ .Release.namespace }}" $namespace
          | replace "{{ .Release.metadata.name }}" $release
          | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
-      {{- $seaweedfsFilerUrl := .Context.defaultStorage.provider.endpoints.console 
+      {{- $seaweedfsFilerUrl := .Context.defaultStorage.provider.endpoints.consoleUrl 
          | replace "{{ .Release.namespace }}" $namespace
          | replace "{{ .Release.metadata.name }}" $release
          | replace "{{ .Context.ingress.suffix }}" $domain -}}
