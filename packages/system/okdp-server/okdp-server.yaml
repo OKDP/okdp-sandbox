@@ -38,7 +38,7 @@ modules:
       {{- $release := printf "%v" .Release.metadata.name -}}
       {{- $domain := printf "%v" .Context.ingress.suffix -}}
       
-      {{- $oidcId := .Context.portal.auth.oidc.provider -}}
+      {{- $oidcId := .Context.portal.oidc.provider -}}
       {{- $oidcProvider := (index .Context $oidcId).provider -}}
             
       {{- $oidcIssuerUri := $oidcProvider.issuerUri
@@ -46,17 +46,17 @@ modules:
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
-      {{- $oidcAuthUrl := $oidcProvider.endpoints.auth
+      {{- $oidcAuthUrl := $oidcProvider.endpoints.authUrl
             | replace "{{ .Release.namespace }}" $namespace
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
-      {{- $oidcTokenUrl := $oidcProvider.endpoints.token
+      {{- $oidcTokenUrl := $oidcProvider.endpoints.tokenUrl
             | replace "{{ .Release.namespace }}" $namespace
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
-      {{- $oidcJwksUrl := $oidcProvider.endpoints.jwks
+      {{- $oidcJwksUrl := $oidcProvider.endpoints.jwksUri
             | replace "{{ .Release.namespace }}" $namespace
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}      

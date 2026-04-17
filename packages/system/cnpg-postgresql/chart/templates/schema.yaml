@@ -64,10 +64,10 @@ spec:
                 sleep 2
               done
 
-              # if [ "${DB_READY:-false}" != "true" ]; then
-              #   echo "❌ Database ${DB} not ready after waiting. Exiting."
-              #   exit 1
-              # fi
+              if [ "${DB_READY:-false}" != "true" ]; then
+                echo "❌ Database ${DB} not ready after waiting. Exiting."
+                exit 1
+              fi
               
               {{- range $schema := $db.schemas }}
               echo "👉 Creating schema: {{ $schema }}"

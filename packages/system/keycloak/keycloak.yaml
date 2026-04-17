@@ -58,9 +58,9 @@ modules:
         | replace "{{ .Context.ingress.suffix }}" $domain -}}
       {{- $databasePort := printf "%v" $databaseProvider.connection.port -}}
       
-      {{- $databaseJdbcUrl := $databaseProvider.connection.jdbc 
-        | replace "{{ host }}" $databaseHost
-        | replace "{{ port }}" $databasePort
+      {{- $databaseJdbcUrl := $databaseProvider.connection.jdbcUrl 
+        | replace "{{ connection.host }}" $databaseHost
+        | replace "{{ connection.port }}" $databasePort
         | replace "{{ dbName }}" .Context.defaultIdp.settings.database.name -}}
       
       global:

@@ -49,7 +49,7 @@ databases: []
 #    - main
 
 job:
-  ttlSecondsAfterFinished: 60
+  ttlSecondsAfterFinished: 300
   annotations:
     "helm.sh/hook": "post-install,post-upgrade"
     "helm.sh/hook-delete-policy": "before-hook-creation"

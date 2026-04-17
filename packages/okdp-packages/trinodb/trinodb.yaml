@@ -28,7 +28,7 @@ description: |
 usage:
   text: |
     Apache Trino provides distributed SQL query engine designed for large-scale data processing.
-    Access the UI at {{ .Context.trino.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
+    Access the UI at {{ .Context.trino.endpoints.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
 schema:
   parameters:
     properties:
@@ -61,7 +61,7 @@ modules:
       {{- $release := printf "%v" .Release.metadata.name -}}
       {{- $domain := printf "%v" .Context.ingress.suffix -}}
       
-      {{- $oidcId := .Context.trino.auth.oidc.provider -}}
+      {{- $oidcId := .Context.trino.oidc.provider -}}
       {{- $oidcProvider := (index .Context $oidcId).provider -}}
       
       {{- $oidcIssuerUri := $oidcProvider.issuerUri
@@ -69,22 +69,22 @@ modules:
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
-      {{- $oidcAuthUrl := $oidcProvider.endpoints.auth
+      {{- $oidcAuthUrl := $oidcProvider.endpoints.authUrl
             | replace "{{ .Release.namespace }}" $namespace
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
-      {{- $oidcTokenUrl := $oidcProvider.endpoints.token
+      {{- $oidcTokenUrl := $oidcProvider.endpoints.tokenUrl
             | replace "{{ .Release.namespace }}" $namespace
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
-      {{- $oidcJwksUrl := $oidcProvider.endpoints.jwks
+      {{- $oidcJwksUrl := $oidcProvider.endpoints.jwksUri
             | replace "{{ .Release.namespace }}" $namespace
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}  
       
-      {{- $trinoEndpoint := .Context.trino.endpoint.url
+      {{- $trinoEndpoint := .Context.trino.endpoints.url
             | replace "{{ .Release.namespace }}" $namespace
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain
@@ -94,7 +94,7 @@ modules:
       {{- $storageId := .Context.trino.storage.provider -}}
       {{- $storageProvider := (index .Context $storageId).provider -}}
       
-      {{- $storageApiUrl := $storageProvider.endpoints.api
+      {{- $storageApiUrl := $storageProvider.endpoints.apiUrl
           | replace "{{ .Release.namespace }}" $namespace
           | replace "{{ .Release.metadata.name }}" $release
           | replace "{{ .Context.ingress.suffix }}" $domain -}}
@@ -176,14 +176,14 @@ modules:
         - name: OAUTH_CLIENT_ID
           valueFrom:
             secretKeyRef:
-              name: {{ .Context.trino.auth.oidc.credentialsSecret.name }}
-              key: {{ .Context.trino.auth.oidc.credentialsSecret.clientIdKey }}
+              name: {{ .Context.trino.oidc.credentialsSecret.name }}
+              key: {{ .Context.trino.oidc.credentialsSecret.clientIdKey }}
       
         - name: OAUTH_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: {{ .Context.trino.auth.oidc.credentialsSecret.name }}
-              key: {{ .Context.trino.auth.oidc.credentialsSecret.clientSecretKey }}
+              name: {{ .Context.trino.oidc.credentialsSecret.name }}
+              key: {{ .Context.trino.oidc.credentialsSecret.clientSecretKey }}
       
         - name: TRINO_POLARIS_OAUTH_CLIENT_ID
           valueFrom:

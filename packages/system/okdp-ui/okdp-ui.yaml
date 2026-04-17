@@ -37,7 +37,7 @@ modules:
       {{- $release := printf "%v" .Release.metadata.name -}}
       {{- $domain := printf "%v" .Context.ingress.suffix -}}
       
-      {{- $oidcId := .Context.portal.auth.oidc.provider -}}
+      {{- $oidcId := .Context.portal.oidc.provider -}}
       {{- $oidcProvider := (index .Context $oidcId).provider -}}
       
       {{- $oidcIssuerUri := $oidcProvider.issuerUri
