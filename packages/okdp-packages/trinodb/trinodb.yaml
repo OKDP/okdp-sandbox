@@ -19,7 +19,7 @@ name: trinodb
 #tag: 475-p01
 # Currently, the UI requires the version to conform to SemVer (https://simversion.github.io/)
 # https://github.com/OKDP/okdp-ui/blob/main/src/app/shared/utils/utils.ts#L131
-tag: 475.0.0-p01
+tag: 475.0.0-p02-opa
 protected: false
 description: |
   Apache Trino - Distributed SQL query engine designed for large-scale data processing across multiple data sources.
@@ -48,7 +48,76 @@ schema:
         properties:
           suffix: { type: string, required: true }
 modules:
+  - name: opa
+    timeout: 10m
+    source:
+      oci:
+        repository: quay.io/okdp/charts/opa-server
+        tag: 0.1.0
+    values: |
+      fullnameOverride: {{ .Release.metadata.name }}-opa
+  - name: opal-secrets
+    timeout: 10m
+    source:
+      oci:
+        repository: quay.io/okdp/charts/opal-secrets
+        tag: 0.1.0
+    values: |
+      fullnameOverride: {{ .Release.metadata.name }}-opal-secrets
+  - name: opal
+    dependsOn:
+      - opa
+      - opal-secrets
+    timeout: 10m
+    source:
+      helmRepository:
+        url: https://permitio.github.io/opal-helm-chart
+        chart: opal
+        version: 0.0.29
+    values: |
+      image:
+        client:
+          registry: docker.io
+          repository: permitio/opal-client-standalone
+          tag: 0.9.4
+        server:
+          registry: docker.io
+          repository: permitio/opal-server
+          tag: 0.9.4
+
+      client:
+        extraEnv:
+          OPAL_POLICY_STORE_URL: http://{{ .Release.metadata.name }}-opa.{{ .Release.spec.targetNamespace }}:443
+          OPAL_CLIENT_TOKEN:
+            valueFrom:
+              secretKeyRef:
+                name: opal-client-token-secret
+                key: token
+
+      server:
+        policyRepoUrl: https://github.com/OKDP/trino-opal-example-policy.git
+
+        OPAL_AUTH_PRIVATE_KEY:
+          valueFrom:
+            secretKeyRef:
+              name: opal-ssh-secret
+              key: ssh-privatekey
+
+        OPAL_AUTH_PUBLIC_KEY:
+          valueFrom:
+            secretKeyRef:
+              name: opal-ssh-secret
+              key: ssh-publickey
+
+        OPAL_AUTH_MASTER_TOKEN:
+          valueFrom:
+            secretKeyRef:
+              name: opal-master-token-secret
+              key: token
+
   - name: main
+    dependsOn:
+      - opal
     timeout: 10m
     source:
       helmRepository:
@@ -239,6 +308,13 @@ modules:
                 readOnly: false
                 mountPath: "/etc/trino/generated"
 
+      accessControl:
+        type: properties
+        properties: |
+          access-control.name=opa
+          opa.policy.uri=http://{{ .Release.metadata.name }}-opa.{{ .Release.spec.targetNamespace }}:443/v1/data/trino/allow
+          opa.log-responses=true
+          opa.log-requests=true
 roles:
   - interactive-query
 dependencies:
