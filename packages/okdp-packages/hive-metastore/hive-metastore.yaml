@@ -26,11 +26,11 @@ description: |
 usage:
   text: |
     Hive Metastore is a centralized metadata repository for data lakes and big data analytics.
-#schema:
-#  parameters:
-#    properties:
-#      bucket: { type: string, required: true, default: "okdp", description: "S3 bucket used to store the Hive Metastore warehouse." }
-#      prefix: { type: string, required: true, default: "hive-warehouse/", description: "Warehouse directory under the bucket." }
+schema:
+  parameters:
+    properties:
+      memoryGi: { type: number, default: 0.5, multipleOf: 0.25, description: "Memory (GiB) used for Kubernetes requests/limits (recommended: request=limit)." }
+      cpu: { type: number, default: 0.5, multipleOf: 0.25, description: "CPU request in millicores (e.g., 500=0.5 vCPU, 1000=1 vCPU)." }
 modules:
   - name: main
     timeout: 10m
@@ -42,17 +42,17 @@ modules:
       
       {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
       {{- $release := printf "%v" .Release.metadata.name -}}
-      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      {{- $domain := printf "%v" .Context.platform.ingress.suffix -}}
       
       {{- $databaseId := .Context.hiveMetastore.database.provider -}}
       {{- $databaseProvider := (index .Context $databaseId).provider -}}
       
-      {{- $databaseHost := $databaseProvider.connection.host
+      {{- $databaseHost := $databaseProvider.endpoints.host
             | replace "{{ .Release.namespace }}" $namespace
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
-      {{- $databasePort := printf "%v" $databaseProvider.connection.port -}}
+      {{- $databasePort := printf "%v" $databaseProvider.endpoints.port -}}
       {{- $databaseType := $databaseProvider.type -}}
       {{- $databaseDriver := $databaseProvider.driver -}}
       
@@ -110,7 +110,7 @@ modules:
       s3:
         url: {{ $storageApiUrl }}
         # Misleading issue on hive-metastore chart, warehouseDirectory is a bucket (prefix not available)
-        warehouseDirectory: {{ .Context.hiveMetastore.storage.bucket }}
+        warehouseDirectory: {{ trimPrefix "s3://" .Context.hiveMetastore.storage.location.uri }}
         accessKey:
           secretName: {{ .Context.hiveMetastore.storage.credentialsSecret.name }}
           propertyName: {{ .Context.hiveMetastore.storage.credentialsSecret.accessKeyKey }}
@@ -122,13 +122,12 @@ modules:
       {{- end }}
       
       resources:
-        limits:
-          cpu: 500m
-          memory: 1024Mi
         requests:
-          cpu: 100m
-          memory: 512Mi
-
+          cpu: "{{ .Parameters.cpu }}"
+          memory: "{{ .Parameters.memoryGi }}Gi"
+        limits:
+          cpu: "{{ mulf (float64 .Parameters.cpu) 2 }}"
+          memory: "{{ mulf (float64 .Parameters.memoryGi) 2 }}Gi"
 roles:
   - data-catalog
   - metastore-catalog

@@ -27,7 +27,25 @@ metadata:
 spec:
   name: {{ $db.name }}
   owner: {{ $db.owner.username }}
+  {{- $databaseReclaimPolicy := default $root.Values.databaseReclaimPolicy $db.databaseReclaimPolicy }}
+  {{- if $databaseReclaimPolicy }}
+  databaseReclaimPolicy: {{ $databaseReclaimPolicy | quote }}
+  {{- end }}
   cluster:
     name: {{ include "cnpg-postgresql.fullname" $root }}
+  {{- with $db.schemas }}
+  schemas:
+    {{- range $schema := . }}
+      {{- if kindIs "string" $schema }}
+      - name: {{ $schema | quote }}
+        owner: {{ $db.owner.username | quote }}
+        ensure: present
+      {{- else }}
+      - name: {{ $schema.name | quote }}
+        owner: {{ default $db.owner.username $schema.owner | quote }}
+        ensure: {{ default "present" $schema.ensure }}
+      {{- end }}
+      {{- end }}
+  {{- end }}
 ---
 {{- end }}

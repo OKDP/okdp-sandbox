@@ -23,8 +23,8 @@ description: |
 usage:
   text: |
     OKDP Server provides the API backend for the OKDP platform.
-    Access the API at https://okdp-server.{{ .Context.ingress.suffix }}
-    Swagger UI available at https://okdp-server.{{ .Context.ingress.suffix }}/swagger
+    Access the API at https://okdp-server.{{ .Context.platform.ingress.suffix }}
+    Swagger UI available at https://okdp-server.{{ .Context.platform.ingress.suffix }}/swagger
 modules:
   - name: main
     timeout: 10m
@@ -36,9 +36,9 @@ modules:
       
       {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
       {{- $release := printf "%v" .Release.metadata.name -}}
-      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      {{- $domain := printf "%v" .Context.platform.ingress.suffix -}}
       
-      {{- $oidcId := .Context.portal.oidc.provider -}}
+      {{- $oidcId := .Context.platform.portal.oidc.provider -}}
       {{- $oidcProvider := (index .Context $oidcId).provider -}}
             
       {{- $oidcIssuerUri := $oidcProvider.issuerUri
@@ -62,21 +62,21 @@ modules:
             | replace "{{ .Context.ingress.suffix }}" $domain -}}      
       
       extraEnvRaw:
-        {{- if .Context.proxy.httpProxy }}
+        {{- if .Context.platform.proxy.httpProxy }}
         - name: HTTP_PROXY
-          value: {{ .Context.proxy.httpProxy | quote }}
+          value: {{ .Context.platform.proxy.httpProxy | quote }}
         {{- end }}
-        {{- if .Context.proxy.httpsProxy }}
+        {{- if .Context.platform.proxy.httpsProxy }}
         - name: HTTPS_PROXY
-          value: {{ .Context.proxy.httpsProxy | quote }}
+          value: {{ .Context.platform.proxy.httpsProxy | quote }}
         {{- end }}
-        {{- if .Context.proxy.noProxy }}
+        {{- if .Context.platform.proxy.noProxy }}
         - name: NO_PROXY
-          value: {{ .Context.proxy.noProxy | quote }}
+          value: {{ .Context.platform.proxy.noProxy | quote }}
         {{- end }}
       configuration:
         clusters:
-          {{- range .Context.portal.clusters }}
+          {{- range .Context.platform.portal.clusters }}
           - id: {{ .id }}
             name: {{ .name | quote }}
             env: {{ .env }}
@@ -85,11 +85,11 @@ modules:
           {{- end }}
         
         catalog:
-          {{- range .Context.portal.catalogs }}
+          {{- range .Context.platform.portal.catalogs }}
           - id: {{ .id }}
             name: {{ .name | quote }}
             description: {{ .description | quote }}
-            repoUrl: {{ $.Context.portal.packageRepository }}
+            repoUrl: {{ $.Context.platform.portal.packageRepository }}
             packages:
               {{- range .packages }}
               - name: {{ .name }}
@@ -174,7 +174,7 @@ modules:
               value: /swagger
             - name: URLS
               value: |
-                [{ url: 'https://okdp-server.{{ .Context.ingress.suffix }}/api/v1/api-docs', name: 'OKDP Server' }]
+                [{ url: 'https://okdp-server.{{ .Context.platform.ingress.suffix }}/api/v1/api-docs', name: 'OKDP Server' }]
             - name: OAUTH_CLIENT_ID
               value: okdp-server
             - name: OAUTH_SCOPES
@@ -187,13 +187,13 @@ modules:
           enabled: true
           className: "nginx"
           annotations:
-            cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+            cert-manager.io/cluster-issuer: "{{ .Context.platform.certificateIssuers.selfSigned.name }}"
           tls:
           - secretName: okdp-server-swagger-tls
             hosts:
-            - okdp-server.{{ .Context.ingress.suffix }}
+            - okdp-server.{{ .Context.platform.ingress.suffix }}
           hosts:
-            - host: okdp-server.{{ .Context.ingress.suffix }}
+            - host: okdp-server.{{ .Context.platform.ingress.suffix }}
               paths:
                 - path: /swagger
                   pathType: Prefix
@@ -202,13 +202,13 @@ modules:
         enabled: true
         className: "nginx"
         annotations:
-          cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+          cert-manager.io/cluster-issuer: "{{ .Context.platform.certificateIssuers.selfSigned.name }}"
         tls:
         - secretName: okdp-server-tls
           hosts:
-          - okdp-server.{{ .Context.ingress.suffix }}
+          - okdp-server.{{ .Context.platform.ingress.suffix }}
         hosts:
-          - host: okdp-server.{{ .Context.ingress.suffix }}
+          - host: okdp-server.{{ .Context.platform.ingress.suffix }}
             paths:
               - path: /
                 pathType: Prefix

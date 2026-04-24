@@ -23,7 +23,7 @@ description: |
 usage:
   text: |
     Keycloak provides centralized authentication and authorization.
-    Access the admin console at https://keycloak.{{ .Context.ingress.suffix }}
+    Access the admin console at https://keycloak.{{ .Context.platform.ingress.suffix }}
     Default admin credentials: admin/admin
 schema:
   parameters:
@@ -48,17 +48,17 @@ modules:
 
       {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
       {{- $release := printf "%v" .Release.metadata.name -}}
-      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      {{- $domain := printf "%v" .Context.platform.ingress.suffix -}}
       
       {{- $databaseId := .Context.defaultIdp.settings.database.provider -}}
       {{- $databaseProvider := (index .Context $databaseId).provider -}}
-      {{- $databaseHost := $databaseProvider.connection.host
+      {{- $databaseHost := $databaseProvider.endpoints.host
         | replace "{{ .Release.namespace }}" $namespace
         | replace "{{ .Release.metadata.name }}" $release
         | replace "{{ .Context.ingress.suffix }}" $domain -}}
-      {{- $databasePort := printf "%v" $databaseProvider.connection.port -}}
+      {{- $databasePort := printf "%v" $databaseProvider.endpoints.port -}}
       
-      {{- $databaseJdbcUrl := $databaseProvider.connection.jdbcUrl 
+      {{- $databaseJdbcUrl := $databaseProvider.endpoints.jdbcUrl 
         | replace "{{ connection.host }}" $databaseHost
         | replace "{{ connection.port }}" $databasePort
         | replace "{{ dbName }}" .Context.defaultIdp.settings.database.name -}}
@@ -76,9 +76,9 @@ modules:
         annotations:
           nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
           nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-          cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+          cert-manager.io/cluster-issuer: "{{ .Context.platform.certificateIssuers.selfSigned.name }}"
         tls: true
-        hostname: keycloak.{{ .Context.ingress.suffix }}
+        hostname: keycloak.{{ .Context.platform.ingress.suffix }}
       
       auth:
         adminUser: "{{ .Parameters.adminUser }}"
@@ -193,13 +193,13 @@ modules:
                   "redirectUris": [
                     {{- range $uriIndex, $uri := $client.redirectUris }}
                     {{- if $uriIndex }},{{ end }}
-                    "{{ $uri | replace "{{ .Context.ingress.suffix }}" $.Context.ingress.suffix }}"
+                    "{{ $uri | replace "{{ .Context.ingress.suffix }}" $.Context.platform.ingress.suffix }}"
                     {{- end }}
                   ],
                   "webOrigins": [
                     {{- range $originIndex, $origin := $client.webOrigins }}
                     {{- if $originIndex }},{{ end }}
-                    "{{ $origin | replace "{{ .Context.ingress.suffix }}" $.Context.ingress.suffix }}"
+                    "{{ $origin | replace "{{ .Context.ingress.suffix }}" $.Context.platform.ingress.suffix }}"
                     {{- end }}
                   ]
                   {{- if $client.defaultClientScopes }},

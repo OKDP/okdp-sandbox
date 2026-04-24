@@ -28,7 +28,8 @@ usage:
 schema:
   parameters:
     properties:
-      sparkEventsLogDir: { type: string, required: true, default: "s3a://spark-events/event-logs/", description: "S3 path for Spark event logs, typically s3a://<bucket>/eventLogs" }
+      memoryGi: { type: number, default: 0.5, multipleOf: 0.25, description: "Memory (GiB) used for Kubernetes requests/limits (recommended: request=limit)." }
+      cpu: { type: number, default: 0.5, multipleOf: 0.25, description: "CPU request in millicores (e.g., 500=0.5 vCPU, 1000=1 vCPU)." }
 modules:
   - name: main
     timeout: 10m
@@ -40,7 +41,7 @@ modules:
       
       {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
       {{- $release := printf "%v" .Release.metadata.name -}}
-      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      {{- $domain := printf "%v" .Context.platform.ingress.suffix -}}
       
       {{- $oidcId := .Context.examples.trino.oidc.provider -}}
       {{- $oidcProvider := (index .Context $oidcId).provider -}}
@@ -67,6 +68,8 @@ modules:
              | replace "{{ .Release.namespace }}" $namespace
              | replace "{{ .Release.metadata.name }}" $release
              | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $sparkHistoryLogDir := index .Context.sparkHistory.config "spark.history.fs.logDirectory" | default "" -}}
       
       replicaCount: 1
       image:
@@ -117,19 +120,20 @@ modules:
             secretKeyRef:
               name: {{ .Context.examples.trino.oidc.credentialsSecret.name }}
               key: {{ .Context.examples.trino.oidc.credentialsSecret.clientSecretKey }}
+
         - name: SPARK_EVENT_LOG_DIRECTORY
-          value: {{ .Parameters.sparkEventsLogDir }}
-        {{- if .Context.proxy.httpProxy }}
+          value: {{ $sparkHistoryLogDir }}
+        {{- if .Context.platform.proxy.httpProxy }}
         - name: HTTP_PROXY
-          value: {{ .Context.proxy.httpProxy | quote }}
+          value: {{ .Context.platform.proxy.httpProxy | quote }}
         {{- end }}
-        {{- if .Context.proxy.httpsProxy }}
+        {{- if .Context.platform.proxy.httpsProxy }}
         - name: HTTPS_PROXY
-          value: {{ .Context.proxy.httpsProxy | quote }}
+          value: {{ .Context.platform.proxy.httpsProxy | quote }}
         {{- end }}
-        {{- if .Context.proxy.noProxy }}
+        {{- if .Context.platform.proxy.noProxy }}
         - name: NO_PROXY
-          value: {{ .Context.proxy.noProxy | quote }}
+          value: {{ .Context.platform.proxy.noProxy | quote }}
         {{- end }}
         # Polaris
         - name: OIDC_ISSUER_URL
@@ -189,11 +193,11 @@ modules:
       
       resources:
         requests:
-          cpu: 100m
-          memory: 512Mi
+          cpu: "{{ .Parameters.cpu }}"
+          memory: "{{ .Parameters.memoryGi }}Gi"
         limits:
-          cpu: 200m
-          memory: 1024Mi
+          cpu: "{{ mulf (float64 .Parameters.cpu) 2 }}"
+          memory: "{{ mulf (float64 .Parameters.memoryGi) 2 }}Gi"      
       
       extraVolumes:
         - name: cacerts

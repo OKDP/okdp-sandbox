@@ -31,9 +31,9 @@ spec:
   managed:
     roles:
       {{- range $db := .Values.databases }}
-      - name: {{ $db.owner.username }}
+      - name: {{ $db.owner.username | quote }}
         ensure: present
         login: true
         passwordSecret:
-          name: {{ default (printf "%s-owner-secret" $db.owner.username) $db.owner.passwordSecret }}
+          name: {{ default (printf "%s-owner-secret" $db.owner.username) $db.owner.passwordSecret | quote }}
       {{- end }}

@@ -16,7 +16,7 @@
 
 apiVersion: v1alpha1
 name: cnpg-postgresql
-tag: 17.0-p02
+tag: 18.0-p01
 protected: false
 description: |
   Defines multiple logical PostgreSQL databases managed by the CloudNativePG operator within a single PostgreSQL 

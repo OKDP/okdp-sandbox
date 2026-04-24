@@ -248,7 +248,10 @@ Deploy/Upgrade the sandbox default context:
 
 
 ```sh
-kubectl apply -f clusters/sandbox/default-context.yaml
+kubectl apply -f clusters/sandbox/10-platform-context.yaml
+kubectl apply -f clusters/sandbox/20-provider-context.yaml
+kubectl apply -f clusters/sandbox/30-service-context.yaml
+kubectl apply -f clusters/sandbox/99-examples-context.yaml
 ```
 
 > 💡 By default, the **default Context** uses **okdp.sandbox** as the ingress domain suffix.  
@@ -257,8 +260,8 @@ kubectl apply -f clusters/sandbox/default-context.yaml
 > Use the following command to update the domain suffix to match your organization’s domain (replace **<CUSTOM_DOMAIN>** with your actual domain name):
 >
 > ```sh
-> kubectl -n kubocd-system patch context default \
->   -p '{"spec":{"context":{"ingress":{"suffix":"<CUSTOM_DOMAIN>"}}}}' \
+> kubectl -n kubocd-system patch context platform \
+>   -p '{"spec":{"context":{"platform":{"ingress":{"suffix":"<CUSTOM_DOMAIN>"}}}}}' \
 >   --type=merge
 > ```
 
@@ -267,13 +270,14 @@ Configure proxy settings for OKDP Services (Optional)
 If your environment requires a proxy to reach external datasets (Superset examples, okdp examples, quay.io KuboCD packages), the following command sets the proxy configuration variables to the required OKDP services:
 
 ```sh
-kubectl -n kubocd-system patch context default --type merge -p "$(cat <<EOF
+kubectl -n kubocd-system patch context platform --type merge -p "$(cat <<EOF
 spec:
   context:
-    proxy:
-      httpProxy: "${HTTP_PROXY:-${http_proxy}}"
-      httpsProxy: "${HTTPS_PROXY:-${https_proxy}}"
-      noProxy: "${NO_PROXY:-${no_proxy}}"
+    platform:
+      proxy:
+        httpProxy: "${HTTP_PROXY:-${http_proxy}}"
+        httpsProxy: "${HTTPS_PROXY:-${https_proxy}}"
+        noProxy: "${NO_PROXY:-${no_proxy}}"
 EOF
 )"
 ```
@@ -283,13 +287,14 @@ EOF
 <br>
 
 ```powershell
-kubectl -n kubocd-system patch context default --type merge -p @"
+kubectl -n kubocd-system patch context platform --type merge -p @"
 spec:
   context:
-    proxy:
-      httpProxy: "$($env:HTTP_PROXY ?? $env:http_proxy)"
-      httpsProxy: "$($env:HTTPS_PROXY ?? $env:https_proxy)"
-      noProxy: "$($env:NO_PROXY ?? $env:no_proxy)"
+    platform:
+      proxy:
+        httpProxy: "$($env:HTTP_PROXY ?? $env:http_proxy)"
+        httpsProxy: "$($env:HTTPS_PROXY ?? $env:https_proxy)"
+        noProxy: "$($env:NO_PROXY ?? $env:no_proxy)"
 "@
 ```
 </details>

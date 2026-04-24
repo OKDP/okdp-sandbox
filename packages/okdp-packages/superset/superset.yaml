@@ -29,7 +29,7 @@ usage:
      .Context.superset.endpoints.url 
      | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace 
      | replace "{{ .Release.metadata.name }}" .Release.metadata.name 
-     | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix 
+     | replace "{{ .Context.ingress.suffix }}" .Context.platform.ingress.suffix
     }}
 schema:
   parameters:
@@ -38,16 +38,19 @@ schema:
       load_examples: { type: boolean, default: true, description: "Whether to load superset examples" }
   context:
     properties:
-      certificateIssuers:
+      platform:
         required: true
         properties:
-          selfSigned:
+          certificateIssuers:
+            required: true
             properties:
-              name: { type: string, required: true }
-      ingress:
-        required: true
-        properties:
-          suffix: { type: string, required: true }
+              selfSigned:
+                properties:
+                  name: { type: string, required: true }
+          ingress:
+            required: true
+            properties:
+              suffix: { type: string, required: true }
 modules:
   - name: main
     timeout: 10m
@@ -59,23 +62,23 @@ modules:
 
       {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
       {{- $release := printf "%v" .Release.metadata.name -}}
-      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      {{- $domain := printf "%v" .Context.platform.ingress.suffix -}}
       
       {{- $databaseId := .Context.superset.database.provider -}}
       {{- $databaseProvider := (index .Context $databaseId).provider -}}
-      {{- $databaseHost := $databaseProvider.connection.host
+      {{- $databaseHost := $databaseProvider.endpoints.host
         | replace "{{ .Release.namespace }}" $namespace
         | replace "{{ .Release.metadata.name }}" $release
         | replace "{{ .Context.ingress.suffix }}" $domain -}}
-      {{- $databasePort := printf "%v" $databaseProvider.connection.port -}}
+      {{- $databasePort := printf "%v" $databaseProvider.endpoints.port -}}
       
       {{- $examplesDatabaseId := .Context.superset.load_examples.database.provider -}}
       {{- $examplesDatabaseProvider := (index .Context $examplesDatabaseId).provider -}}
-      {{- $examplesDatabaseHost := $examplesDatabaseProvider.connection.host
+      {{- $examplesDatabaseHost := $examplesDatabaseProvider.endpoints.host
         | replace "{{ .Release.namespace }}" $namespace
         | replace "{{ .Release.metadata.name }}" $release
         | replace "{{ .Context.ingress.suffix }}" $domain -}}
-      {{- $examplesDatabasePort := printf "%v" $examplesDatabaseProvider.connection.port -}}
+      {{- $examplesDatabasePort := printf "%v" $examplesDatabaseProvider.endpoints.port -}}
       {{- $examplesDatabaseJdbcUrl := .Context.superset.load_examples.database.connection.jdbcUrl
         | replace "{{ connection.host }}" $examplesDatabaseHost
         | replace "{{ connection.port }}" $examplesDatabasePort
@@ -98,6 +101,53 @@ modules:
           | replace "{{ .Release.metadata.name }}" $release
           | replace "{{ .Context.ingress.suffix }}" $domain -}}
       {{- $supersetHost := regexReplaceAll "^https?://" $supersetUrl "" -}}
+      {{- $supersetConnectionsRaw := (.Context.superset.connections | default list) -}}
+      {{- if not (kindIs "slice" $supersetConnectionsRaw) }}
+        {{- fail "context.superset.connections must be a list" -}}
+      {{- end }}
+      {{- $supersetConnections := dict -}}
+      {{- range $connection := $supersetConnectionsRaw }}
+        {{- if not (and $connection $connection.name) }}
+          {{- fail "each item in context.superset.connections must define name" -}}
+        {{- end }}
+        {{- $_ := set $supersetConnections $connection.name $connection -}}
+      {{- end }}
+      {{- $supersetDataSourcesRaw := (.Context.superset.dataSources | default "") -}}
+      {{- $supersetDataSources := ($supersetDataSourcesRaw | fromYaml | default dict) -}}
+      {{- $selectedDatabases := (dig "databases" nil $supersetDataSources | default list) -}}
+      {{- if not (kindIs "slice" $selectedDatabases) }}
+        {{- fail "context.superset.dataSources.databases must be a list" -}}
+      {{- end }}
+      {{- $importDataSources := dict "databases" (list) -}}
+      {{- range $databaseName := $selectedDatabases }}
+        {{- $connection := index $supersetConnections $databaseName -}}
+        {{- if $connection }}
+          {{- $connectionYaml := $connection.yaml -}}
+          {{- $serviceId := dig "service" "name" "" $connection -}}
+          {{- $connectionYaml = $connectionYaml
+                | replace "{{ connection.name }}" $databaseName
+                | replace "{{ database.name }}" $databaseName -}}
+          {{- if $serviceId }}
+            {{- $service := index $.Context $serviceId -}}
+            {{- $serviceUri := $service.endpoints.uri
+                  | replace "{{ .Release.namespace }}" $namespace
+                  | replace "{{ .Release.metadata.name }}" $release
+                  | replace "{{ .Context.ingress.suffix }}" $domain -}}
+            {{- $connectionYaml = $connectionYaml
+                  | replace "{{ service.endpoint.uri }}" $serviceUri
+                  | replace "{{ service.endpoints.uri }}" $serviceUri -}}
+          {{- end }}
+          {{- $connectionYaml = $connectionYaml
+                | replace "{{ .Release.namespace }}" $namespace
+                | replace "{{ .Release.metadata.name }}" $release
+                | replace "{{ .Context.ingress.suffix }}" $domain -}}
+          {{- $connectionConfig := ($connectionYaml | fromYaml) -}}
+          {{- if $connectionConfig }}
+            {{- $_ := set $importDataSources "databases" (append (get $importDataSources "databases") $connectionConfig) -}}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+      {{- $importDataSourcesYaml := toYaml $importDataSources -}}
             
       okdp:
         # Superset configuration
@@ -170,10 +220,7 @@ modules:
       
         extraConfigs:
           import_datasources.yaml: |
-      {{ .Context.superset.dataSources
-         | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace
-         | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix
-         | indent 6 }}
+            {{ $importDataSourcesYaml | trim | nindent 14 }}
         postgresql:
           # Use an external database
           enabled: false
@@ -240,17 +287,17 @@ modules:
           - name: REQUESTS_CA_BUNDLE
             value: /cacerts/ca.crt
       
-          {{- if .Context.proxy.httpProxy }}
+          {{- if .Context.platform.proxy.httpProxy }}
           - name: HTTP_PROXY
-            value: {{ .Context.proxy.httpProxy | quote }}
+            value: {{ .Context.platform.proxy.httpProxy | quote }}
           {{- end }}
-          {{- if .Context.proxy.httpsProxy }}
+          {{- if .Context.platform.proxy.httpsProxy }}
           - name: HTTPS_PROXY
-            value: {{ .Context.proxy.httpsProxy | quote }}
+            value: {{ .Context.platform.proxy.httpsProxy | quote }}
           {{- end }}
-          {{- if .Context.proxy.noProxy }}
+          {{- if .Context.platform.proxy.noProxy }}
           - name: NO_PROXY
-            value: {{ .Context.proxy.noProxy | quote }}
+            value: {{ .Context.platform.proxy.noProxy | quote }}
           {{- end }}
           # Examples
           {{- if .Parameters.load_examples }}
@@ -281,7 +328,7 @@ modules:
             db_user: ~
             db_pass: ~
             # -- Redis
-            redis_host: {{ default (printf "%s-main-redis-headless" .Release.metadata.name) .Context.superset.redis.host | quote }}
+            redis_host: {{ default (printf "%s-main-redis-headless" $release) .Context.superset.redis.host | quote }}
             redis_port: {{ .Context.superset.redis.port }}
             redis_user: ~
             redis_password: ~
@@ -296,7 +343,7 @@ modules:
           ingressClassName: "nginx"
           annotations:
             kubernetes.io/ingress.class: nginx
-            cert-manager.io/cluster-issuer: {{ .Context.certificateIssuers.selfSigned.name }}
+            cert-manager.io/cluster-issuer: {{ .Context.platform.certificateIssuers.selfSigned.name }}
             acme.cert-manager.io/http01-edit-in-place: "true"
             # kubernetes.io/tls-acme: "true"
             ## Extend timeout to allow long running queries.
@@ -311,7 +358,7 @@ modules:
           tls:
             - hosts:
                 - {{ $supersetHost }}
-              secretName: "{{ .Release.metadata.name }}-tls-secret"
+              secretName: "{{ $release }}-tls-secret"
       
         configOverrides:
           auth_registration: *auth_registration
@@ -332,4 +379,4 @@ roles:
   - dataviz
 dependencies:
   - database-server
-  - ingress 
+  - ingress

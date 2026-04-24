@@ -62,13 +62,16 @@ schema:
                     size: { type: integer, default: 256 }
   context:
     properties:
-      certificateIssuers:
+      platform:
         required: true
         properties:
-          selfSigned:
+          certificateIssuers:
             required: true
             properties:
-              name: { type: string, required: true }
+              selfSigned:
+                required: true
+                properties:
+                  name: { type: string, required: true }
 modules:
   - name: main
     timeout: 10m

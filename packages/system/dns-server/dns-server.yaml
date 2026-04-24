@@ -33,10 +33,13 @@ schema:
       nodePort: { type: integer, default: 30053 }
   context:
     properties:
-      ingress:
+      platform:
         required: true
         properties:
-          suffix: { type: string, required: true }
+          ingress:
+            required: true
+            properties:
+              suffix: { type: string, required: true }
 modules:
   - name: main
     timeout: 10m
@@ -52,7 +55,7 @@ modules:
         pullPolicy: IfNotPresent
       
       config:
-        domain: {{ .Context.ingress.suffix }}
+        domain: {{ .Context.platform.ingress.suffix }}
         target: {{ .Parameters.target }}
       
       service:

@@ -65,7 +65,13 @@ spec:
       clusterRoles:
         - storage
       defaultContexts:
-        - name: default
+        - name: platform
+          namespace: kubocd-system
+        - name: provider
+          namespace: kubocd-system
+        - name: service
+          namespace: kubocd-system
+        - name: examples
           namespace: kubocd-system
     controller:
       enabled: true

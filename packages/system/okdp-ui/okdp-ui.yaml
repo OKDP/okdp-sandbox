@@ -23,7 +23,7 @@ description: |
 usage:
   text: |
     OKDP UI provides the web interface for the OKDP platform.
-    Access the UI at https://okdp-ui.{{ .Context.ingress.suffix }}
+    Access the UI at https://okdp-ui.{{ .Context.platform.ingress.suffix }}
 modules:
   - name: main
     timeout: 10m
@@ -35,9 +35,9 @@ modules:
       
       {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
       {{- $release := printf "%v" .Release.metadata.name -}}
-      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      {{- $domain := printf "%v" .Context.platform.ingress.suffix -}}
       
-      {{- $oidcId := .Context.portal.oidc.provider -}}
+      {{- $oidcId := .Context.platform.portal.oidc.provider -}}
       {{- $oidcProvider := (index .Context $oidcId).provider -}}
       
       {{- $oidcIssuerUri := $oidcProvider.issuerUri
@@ -57,28 +57,28 @@ modules:
           provider: oauth2
           oauth2:
             issuer: {{ $oidcIssuerUri }}
-            redirectUri: https://okdp-ui.{{ .Context.ingress.suffix }}/index.html
-            silentRefreshRedirectUri: https://okdp-ui.{{ .Context.ingress.suffix }}/silent-refresh.html
+            redirectUri: https://okdp-ui.{{ .Context.platform.ingress.suffix }}/index.html
+            silentRefreshRedirectUri: https://okdp-ui.{{ .Context.platform.ingress.suffix }}/silent-refresh.html
             clientId: okdp-ui
             responseType: code
             scope: openid profile email offline_access roles
             showDebugInformation: true
         okdpApi:
-          apiUrl: https://okdp-server.{{ .Context.ingress.suffix }}/api/v1
-          swaggerUrl: https://okdp-server.{{ .Context.ingress.suffix }}/swagger
+          apiUrl: https://okdp-server.{{ .Context.platform.ingress.suffix }}/api/v1
+          swaggerUrl: https://okdp-server.{{ .Context.platform.ingress.suffix }}/swagger
         submission:
           mode: kubernetes
         catalogs:
           services:
-            {{ toYaml .Context.portal.services | nindent 6 }}
+            {{ toYaml .Context.platform.portal.services | nindent 6 }}
           kad:
             - all
         
         kadCatalogsInfo:
-          {{ toYaml .Context.portal.kadCatalogsInfo | nindent 4 }}
+          {{ toYaml .Context.platform.portal.kadCatalogsInfo | nindent 4 }}
         
         kadServicesInfo:
-          {{ toYaml .Context.portal.kadServicesInfo | nindent 4 }}
+          {{ toYaml .Context.platform.portal.kadServicesInfo | nindent 4 }}
       
       service:
         type: ClusterIP
@@ -88,16 +88,16 @@ modules:
         enabled: true
         className: "nginx"
         annotations:
-          cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+          cert-manager.io/cluster-issuer: "{{ .Context.platform.certificateIssuers.selfSigned.name }}"
           nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
           nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
           nginx.ingress.kubernetes.io/use-regex: "true"          
         tls:
           - secretName: okdp-ui-tls
             hosts:
-              - okdp-ui.{{ .Context.ingress.suffix }}
+              - okdp-ui.{{ .Context.platform.ingress.suffix }}
         hosts:
-          - host: okdp-ui.{{ .Context.ingress.suffix }}
+          - host: okdp-ui.{{ .Context.platform.ingress.suffix }}
             paths:
             - path: "/"
               pathType: ImplementationSpecific

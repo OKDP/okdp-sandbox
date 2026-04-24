@@ -25,32 +25,33 @@ description: |
 usage:
   text: |
     JupyterHub provides multi-user Jupyter notebook environment with OAuth authentication.
-    Access the hub at {{ .Context.jupyterHub.endpoints.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
+    Access the hub at {{ .Context.jupyterHub.endpoints.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.platform.ingress.suffix }}
 schema:
   parameters:
     properties:
-      cloneExamples: { type: boolean, default: true, description: "Whether to clone OKDP examples" }
-      sparkEventsLogDir: { type: string, required: true, default: "s3a://spark-events/event-logs/", description: "S3 path for Spark event logs, typically s3a://<bucket>/eventLogs" }
       startTimeout: { type: integer, default: 600, description: "Maximum number of seconds JupyterHub will wait for a user’s server to become reachable" }
       allowedRoles: { type: string, default: "platform_admin", description: "Allowed roles for JupyterHub access" }
       memoryGi: { type: number, default: 1, multipleOf: 0.25, description: "Notebook (singleuser) pod memory (GiB) for requests/limits." }
       cpu:      { type: number, default: 0.5, multipleOf: 0.25, description: "Notebook (singleuser) pod CPU (vCPU) for requests/limits." }
   context:
     properties:
-      certificateIssuers:
+      platform:
         required: true
         properties:
-          selfSigned:
+          certificateIssuers:
+            required: true
             properties:
-              name: { type: string, required: true }
-      ingress:
-        required: true
-        properties:
-          suffix: { type: string, required: true }
-      storageClass:
-        required: true
-        properties:
-          workspace: { type: string, required: true }
+              selfSigned:
+                properties:
+                  name: { type: string, required: true }
+          ingress:
+            required: true
+            properties:
+              suffix: { type: string, required: true }
+          storageClass:
+            required: true
+            properties:
+              workspace: { type: string, required: true }
 modules:
   - name: spark-rbac
     timeout: 10m
@@ -59,11 +60,11 @@ modules:
         path: ../spark-rbac/chart
     values: |
       rbac:
-        create: {{ .Context.sparkRBAC.rbac.create }}
+        create: {{ .Context.spark.rbac.rbac.create }}
       serviceAccount:
-        create: {{ .Context.sparkRBAC.serviceAccount.create }}
-        name: "{{ .Context.sparkRBAC.serviceAccount.name }}"
-        automountServiceAccountToken: {{ .Context.sparkRBAC.serviceAccount.automountServiceAccountToken }}
+        create: {{ .Context.spark.rbac.serviceAccount.create }}
+        name: "{{ .Context.spark.rbac.serviceAccount.name }}"
+        automountServiceAccountToken: {{ .Context.spark.rbac.serviceAccount.automountServiceAccountToken }}
 
   - name: main
     dependsOn:
@@ -77,7 +78,7 @@ modules:
     values: |
       {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
       {{- $release := printf "%v" .Release.metadata.name -}}
-      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      {{- $domain := printf "%v" .Context.platform.ingress.suffix -}}
       
       {{- $oidcId := .Context.jupyterHub.oidc.provider -}}
       {{- $oidcProvider := (index .Context $oidcId).provider -}}
@@ -99,7 +100,7 @@ modules:
             | replace "{{ .Release.metadata.name }}"  $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}
       
-      {{- $storageId := .Context.jupyterHub.storage.provider -}}
+      {{- $storageId := .Context.jupyterHub.fileBrowser.provider -}}
       {{- $storageProvider := (index .Context $storageId).provider -}}
       
       {{- $storageApiUrl := $storageProvider.endpoints.apiUrl
@@ -112,13 +113,37 @@ modules:
             | replace "{{ .Release.metadata.name }}"  $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}
       {{- $jupyterHost := regexReplaceAll "^https?://" $jupyterUrl "" -}}
-      
-      {{- $polarisEndpointAPI := .Context.polaris.endpoints.url 
+      {{- $hiveMetastoreUrl := .Context.hiveMetastore.endpoints.url
             | replace "{{ .Release.namespace }}" $namespace
-            | replace "{{ .Release.metadata.name }}" $release -}}
-      
-      {{- $polarisEndpointAPIUrl := $polarisEndpointAPI | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix -}}
-      {{- $polarisEndpointAPICatalogUrl := printf "%s/api/catalog" $polarisEndpointAPIUrl -}}
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      {{- $welcomeNotebook := (.Context.jupyterHub.welcomeNotebook | default "") -}}
+      {{- $welcomeNotebook = $welcomeNotebook
+            | replace "{{ $jupyterUrl }}" $jupyterUrl
+            | replace "{{ .Context.jupyterHub.endpoints.url }}" $jupyterUrl
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      {{- $jupyterConnections := (.Context.jupyterHub.connections | default list) -}}
+      {{- if not (kindIs "slice" $jupyterConnections) }}
+        {{- fail "context.jupyterHub.connections must be a list" -}}
+      {{- end }}
+      {{- $jupyterPySparkConnections := (.Context.jupyterHub.pyspark | default list) -}}
+      {{- if not (kindIs "slice" $jupyterPySparkConnections) }}
+        {{- fail "context.jupyterHub.pyspark must be a list" -}}
+      {{- end }}
+      {{- $sparkDefaults := (.Context.spark.defaults | default dict) -}}
+      {{- if not (kindIs "map" $sparkDefaults) }}
+        {{- fail "context.spark.defaults must be a map" -}}
+      {{- end }}
+      {{- $sparkDefaultKeys := (keys $sparkDefaults | sortAlpha) -}}
+      {{- $jupyterConnectionsByName := dict -}}
+      {{- range $connection := $jupyterConnections }}
+        {{- if not (and $connection $connection.name) }}
+          {{- fail "each item in context.jupyterHub.connections must define name" -}}
+        {{- end }}
+        {{- $_ := set $jupyterConnectionsByName $connection.name $connection -}}
+      {{- end }}
       
       # Fix resource naming conflicts by using release name as prefix
       fullnameOverride: "{{ .Release.metadata.name }}"
@@ -196,7 +221,7 @@ modules:
           type: sqlite-pvc
           pvc:
             storage: 1Gi
-            storageClassName: "{{ .Context.storageClass.workspace }}"
+            storageClassName: "{{ .Context.platform.storageClass.workspace }}"
       
       rbac:
         create: true
@@ -212,7 +237,7 @@ modules:
         enabled: true
         annotations:
           nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-          cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+          cert-manager.io/cluster-issuer: "{{ .Context.platform.certificateIssuers.selfSigned.name }}"
         ingressClassName: nginx
         hosts:
           - {{ $jupyterHost }}
@@ -254,29 +279,39 @@ modules:
           CURL_CA_BUNDLE: /cacerts/ca.crt
           SSL_CERT_FILE: /cacerts/ca.crt
           TRUSTSTORE_PASSWORD: ""
-      
+
           # https://github.com/jpmorganchase/jupyter-fs
           FS_S3_ENDPOINT_URL: "{{ $storageApiUrl }}"
           FS_S3_ACCESS_KEY:
             valueFrom:
               secretKeyRef:
-                name: "{{ .Context.jupyterHub.storage.credentialsSecret.name }}"
-                key: "{{ .Context.jupyterHub.storage.credentialsSecret.accessKeyKey }}"
+                name: "{{ .Context.jupyterHub.fileBrowser.credentialsSecret.name }}"
+                key: "{{ .Context.jupyterHub.fileBrowser.credentialsSecret.accessKeyKey }}"
           FS_S3_SECRET_KEY:
             valueFrom:
               secretKeyRef:
-                name: "{{ .Context.jupyterHub.storage.credentialsSecret.name }}"
-                key: "{{ .Context.jupyterHub.storage.credentialsSecret.secretKeyKey }}"
-          EXAMPLES_S3_ACCESS_KEY:
+                name: "{{ .Context.jupyterHub.fileBrowser.credentialsSecret.name }}"
+                key: "{{ .Context.jupyterHub.fileBrowser.credentialsSecret.secretKeyKey }}"
+
+          {{- range $connectionName := $jupyterPySparkConnections }}
+          {{- $connection := index $jupyterConnectionsByName $connectionName -}}
+          {{- if $connection }}
+          {{- $connectionEnvPrefix := upper (replace "." "_" (replace "-" "_" $connectionName)) -}}
+          {{- $connectionStorageCredentialsSecret := (dig "storage" "credentialsSecret" nil $connection) -}}
+          {{- if and $connectionStorageCredentialsSecret $connectionStorageCredentialsSecret.name $connectionStorageCredentialsSecret.accessKeyKey $connectionStorageCredentialsSecret.secretKeyKey }}
+          {{ printf "%s_S3_ACCESS_KEY" $connectionEnvPrefix }}:
             valueFrom:
               secretKeyRef:
-                name: "{{ .Context.examples.storage.credentialsSecret.name }}"
-                key: "{{ .Context.examples.storage.credentialsSecret.accessKeyKey }}"
-          EXAMPLES_S3_SECRET_KEY:
+                name: "{{ $connectionStorageCredentialsSecret.name }}"
+                key: "{{ $connectionStorageCredentialsSecret.accessKeyKey }}"
+          {{ printf "%s_S3_SECRET_KEY" $connectionEnvPrefix }}:
             valueFrom:
               secretKeyRef:
-                name: "{{ .Context.examples.storage.credentialsSecret.name  }}"
-                key: "{{ .Context.examples.storage.credentialsSecret.secretKeyKey }}"
+                name: "{{ $connectionStorageCredentialsSecret.name }}"
+                key: "{{ $connectionStorageCredentialsSecret.secretKeyKey }}"
+          {{- end }}
+          {{- end }}
+          {{- end }}
       
           # Notebook pod IP used by Spark driver (spark.driver.host) in client mode
           POD_IP:
@@ -284,17 +319,17 @@ modules:
               fieldRef:
                 fieldPath: status.podIP
       
-          {{- if .Context.proxy.httpProxy }}
-          HTTP_PROXY: {{ .Context.proxy.httpProxy | quote }}
+          {{- if .Context.platform.proxy.httpProxy }}
+          HTTP_PROXY: {{ .Context.platform.proxy.httpProxy | quote }}
           {{- end }}
-          {{- if .Context.proxy.httpsProxy }}
-          HTTPS_PROXY: {{ .Context.proxy.httpsProxy | quote }}
+          {{- if .Context.platform.proxy.httpsProxy }}
+          HTTPS_PROXY: {{ .Context.platform.proxy.httpsProxy | quote }}
           {{- end }}
-          {{- if .Context.proxy.noProxy }}
-          NO_PROXY: {{ .Context.proxy.noProxy | quote }}
+          {{- if .Context.platform.proxy.noProxy }}
+          NO_PROXY: {{ .Context.platform.proxy.noProxy | quote }}
           {{- end }}
       
-        {{- if .Parameters.cloneExamples }}
+        {{- if $welcomeNotebook }}
         lifecycleHooks:
           postStart:
             exec:
@@ -312,74 +347,11 @@ modules:
         {{- end }}
       
         extraFiles:
-          {{- if .Parameters.cloneExamples }}
+          {{- if and $welcomeNotebook }}
           welcome-notebook:
             mountPath: /etc/jupyterhub/welcome/Welcome.ipynb
             stringData: |
-              {
-                "cells": [
-                  {
-                    "cell_type": "markdown",
-                    "id": "127ae6f0",
-                    "metadata": {},
-                    "source": [
-                      "# 👋 Welcome to OKDP Examples\n",
-                      "\n",
-                      "This workspace contains hands-on examples and ready-to-run workflows for the **[Open Kubernetes Data Platform (OKDP)](https://okdp.io)**.\n",
-                      "\n",
-                      "You’ll be able to explore:\n",
-                      "\n",
-                      "- **[SeaweedFS](https://github.com/seaweedfs/seaweedfs)** for S3-compatible object storage\n",
-                      "- **[Hive Metastore](https://hive.apache.org/)** for table/catalog metadata\n",
-                      "- **[Trino](https://trino.io/)** for interactive SQL queries\n",
-                      "- **[Jupyter](https://jupyter.org/)** for notebooks and analysis\n",
-                      "- **[Apache Superset](https://superset.apache.org/)** for dashboards and visualizations\n",
-                      "\n",
-                      "---\n",
-                      "\n",
-                      "## 🚀 Get started\n",
-                      "\n",
-                      "Click the link below to **download or update** the [okdp-examples](https://github.com/OKDP/okdp-examples) repository directly into your JupyterLab workspace.\n",
-                      "\n",
-                      "> Tip: If you already cloned it before, this will **pull the latest changes**.\n",
-                      "\n",
-                      "[✅ Sync OKDP Examples]({{ $jupyterUrl }}/hub/user-redirect/git-pull?repo=https://github.com/OKDP/okdp-examples&branch=polaris&urlpath=lab/tree/okdp-examples/notebooks/index.ipynb)\n",
-                      "\n",
-                      "---\n",
-                      "\n",
-                      "## 🧭 What’s inside the repo\n",
-                      "\n",
-                      "- **Helm-driven workflows** to download public datasets and upload them to S3 (SeaweedFS)\n",
-                      "- **Trino SQL** examples to create external tables and sync partitions\n",
-                      "- **Jupyter notebooks** to query Trino (SQLAlchemy + native SQL)\n",
-                      "- Optional **Superset** workflows for visualization\n",
-                      "\n",
-                      "If you get stuck, open the repo’s [README](https://github.com/OKDP/okdp-examples) and follow the step-by-step instructions.\n"
-                    ]
-                  }
-                ],
-                "metadata": {
-                  "kernelspec": {
-                    "display_name": "Python 3 (ipykernel)",
-                    "language": "python",
-                    "name": "python3"
-                  },
-                  "language_info": {
-                    "codemirror_mode": {
-                      "name": "ipython",
-                      "version": 3
-                    },
-                    "file_extension": ".py",
-                    "mimetype": "text/x-python",
-                    "name": "python",
-                    "nbconvert_exporter": "python",
-                    "pygments_lexer": "ipython3",
-                    "version": "3.12.12"
-                  }
-                },
-                "nbformat": 4,
-                "nbformat_minor": 5
-              }
+              {{- $welcomeNotebook | trim | nindent 14 }}
           {{- end }}
       
           jupyter_server_config_py:
@@ -387,36 +359,42 @@ modules:
             stringData: |      
               c.ServerApp.contents_manager_class = "jupyterfs.MetaManager"
               c.ServerApp.jpserver_extensions = {"jupyterfs.extension": True}
+              
               {{- $root := . }}
-              {{- $buckets := list }}
-              {{- range $layer := list "bronze" "silver" "gold" }}
-              {{- $cfg := index $root.Context.examples.mylakehouse $layer }}
-              {{- if and $cfg $cfg.storageUri }}
-              {{- $bucket := trimPrefix "s3://" $cfg.storageUri }}
-              {{- $buckets = append $buckets (printf "%q" $bucket) }}
+              {{- $fileBrowserLocations := list }}
+              {{- $locations := dig "jupyterHub" "fileBrowser" "locations" (list) $root.Context }}
+              
+              {{- range $location := $locations }}
+              {{- $name := default "" $location.name }}
+              {{- $uri := default "" $location.uri }}
+              {{- if and $name $uri }}
+              {{- $fileBrowserLocations = append $fileBrowserLocations (dict "name" $name "uri" $uri) }}
               {{- end }}
               {{- end }}
-              buckets = [{{ join ", " $buckets }}]
+              
+              file_browser_locations = {{ $fileBrowserLocations | toJson }}
+              
               import os
-              c.JupyterFs.resources = [
-                {
-                  "name": b,
-                  "url": f"s3://{b}/",
-                  "type": "fsspec",
-                  "defaultWritable": True,
-                  "use_listings_cache": False,
-                  "auth": "none",
-                  "kwargs": {
-                      "key": os.environ["FS_S3_ACCESS_KEY"],
-                      "secret": os.environ["FS_S3_SECRET_KEY"],
-                      "client_kwargs": {
-                          "endpoint_url": os.environ["FS_S3_ENDPOINT_URL"],
-                          "verify": os.environ["AWS_CA_BUNDLE"],
-                      }
+              
+              c.JupyterFs.resources = [{
+                "name": loc["name"],
+                "url": loc["uri"],
+                "type": "fsspec",
+                "defaultWritable": True,
+                "use_listings_cache": False,
+                "auth": "none",
+                "kwargs": {
+                  "key": os.environ["FS_S3_ACCESS_KEY"],
+                  "secret": os.environ["FS_S3_SECRET_KEY"],
+                  "client_kwargs": {
+                    "endpoint_url": os.environ["FS_S3_ENDPOINT_URL"],
+                    "verify": os.environ["AWS_CA_BUNDLE"],
                   },
-                }
-                for b in buckets
+                },
+               }
+               for loc in file_browser_locations
               ]
+      
           notebook_oauth2:
             mountPath: /etc/jupyter/auth/sitecustomize.py
             stringData: |
@@ -492,41 +470,79 @@ modules:
                   --conf spark.kubernetes.driverEnv.SPARK_USER=$(NB_USER)
                   --conf spark.executorEnv.SPARK_USER=$(NB_USER)
                   --conf spark.kubernetes.container.image=$(SPARK_EXECUTOR_IMAGE)
-                  --conf spark.kubernetes.authenticate.serviceAccountName={{ .Context.sparkRBAC.serviceAccount.name }}
-                  --conf spark.kubernetes.namespace={{ $namespace }}
-                  --conf spark.eventLog.enabled=true
-                  --conf spark.eventLog.dir={{ .Parameters.sparkEventsLogDir }}
-                  --conf spark.history.fs.logDirectory={{ .Parameters.sparkEventsLogDir }}
-                  --conf spark.eventLog.compress=true
-                  --conf spark.eventLog.rolling.enabled=true
                   --conf spark.kubernetes.executor.secrets.certs-bundle=/cacerts
                   --conf "spark.driver.extraJavaOptions=-Djavax.net.ssl.trustStore=/cacerts/bundle.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword="
                   --conf "spark.executor.extraJavaOptions=-Djavax.net.ssl.trustStore=/cacerts/bundle.p12 -Djavax.net.ssl.trustStoreType=PKCS12 -Djavax.net.ssl.trustStorePassword="
-                  --conf "spark.hadoop.fs.s3a.endpoint={{ $storageApiUrl }}"
-                  --conf "spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem"
-                  --conf "spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider"
-                  --conf "spark.hadoop.fs.s3a.access.key=$(EXAMPLES_S3_ACCESS_KEY)"
-                  --conf "spark.hadoop.fs.s3a.secret.key=$(EXAMPLES_S3_SECRET_KEY)"
-                  --conf "spark.hadoop.fs.s3a.path.style.access=true"
-                  --conf "spark.hadoop.fs.s3a.connection.maximum=100"
-                  --conf "spark.hadoop.fs.s3a.connection.ssl.enabled=true"
-                  --conf "spark.hadoop.fs.s3a.endpoints.region=dummy"
-                  --conf "spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"
-                  {{- range $realm := .Context.examples.polaris.realms }}
-                  {{- range $catalog := $realm.catalogs }}
-                  --conf "spark.sql.catalog.{{ $catalog.name }}.type=rest"
-                  --conf "spark.sql.catalog.{{ $catalog.name }}=org.apache.iceberg.spark.SparkCatalog"
-                  --conf "spark.sql.catalog.{{ $catalog.name }}.warehouse={{ $catalog.name }}"
-                  --conf "spark.sql.catalog.{{ $catalog.name }}.uri={{ $polarisEndpointAPICatalogUrl }}"
-                  --conf "spark.sql.catalog.{{ $catalog.name }}.oauth2-server-uri={{ $oidcTokenUrl }}"
-                  --conf "spark.sql.catalog.{{ $catalog.name }}.header.Polaris-Realm={{ $realm.name }}"
-                  --conf "spark.sql.catalog.{{ $catalog.name }}.scope=profile"
-                  --conf "spark.sql.catalog.{{ $catalog.name }}.header.X-Iceberg-Access-Delegation=vended-credentials"
-                  --conf "spark.sql.catalog.{{ $catalog.name }}.rest.auth.type=oauth2"
-                  --conf "spark.sql.catalog.{{ $catalog.name }}.token-refresh-enabled=true"
-                  --conf "spark.sql.catalog.{{ $catalog.name }}.client.region={{ $catalog.storageConfigInfo.region }}"
-                  --conf "spark.sql.catalog.{{ $catalog.name }}.s3.region={{ $catalog.storageConfigInfo.region }}"
-                  --conf "spark.sql.catalog.{{ $catalog.name }}.io-impl=org.apache.iceberg.io.ResolvingFileIO"
+                  --conf spark.kubernetes.namespace={{ $namespace }}
+                  {{ range $key := $sparkDefaultKeys }}
+                  --conf {{ printf "%s=%s" $key ((printf "%v" (index $sparkDefaults $key))
+                    | replace "{{ hiveMetastore.endpoint.url }}" $hiveMetastoreUrl
+                    | replace "{{ hiveMetastore.endpoints.url }}" $hiveMetastoreUrl
+                    | replace "{{ .Release.namespace }}" $namespace
+                    | replace "{{ .Release.metadata.name }}" $release
+                    | replace "{{ .Context.ingress.suffix }}" $domain
+                    | replace "NAMESPACE" $namespace) | quote }}
+                  {{- end }}
+                  --conf spark.kubernetes.authenticate.serviceAccountName={{ .Context.spark.rbac.serviceAccount.name }}
+                  {{- range $connectionName := $jupyterPySparkConnections }}
+                  {{- $connection := index $jupyterConnectionsByName $connectionName -}}
+                  {{- if $connection }}
+                  {{- $connectionEnvPrefix := upper (replace "." "_" (replace "-" "_" $connectionName)) -}}
+                  {{- $connectionProperties := ($connection.properties | default "") -}}
+                  {{- $connectionServiceId := dig "service" "name" "" $connection -}}
+                  {{- $connectionOidc := (dig "service" "oidc" nil $connection | default $connection.oidc | default (dig "auth" "oidc" nil $connection)) -}}
+                  {{- $connectionOidcTokenUrl := $oidcTokenUrl -}}
+                  {{- $connectionStorage := (dig "storage" nil $connection | default dict) -}}
+                  {{- $connectionStorageProviderId := (dig "provider" "" $connectionStorage) -}}
+                  {{- $connectionStorageCredentialsSecret := (dig "credentialsSecret" nil $connectionStorage) -}}
+                  {{- $connectionProperties = $connectionProperties
+                        | replace "{{ connection.name }}" $connectionName -}}
+                  {{- if $connectionServiceId }}
+                    {{- $connectionService := index $.Context $connectionServiceId -}}
+                    {{- $connectionServiceUrl := $connectionService.endpoints.url
+                          | replace "{{ .Release.namespace }}" $namespace
+                          | replace "{{ .Release.metadata.name }}" $release
+                          | replace "{{ .Context.ingress.suffix }}" $domain -}}
+                    {{- $connectionProperties = $connectionProperties
+                          | replace "{{ service.endpoint.url }}" $connectionServiceUrl
+                          | replace "{{ service.endpoints.url }}" $connectionServiceUrl -}}
+                  {{- end }}
+                  {{- if $connectionStorageProviderId }}
+                    {{- $connectionStorageProvider := (index $.Context $connectionStorageProviderId).provider -}}
+                    {{- $connectionStorageApiUrl := $connectionStorageProvider.endpoints.apiUrl
+                          | replace "{{ .Release.namespace }}" $namespace
+                          | replace "{{ .Release.metadata.name }}" $release
+                          | replace "{{ .Context.ingress.suffix }}" $domain -}}
+                    {{- $connectionStorageRegion := printf "%v" $connectionStorageProvider.region -}}
+                    {{- $connectionProperties = $connectionProperties
+                          | replace "{{ storage.endpoints.api }}" $connectionStorageApiUrl
+                          | replace "{{ storage.endpoints.apiUrl }}" $connectionStorageApiUrl
+                          | replace "{{ storage.region }}" $connectionStorageRegion -}}
+                  {{- end }}
+                  {{- if and $connectionStorageCredentialsSecret $connectionStorageCredentialsSecret.name $connectionStorageCredentialsSecret.accessKeyKey $connectionStorageCredentialsSecret.secretKeyKey }}
+                    {{- $connectionProperties = $connectionProperties
+                          | replace "$(S3_ACCESS_KEY)" (printf "$(%s_S3_ACCESS_KEY)" $connectionEnvPrefix)
+                          | replace "$(S3_SECRET_KEY)" (printf "$(%s_S3_SECRET_KEY)" $connectionEnvPrefix) -}}
+                  {{- end }}
+                  {{- if and $connectionOidc $connectionOidc.provider }}
+                    {{- $connectionOidcProviderId := $connectionOidc.provider -}}
+                    {{- $connectionOidcProvider := (index $.Context $connectionOidcProviderId).provider -}}
+                    {{- $connectionOidcTokenUrl = $connectionOidcProvider.endpoints.tokenUrl
+                          | replace "{{ .Release.namespace }}" $namespace
+                          | replace "{{ .Release.metadata.name }}" $release
+                          | replace "{{ .Context.ingress.suffix }}" $domain -}}
+                  {{- end }}
+                  {{- $connectionProperties = $connectionProperties
+                        | replace "{{ idp.endpoints.token }}" $connectionOidcTokenUrl
+                        | replace "{{ idp.endpoints.tokenUrl }}" $connectionOidcTokenUrl -}}
+                  {{- if $connectionProperties }}
+                  {{- range $line := splitList "\n" $connectionProperties }}
+                  {{- $line = trim $line -}}
+                  {{- if $line }}
+                  --conf {{ $line | quote }}
+                  {{- end }}
+                  {{- end }}
+                  {{- end }}
                   {{- end }}
                   {{- end }}
                   pyspark-shell
@@ -550,7 +566,7 @@ modules:
                       environment:
                         SPARK_EXECUTOR_IMAGE: quay.io/okdp/spark-py:spark-3.5.6-python-3.11-scala-2.12-java-17
         
-        serviceAccountName: {{ .Context.sparkRBAC.serviceAccount.name }}
+        serviceAccountName: {{ .Context.spark.rbac.serviceAccount.name }}
         storage:
           homeMountPath: "/home/{username}"
           dynamic:

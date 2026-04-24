@@ -1,0 +1,135 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# you may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Context
+metadata:
+  name: platform
+  namespace: kubocd-system
+spec:
+  # -- KuboCD context values for the platform layer.
+  context:
+    # -- Platform-wide defaults for ingress, certificates, storage classes, portal catalogs, exposed services, and UI metadata.
+    platform:
+      proxy:
+        httpProxy: ~
+        httpsProxy: ~
+        noProxy: ~
+      ingress:
+        suffix: okdp.sandbox
+        className: nginx
+
+      certificateIssuers:
+        selfSigned:
+          name: default-issuer
+
+      storageClass:
+        data: standard
+        workspace: standard
+
+      portal:
+        oidc:
+          enabled: true
+          provider: defaultIdp
+        packageRepository: quay.io/okdp/sandbox-packages-v0.2
+        clusters:
+          - id: sandbox
+            name: "OKDP Sandbox Cluster"
+            env: dev
+            auth:
+              inCluster: true
+        catalogs:
+          - id: Dataviz
+            name: "Dataviz catalog"
+            description: "Dataviz packages"
+            packages:
+              - name: superset
+          - id: Notebook
+            name: "Notebooks catalog"
+            description: "Notebooking packages"
+            packages:
+              - name: jupyterhub
+          - id: Spark
+            name: "Spark packages"
+            description: "Spark packages"
+            packages:
+              - name: spark-history-server
+          - id: Storage
+            name: "Storage catalog"
+            description: "Storage packages"
+            packages:
+              - name: seaweedfs
+          - id: Interactive-Query
+            name: "Interactive Query"
+            description: "Interactive-query packages"
+            packages:
+              - name: trinodb
+          - id: Data-Catalog
+            name: "Data Catalog"
+            description: "Central metadata catalog packages"
+            packages:
+              - name: hive-metastore
+              - name: polaris
+          - id: Applications
+            name: "OKDP Examples"
+            description: "A collection of hands-on okdp examples"
+            packages:
+              - name: okdp-examples
+        services:
+          - Notebook
+          - Spark
+          - Dataviz
+          - Interactive-Query
+          - Data-Catalog
+          - Storage
+          - Applications
+        kadCatalogsInfo:
+          Interactive-Query:
+            displayName: "Interactive Query"
+            menuIcon: "fa-solid fa-database"
+          Data-Catalog:
+            displayName: "Data Catalog"
+            menuIcon: "fa-solid fa-sitemap"
+          Applications:
+            displayName: "Applications"
+            menuIcon: "fa-solid fa-code"
+        kadServicesInfo:
+          hive-metastore:
+            icon: "okdp-notext.svg"
+            menuIcon: "fa-solid fa-book"
+            description: |
+              The central repository of metadata for Hive tables and partitions, providing clients including Hive, Impala, and Spark access through the metastore service API.
+              A fundamental building block for modern data lakes.
+            home: "https://hive.apache.org"
+          polaris:
+            icon: "okdp-notext.svg"
+            menuIcon: "fa-solid fa-book"
+            description: |
+              Apache Polaris is an open-source, fully-featured catalog for Apache Iceberg™.
+              It implements Iceberg's REST API, enabling seamless multi-engine interoperability across a wide range of platforms,
+              including Apache Doris™, Apache Flink®, Apache Spark™, Dremio® OSS, StarRocks, and Trino.
+            home: "https://polaris.apache.org"
+          okdp-examples:
+            icon: "okdp-notext.svg"
+            menuIcon: "fa-solid fa-code"
+            description: |
+              A collection of hands-on examples, helper utilities, Jupyter notebooks, and data workflows
+              that showcases how to work with the OKDP Platform.
+            home: "https://github.com/okdp/okdp-examples"
+          seaweedfs:
+            description: |
+              SeaweedFS is a simple and highly scalable distributed file system. There are the objectives to store billions of files and to serve the files fast!
+            home: "https://seaweedfs.com/"

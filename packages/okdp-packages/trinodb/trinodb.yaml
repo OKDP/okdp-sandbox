@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# you may obtain a copy of the License at
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -28,7 +28,7 @@ description: |
 usage:
   text: |
     Apache Trino provides distributed SQL query engine designed for large-scale data processing.
-    Access the UI at {{ .Context.trino.endpoints.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
+    Access the UI at {{ .Context.trino.endpoints.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.platform.ingress.suffix }}
 schema:
   parameters:
     properties:
@@ -37,16 +37,20 @@ schema:
       workerCpu: { type: number, default: 0.5, multipleOf: 0.25, description: "Worker CPU request in millicores (e.g., 500=0.5 vCPU, 1000=1 vCPU)." }
   context:
     properties:
-      certificateIssuers:
+      platform:
         required: true
         properties:
-          selfSigned:
+          certificateIssuers:
+            required: true
             properties:
-              name: { type: string, required: true }
-      ingress:
-        required: true
-        properties:
-          suffix: { type: string, required: true }
+              selfSigned:
+                properties:
+                  name: { type: string, required: true }
+          ingress:
+            required: true
+            properties:
+              suffix: { type: string, required: true }
+
 modules:
   - name: main
     timeout: 10m
@@ -56,146 +60,141 @@ modules:
         chart: trino
         version: v1.42.1
     values: |
-      
+
       {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
       {{- $release := printf "%v" .Release.metadata.name -}}
-      {{- $domain := printf "%v" .Context.ingress.suffix -}}
-      
+      {{- $domain := printf "%v" .Context.platform.ingress.suffix -}}
+
       {{- $oidcId := .Context.trino.oidc.provider -}}
       {{- $oidcProvider := (index .Context $oidcId).provider -}}
-      
+
       {{- $oidcIssuerUri := $oidcProvider.issuerUri
             | replace "{{ .Release.namespace }}" $namespace
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}
-      
+
       {{- $oidcAuthUrl := $oidcProvider.endpoints.authUrl
             | replace "{{ .Release.namespace }}" $namespace
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}
-      
+
       {{- $oidcTokenUrl := $oidcProvider.endpoints.tokenUrl
             | replace "{{ .Release.namespace }}" $namespace
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}
-      
+
       {{- $oidcJwksUrl := $oidcProvider.endpoints.jwksUri
             | replace "{{ .Release.namespace }}" $namespace
             | replace "{{ .Release.metadata.name }}" $release
-            | replace "{{ .Context.ingress.suffix }}" $domain -}}  
-      
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+
+      {{- $oidcScopes := (default "openid profile email groups" .Context.trino.oidc.scope) | replace " " "," -}}
+
       {{- $trinoEndpoint := .Context.trino.endpoints.url
             | replace "{{ .Release.namespace }}" $namespace
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain
             | trimPrefix "https://"
             | trimPrefix "http://" -}}
-      
-      {{- $storageId := .Context.trino.storage.provider -}}
-      {{- $storageProvider := (index .Context $storageId).provider -}}
-      
-      {{- $storageApiUrl := $storageProvider.endpoints.apiUrl
-          | replace "{{ .Release.namespace }}" $namespace
-          | replace "{{ .Release.metadata.name }}" $release
-          | replace "{{ .Context.ingress.suffix }}" $domain -}}
-      {{- $storageRegion := $storageProvider.region -}}
-      
-      {{- $hmsUri := .Context.trino.catalogs.metastore.uri 
-            | replace "{{ .Release.namespace }}" $namespace -}}
-      
-      {{- $polarisUri := .Context.trino.catalogs.polaris.url 
-            | replace "{{ .Release.namespace }}" $namespace
-            | replace "{{ .Release.metadata.name }}" $release
-            | replace "{{ .Context.ingress.suffix }}" $domain -}}
-      
+      {{- $trinoConnectionsRaw := (.Context.trino.connections | default list) -}}
+      {{- if not (kindIs "slice" $trinoConnectionsRaw) }}
+        {{- fail "context.trino.connections must be a list" -}}
+      {{- end }}
+      {{- $trinoConnections := dict -}}
+      {{- range $connection := $trinoConnectionsRaw }}
+        {{- if not (and $connection $connection.name) }}
+          {{- fail "each item in context.trino.connections must define name" -}}
+        {{- end }}
+        {{- $_ := set $trinoConnections $connection.name $connection -}}
+      {{- end }}
+      {{- $selectedCatalogs := (.Context.trino.catalogs | default list) -}}
+
       image:
         repository: trinodb/trino
         tag: 480
-      
+
       catalogs:
-        tpch: |
-          connector.name=tpch
-          tpch.splits-per-node=4
-        tpcds: |
-          connector.name=tpcds
-          tpcds.splits-per-node=4
-        
-        bronze: |
-          connector.name=hive
-          hive.metastore.uri={{ $hmsUri }}
-          hive.metastore.username=trino
-          hive.non-managed-table-writes-enabled=true
-  
-          fs.native-s3.enabled=true
-          s3.region={{ $storageRegion }}
-          s3.path-style-access=true
-          s3.endpoint={{ $storageApiUrl }}
-          s3.aws-access-key=${ENV:S3_ACCESS_KEY}
-          s3.aws-secret-key=${ENV:S3_SECRET_ACCESS}
-        
-        silver: |
-          connector.name=iceberg
-          iceberg.rest-catalog.warehouse=silver
-          iceberg.catalog.type=rest
-          s3.endpoint={{ $storageApiUrl }}
-          s3.aws-access-key=${ENV:S3_ACCESS_KEY}
-          s3.aws-secret-key=${ENV:S3_SECRET_ACCESS}
-          iceberg.rest-catalog.uri={{ $polarisUri }}/api/catalog
-          iceberg.rest-catalog.oauth2.server-uri={{ $oidcTokenUrl }}
-          iceberg.rest-catalog.vended-credentials-enabled=true
-          iceberg.rest-catalog.security=OAUTH2
-          iceberg.rest-catalog.oauth2.credential=${ENV:TRINO_POLARIS_OAUTH_CLIENT_ID}:${ENV:TRINO_POLARIS_OAUTH_CLIENT_SECRET}
-          iceberg.rest-catalog.oauth2.scope=profile
-      
-          fs.native-s3.enabled=true
-          s3.region={{ $storageRegion }}
-          s3.path-style-access=true
-        
-        gold: |
-          connector.name=iceberg
-          iceberg.rest-catalog.warehouse=gold
-          iceberg.catalog.type=rest
-          s3.endpoint={{ $storageApiUrl }}
-          s3.aws-access-key=${ENV:S3_ACCESS_KEY}
-          s3.aws-secret-key=${ENV:S3_SECRET_ACCESS}
-          iceberg.rest-catalog.uri={{ $polarisUri }}/api/catalog
-          iceberg.rest-catalog.oauth2.server-uri={{ $oidcTokenUrl }}
-          iceberg.rest-catalog.vended-credentials-enabled=true
-          iceberg.rest-catalog.security=OAUTH2
-          iceberg.rest-catalog.oauth2.credential=${ENV:TRINO_POLARIS_OAUTH_CLIENT_ID}:${ENV:TRINO_POLARIS_OAUTH_CLIENT_SECRET}
-          iceberg.rest-catalog.oauth2.scope=profile
-      
-          fs.native-s3.enabled=true
-          s3.region={{ $storageRegion }}
-          s3.path-style-access=true
-      
-      envFrom:
-        - secretRef:
-            name: {{ .Context.trino.storage.credentialsSecret.name }}
+        {{- if gt (len $trinoConnections) 0 }}
+        {{- range $catalogName := $selectedCatalogs }}
+          {{- $catalog := index $trinoConnections $catalogName -}}
+          {{- if $catalog }}
+          {{- $catalogEnvPrefix := upper (replace "." "_" (replace "-" "_" $catalogName)) -}}
+          {{- $catalogProps := $catalog.properties -}}
+          {{- $catalogServiceId := dig "service" "name" "" $catalog -}}
+          {{- $catalogOidc := (dig "service" "oidc" nil $catalog | default $catalog.oidc | default (dig "auth" "oidc" nil $catalog)) -}}
+          {{- $catalogStorage := (dig "storage" nil $catalog | default dict) -}}
+          {{- $catalogStorageProviderId := (dig "provider" "" $catalogStorage) -}}
+          {{- $catalogStorageCredentialsSecret := (dig "credentialsSecret" nil $catalogStorage) -}}
+
+          {{- $catalogProps = $catalogProps
+                | replace "{{ connection.name }}" $catalogName -}}
+
+          {{- if $catalogServiceId }}
+            {{- $catalogService := index $.Context $catalogServiceId -}}
+            {{- $catalogServiceUrl := $catalogService.endpoints.url
+                  | replace "{{ .Release.namespace }}" $namespace
+                  | replace "{{ .Release.metadata.name }}" $release
+                  | replace "{{ .Context.ingress.suffix }}" $domain -}}
+            {{- $catalogProps = $catalogProps
+                  | replace "{{ service.endpoint.url }}" $catalogServiceUrl
+                  | replace "{{ service.endpoints.url }}" $catalogServiceUrl
+                  | replace "{{ dataSource.endpoint.url }}" $catalogServiceUrl
+                  | replace "{{ dataSource.endpoints.url }}" $catalogServiceUrl -}}
+          {{- end }}
+
+          {{- if $catalogStorageProviderId }}
+            {{- $storageProvider := (index $.Context $catalogStorageProviderId).provider -}}
+            {{- $storageApiUrl := $storageProvider.endpoints.apiUrl
+                  | replace "{{ .Release.namespace }}" $namespace
+                  | replace "{{ .Release.metadata.name }}" $release
+                  | replace "{{ .Context.ingress.suffix }}" $domain -}}
+            {{- $storageRegion := printf "%v" $storageProvider.region -}}
+            {{- $catalogProps = $catalogProps
+                  | replace "{{ storage.endpoints.api }}" $storageApiUrl
+                  | replace "{{ storage.endpoints.apiUrl }}" $storageApiUrl
+                  | replace "{{ storage.region }}" $storageRegion -}}
+          {{- end }}
+
+          {{- if and $catalogStorageCredentialsSecret $catalogStorageCredentialsSecret.name
+                $catalogStorageCredentialsSecret.accessKeyKey $catalogStorageCredentialsSecret.secretKeyKey }}
+            {{- $catalogProps = $catalogProps
+                  | replace "${ENV:S3_ACCESS_KEY}" (printf "${ENV:%s_S3_ACCESS_KEY}" $catalogEnvPrefix)
+                  | replace "${ENV:S3_SECRET_ACCESS}" (printf "${ENV:%s_S3_SECRET_ACCESS}" $catalogEnvPrefix) -}}
+          {{- end }}
+
+          {{- if and $catalogOidc $catalogOidc.provider }}
+            {{- $catalogOidcProviderId := $catalogOidc.provider -}}
+            {{- $catalogOidcProvider := (index $.Context $catalogOidcProviderId).provider -}}
+            {{- $catalogOidcTokenUrl := $catalogOidcProvider.endpoints.tokenUrl
+                  | replace "{{ .Release.namespace }}" $namespace
+                  | replace "{{ .Release.metadata.name }}" $release
+                  | replace "{{ .Context.ingress.suffix }}" $domain -}}
+            {{- $catalogProps = $catalogProps
+                  | replace "{{ idp.endpoints.token }}" $catalogOidcTokenUrl
+                  | replace "{{ idp.endpoints.tokenUrl }}" $catalogOidcTokenUrl
+                  | replace "${ENV:client_id}" (printf "${ENV:%s_OIDC_CLIENT_ID}" $catalogEnvPrefix)
+                  | replace "${ENV:client_secret}" (printf "${ENV:%s_OIDC_CLIENT_SECRET}" $catalogEnvPrefix)
+                  | replace "${ENV:CLIENT_ID}" (printf "${ENV:%s_OIDC_CLIENT_ID}" $catalogEnvPrefix)
+                  | replace "${ENV:CLIENT_SECRET}" (printf "${ENV:%s_OIDC_CLIENT_SECRET}" $catalogEnvPrefix) -}}
+          {{- end }}
+
+          {{ printf "%s: |\n%s" $catalogName ($catalogProps | indent 2) | nindent 8 }}
+          {{- end }}
+        {{- end }}
+        {{- end }}
+
       env:
-        - name: OAUTH_CLIENT_ID
+        - name: TRINO_OAUTH_CLIENT_ID
           valueFrom:
             secretKeyRef:
               name: {{ .Context.trino.oidc.credentialsSecret.name }}
               key: {{ .Context.trino.oidc.credentialsSecret.clientIdKey }}
       
-        - name: OAUTH_CLIENT_SECRET
+        - name: TRINO_OAUTH_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
               name: {{ .Context.trino.oidc.credentialsSecret.name }}
               key: {{ .Context.trino.oidc.credentialsSecret.clientSecretKey }}
-      
-        - name: TRINO_POLARIS_OAUTH_CLIENT_ID
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Context.trino.catalogs.polaris.oidc.credentialsSecret.name }}
-              key: {{ .Context.trino.catalogs.polaris.oidc.credentialsSecret.clientIdKey }}
-
-        - name: TRINO_POLARIS_OAUTH_CLIENT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Context.trino.catalogs.polaris.oidc.credentialsSecret.name }}
-              key: {{ .Context.trino.catalogs.polaris.oidc.credentialsSecret.clientSecretKey }}
       
         - name: TRINO_SHARED_SECRET
           valueFrom:
@@ -206,6 +205,46 @@ modules:
         - name: TRUSTSTORE_PASSWORD
           value: ""
       
+        {{- if gt (len $trinoConnections) 0 }}
+        {{- range $catalogName := $selectedCatalogs }}
+        {{- $catalog := index $trinoConnections $catalogName -}}
+        {{- if $catalog }}
+        {{- $catalogEnvPrefix := upper (replace "." "_" (replace "-" "_" $catalogName)) -}}
+        {{- $catalogOidc := (dig "service" "oidc" nil $catalog | default $catalog.oidc | default (dig "auth" "oidc" nil $catalog)) -}}
+        {{- $catalogStorageCredentialsSecret := (dig "storage" "credentialsSecret" nil $catalog) -}}
+
+        {{- if and $catalogStorageCredentialsSecret $catalogStorageCredentialsSecret.name $catalogStorageCredentialsSecret.accessKeyKey $catalogStorageCredentialsSecret.secretKeyKey }}
+        - name: {{ printf "%s_S3_ACCESS_KEY" $catalogEnvPrefix }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $catalogStorageCredentialsSecret.name }}
+              key: {{ $catalogStorageCredentialsSecret.accessKeyKey }}
+
+        - name: {{ printf "%s_S3_SECRET_ACCESS" $catalogEnvPrefix }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $catalogStorageCredentialsSecret.name }}
+              key: {{ $catalogStorageCredentialsSecret.secretKeyKey }}
+        {{- end }}
+
+        {{- if and $catalogOidc $catalogOidc.credentialsSecret }}
+        - name: {{ printf "%s_OIDC_CLIENT_ID" $catalogEnvPrefix }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $catalogOidc.credentialsSecret.name }}
+              key: {{ $catalogOidc.credentialsSecret.clientIdKey }}
+
+        - name: {{ printf "%s_OIDC_CLIENT_SECRET" $catalogEnvPrefix }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ $catalogOidc.credentialsSecret.name }}
+              key: {{ $catalogOidc.credentialsSecret.clientSecretKey }}
+        {{- end }}
+
+        {{- end }}
+        {{- end }}
+        {{- end }}
+
       coordinator:
         resources:
           requests:
@@ -219,16 +258,16 @@ modules:
           - name: cacerts
             secret:
               secretName: certs-bundle
-  
+      
         additionalVolumeMounts:
           - name: cacerts
             mountPath: /cacerts
             readOnly: true
-  
+      
         additionalJVMConfig:
           - "-Djavax.net.ssl.trustStore=/cacerts/bundle.p12"
           - "-Djavax.net.ssl.trustStorePassword=${ENV:TRUSTSTORE_PASSWORD}"
-
+      
       worker:
         resources:
           requests:
@@ -237,7 +276,7 @@ modules:
           limits:
             cpu: "{{ mulf (float64 .Parameters.workerCpu) 2 }}"
             memory: "{{ mulf (float64 .Parameters.workerMemoryGi) 2 }}Gi"
-        
+      
         additionalVolumes:
           - name: cacerts
             secret:
@@ -256,7 +295,7 @@ modules:
         enabled: true
         className: nginx
         annotations:
-          cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+          cert-manager.io/cluster-issuer: "{{ .Context.platform.certificateIssuers.selfSigned.name }}"
           nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
           nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
           nginx.ingress.kubernetes.io/use-regex: "true"
@@ -269,7 +308,7 @@ modules:
           - hosts:
               - {{ $trinoEndpoint }}
             secretName: {{ .Release.metadata.name }}-tls
-
+      
       server:
         workers: {{ .Parameters.numWorkers }}
         node:
@@ -292,11 +331,11 @@ modules:
           #   such as scripts, jobs, or CI/CD using --access-token
           http-server.authentication.type=jwt,oauth2
           http-server.authentication.oauth2.issuer={{ $oidcIssuerUri }}
-          http-server.authentication.oauth2.client-id=${ENV:OAUTH_CLIENT_ID}
-          http-server.authentication.oauth2.client-secret=${ENV:OAUTH_CLIENT_SECRET}
+          http-server.authentication.oauth2.client-id=${ENV:TRINO_OAUTH_CLIENT_ID}
+          http-server.authentication.oauth2.client-secret=${ENV:TRINO_OAUTH_CLIENT_SECRET}
           http-server.authentication.oauth2.auth-url={{ $oidcAuthUrl }}
           http-server.authentication.oauth2.token-url={{ $oidcTokenUrl }}
-          http-server.authentication.oauth2.scopes=openid,email,profile,groups
+          http-server.authentication.oauth2.scopes={{ $oidcScopes }}
           http-server.authentication.oauth2.principal-field=preferred_username
       
           http-server.authentication.jwt.key-file={{ $oidcJwksUrl }}

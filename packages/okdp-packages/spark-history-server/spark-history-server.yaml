@@ -29,32 +29,34 @@ usage:
     {{- $historyEndpointUrl := .Context.sparkHistory.endpoints.url
     | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace
     | replace "{{ .Release.metadata.name }}" .Release.metadata.name
-    | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix
+    | replace "{{ .Context.ingress.suffix }}" .Context.platform.ingress.suffix
     -}}
     {{- $historyEndpointScheme := regexFind "^https?://" $historyEndpointUrl | default "https://" -}}
-    Access the UI at {{- printf "%s%s-%s.%s" $historyEndpointScheme .Parameters.webProxyUrlPrefix .Release.spec.targetNamespace .Context.ingress.suffix -}}
+    Access the UI at {{- printf "%s%s-%s.%s" $historyEndpointScheme .Parameters.webProxyUrlPrefix .Release.spec.targetNamespace .Context.platform.ingress.suffix -}}
     {{- else }}
-    Access the UI at {{ .Context.sparkHistory.endpoints.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
+    Access the UI at {{ .Context.sparkHistory.endpoints.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.platform.ingress.suffix }}
     {{- end }}
 schema:
   parameters:
     properties:
-      eventsLogDir: { type: string, required: true, default: "s3a://spark-events/event-logs/", description: "S3 path for Spark event logs, typically s3a://<bucket>/eventLogs" }
       adminGroups: { type: string, default: "platform_admin", description: "Comma separated list of admin groups" }
       enableWebProxy: { type: boolean, default: true, description: "Whether to enable Spark History web proxy" }
       webProxyUrlPrefix: { type: string, default: "spark-web-proxy", description: "Spark web proxy url prefix" }
   context:
     properties:
-      certificateIssuers:
+      platform:
         required: true
         properties:
-          selfSigned:
+          certificateIssuers:
+            required: true
             properties:
-              name: { type: string, required: true }
-      ingress:
-        required: true
-        properties:
-          suffix: { type: string, required: true }
+              selfSigned:
+                properties:
+                  name: { type: string, required: true }
+          ingress:
+            required: true
+            properties:
+              suffix: { type: string, required: true }
 modules:
   - name: main
     timeout: 10m
@@ -65,7 +67,7 @@ modules:
     values: |
       {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
       {{- $release := printf "%v" .Release.metadata.name -}}
-      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      {{- $domain := printf "%v" .Context.platform.ingress.suffix -}}
       
       {{- $oidcId := .Context.sparkHistory.oidc.provider -}}
       {{- $oidcProvider := (index .Context $oidcId).provider -}}
@@ -79,6 +81,10 @@ modules:
       {{- $storageProvider := (index .Context $storageId).provider -}}
       
       {{- $storageApiUrl := $storageProvider.endpoints.apiUrl
+          | replace "{{ .Release.namespace }}" $namespace
+          | replace "{{ .Release.metadata.name }}" $release
+          | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      {{- $hiveMetastoreUrl := .Context.hiveMetastore.endpoints.url
           | replace "{{ .Release.namespace }}" $namespace
           | replace "{{ .Release.metadata.name }}" $release
           | replace "{{ .Context.ingress.suffix }}" $domain -}}
@@ -97,6 +103,10 @@ modules:
       {{- if .Parameters.enableWebProxy }}
       {{- $historyRedirectUri := $webProxyEndpointUrl -}}
       {{- end }}
+      {{- $sparkHistoryExtraConfig := (.Context.sparkHistory.config | default dict) -}}
+      {{- if not (kindIs "map" $sparkHistoryExtraConfig) }}
+        {{- fail "context.sparkHistory.config must be a map" -}}
+      {{- end }}
       
       image:
         repository: quay.io/okdp/spark
@@ -108,7 +118,7 @@ modules:
         ingressClassName: "nginx"
         annotations:
           nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-          cert-manager.io/cluster-issuer: {{ .Context.certificateIssuers.selfSigned.name }}
+          cert-manager.io/cluster-issuer: {{ .Context.platform.certificateIssuers.selfSigned.name }}
         hosts:
           - host: {{ $historyEndpointHost }}
             paths:
@@ -121,13 +131,6 @@ modules:
       
       config:
         spark.hadoop.fs.s3a.endpoint: {{ $storageApiUrl }}
-        spark.hadoop.fs.s3a.connection.ssl.enabled: true
-        spark.history.fs.logDirectory: {{ .Parameters.eventsLogDir }}
-        spark.hadoop.fs.s3a.impl: org.apache.hadoop.fs.s3a.S3AFileSystem
-        spark.hadoop.fs.s3a.path.style.access: true
-        spark.ui.filters: io.okdp.spark.authc.OidcAuthFilter
-        spark.user.groups.mapping: io.okdp.spark.authz.OidcGroupMappingServiceProvider
-        spark.history.ui.acls.enable: true
         spark.io.okdp.spark.authc.OidcAuthFilter.param.issuer-uri: {{ $oidcIssuerUri }}
         spark.io.okdp.spark.authc.OidcAuthFilter.param.redirect-uri: {{ $historyRedirectUri }}/home
         spark.io.okdp.spark.authc.OidcAuthFilter.param.scope: {{ .Context.sparkHistory.oidc.scope }}
@@ -135,10 +138,10 @@ modules:
         spark.io.okdp.spark.authc.OidcAuthFilter.param.cookie-cipher-secret-key: FC5E81345CED0E256DC42E410362FF6E
         spark.io.okdp.spark.authc.OidcAuthFilter.param.cookie-is-secure: true
         spark.io.okdp.spark.authc.OidcAuthFilter.param.use-pkce: {{ .Context.sparkHistory.oidc.usePKCE }}
-        spark.io.okdp.spark.authc.OidcAuthFilter.param.user-id: email # Or sub
-        # Members of this group will have access to all jobs.
         spark.history.ui.admin.acls.groups: {{ .Parameters.adminGroups }}
-      
+      {{- range $key := (keys $sparkHistoryExtraConfig | sortAlpha) }}
+        {{ $key }}: {{ index $sparkHistoryExtraConfig $key }}
+      {{- end }}
       extraEnvs:
         - name: AWS_ACCESS_KEY_ID
           valueFrom:
@@ -185,7 +188,7 @@ modules:
         tag: 0.1.0
     values: |
 
-      {{- $webProxyEndpointHost := printf "%s-%s.%s" .Parameters.webProxyUrlPrefix .Release.spec.targetNamespace .Context.ingress.suffix -}}
+      {{- $webProxyEndpointHost := printf "%s-%s.%s" .Parameters.webProxyUrlPrefix .Release.spec.targetNamespace .Context.platform.ingress.suffix -}}
       
       image:
         repository: quay.io/okdp/spark-web-proxy
@@ -206,7 +209,7 @@ modules:
         className: "nginx"
         annotations:
           nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-          cert-manager.io/cluster-issuer: {{ .Context.certificateIssuers.selfSigned.name }}
+          cert-manager.io/cluster-issuer: {{ .Context.platform.certificateIssuers.selfSigned.name }}
         hosts:
           - host: {{ $webProxyEndpointHost }}
             paths:

@@ -26,7 +26,7 @@ usage:
     Access the console at {{ .Context.defaultStorage.provider.endpoints.consoleUrl 
        | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace 
        | replace "{{ .Release.metadata.name }}" .Release.metadata.name 
-       | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
+       | replace "{{ .Context.ingress.suffix }}" .Context.platform.ingress.suffix }}
 schema:
   parameters:
     properties:
@@ -40,20 +40,23 @@ schema:
       filerLogStorage: { type: string, required: true, default: "0.5" }
   context:
     properties:
-      certificateIssuers:
+      platform:
         required: true
         properties:
-          selfSigned:
+          certificateIssuers:
+            required: true
             properties:
-              name: { type: string, required: true }
-      storageClass:
-        required: true
-        properties:
-          data: { type: string, required: true }
-      ingress:
-        required: true
-        properties:
-          suffix: { type: string, required: true }
+              selfSigned:
+                properties:
+                  name: { type: string, required: true }
+          storageClass:
+            required: true
+            properties:
+              data: { type: string, required: true }
+          ingress:
+            required: true
+            properties:
+              suffix: { type: string, required: true }
 modules:
   - name: auth-config
     source:
@@ -62,15 +65,35 @@ modules:
     values: |
       {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
       {{- $release := printf "%v" .Release.metadata.name -}}
-      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      {{- $domain := printf "%v" .Context.platform.ingress.suffix -}}
       
       {{- $databaseId := .Context.defaultStorage.settings.filer.database.provider -}}
       {{- $databaseProvider := (index .Context $databaseId).provider -}}
-      {{- $databaseHost := $databaseProvider.connection.host
+      {{- $databaseHost := $databaseProvider.endpoints.host
         | replace "{{ .Release.namespace }}" $namespace
         | replace "{{ .Release.metadata.name }}" $release
         | replace "{{ .Context.ingress.suffix }}" $domain -}}
-      {{- $databasePort := printf "%v" $databaseProvider.connection.port -}}  
+      {{- $databasePort := printf "%v" $databaseProvider.endpoints.port -}}  
+      {{- $trinoConnectionsRaw := (.Context.trino.connections | default list) -}}
+      {{- if not (kindIs "slice" $trinoConnectionsRaw) }}
+        {{- fail "context.trino.connections must be a list" -}}
+      {{- end }}
+      {{- $trinoConnections := dict -}}
+      {{- range $connection := $trinoConnectionsRaw }}
+        {{- if not (and $connection $connection.name) }}
+          {{- fail "each item in context.trino.connections must define name" -}}
+        {{- end }}
+        {{- $_ := set $trinoConnections $connection.name $connection -}}
+      {{- end }}
+      {{- $trinoBronzeConnection := (index $trinoConnections "bronze" | default dict) -}}
+      {{- $trinoBronzeStorageSecret := (dig "storage" "credentialsSecret" nil $trinoBronzeConnection) -}}
+      {{- $trinoSilverConnection := (index $trinoConnections "silver" | default dict) -}}
+      {{- $trinoSilverStorageSecret := (dig "storage" "credentialsSecret" nil $trinoSilverConnection) -}}
+      {{- $trinoGoldConnection := (index $trinoConnections "gold" | default dict) -}}
+      {{- $trinoGoldStorageSecret := (dig "storage" "credentialsSecret" nil $trinoGoldConnection) -}}
+      
+      {{- $trinoIdentity := .Context.defaultStorage.settings.s3.advanced.identities.trino -}}
+      {{- $trinoStorageSecret := coalesce $trinoBronzeStorageSecret $trinoSilverStorageSecret $trinoGoldStorageSecret -}}
 
       iamConfig:
         sts:
@@ -119,17 +142,19 @@ modules:
               accessKeyKey: {{ .Context.hiveMetastore.storage.credentialsSecret.accessKeyKey }}
               secretKeyKey: {{ .Context.hiveMetastore.storage.credentialsSecret.secretKeyKey }}
             actions: {{ .Context.defaultStorage.settings.s3.advanced.identities.hiveMetastore.actions | default list | toJson }}
-          - name: {{ .Context.defaultStorage.settings.s3.advanced.identities.trino.identity }}
+          {{- if $trinoStorageSecret }}
+          - name: {{ $trinoIdentity.identity | quote }}
             credentialsSecret:
-              name: {{ .Context.trino.storage.credentialsSecret.name }}
-              accessKeyKey: {{ .Context.trino.storage.credentialsSecret.accessKeyKey }}
-              secretKeyKey: {{ .Context.trino.storage.credentialsSecret.secretKeyKey }}
-            actions: {{ .Context.defaultStorage.settings.s3.advanced.identities.trino.actions | default list | toJson }}
+              name: {{ $trinoStorageSecret.name | quote }}
+              accessKeyKey: {{ $trinoStorageSecret.accessKeyKey | quote }}
+              secretKeyKey: {{ $trinoStorageSecret.secretKeyKey | quote }}
+            actions: {{ $trinoIdentity.actions | default (list) | toJson }}
+          {{- end }}
           - name: {{ .Context.defaultStorage.settings.s3.advanced.identities.jupyterHub.identity }}
             credentialsSecret:
-              name: {{ .Context.jupyterHub.storage.credentialsSecret.name }}
-              accessKeyKey: {{ .Context.jupyterHub.storage.credentialsSecret.accessKeyKey }}
-              secretKeyKey: {{ .Context.jupyterHub.storage.credentialsSecret.secretKeyKey }}
+              name: {{ .Context.jupyterHub.fileBrowser.credentialsSecret.name }}
+              accessKeyKey: {{ .Context.jupyterHub.fileBrowser.credentialsSecret.accessKeyKey }}
+              secretKeyKey: {{ .Context.jupyterHub.fileBrowser.credentialsSecret.secretKeyKey }}
             actions: {{ .Context.defaultStorage.settings.s3.advanced.identities.jupyterHub.actions | default list | toJson }}
           - name: {{ .Context.defaultStorage.settings.s3.advanced.identities.sparkHistory.identity }}
             credentialsSecret:
@@ -171,7 +196,7 @@ modules:
     values: |
       {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
       {{- $release := printf "%v" .Release.metadata.name -}}
-      {{- $domain := printf "%v" .Context.ingress.suffix -}}
+      {{- $domain := printf "%v" .Context.platform.ingress.suffix -}}
       
       {{- $seaweedfsS3Url := .Context.defaultStorage.provider.endpoints.apiUrl 
          | replace "{{ .Release.namespace }}" $namespace
@@ -200,12 +225,12 @@ modules:
         replicas: 1
         data:
           type: "persistentVolumeClaim"
-          storageClass: "{{ .Context.storageClass.workspace }}"
+          storageClass: "{{ .Context.platform.storageClass.workspace }}"
           size: "{{ .Parameters.masterStorage }}Gi"
 
         logs:
           type: "persistentVolumeClaim"
-          storageClass: "{{ .Context.storageClass.workspace }}"
+          storageClass: "{{ .Context.platform.storageClass.workspace }}"
           size: "{{ .Parameters.masterLogStorage }}Gi"
       
       volume:
@@ -214,7 +239,7 @@ modules:
         dataDirs:
           - name: data
             type: "persistentVolumeClaim"
-            storageClass: "{{ .Context.storageClass.workspace }}"
+            storageClass: "{{ .Context.platform.storageClass.workspace }}"
             size: "{{ .Parameters.volumeStorage }}Gi"
             maxVolumes: 0
 
@@ -225,18 +250,18 @@ modules:
         port: 8888
         data:
           type: "persistentVolumeClaim"
-          storageClass: "{{ .Context.storageClass.workspace }}"
+          storageClass: "{{ .Context.platform.storageClass.workspace }}"
           size: "{{ .Parameters.filerStorage }}Gi"
         logs:
           type: "persistentVolumeClaim"
-          storageClass: "{{ .Context.storageClass.workspace }}"
+          storageClass: "{{ .Context.platform.storageClass.workspace }}"
           size: "{{ .Parameters.filerLogStorage }}Gi"
         ingress:
           enabled: true
           className: nginx
           annotations:
             nginx.ingress.kubernetes.io/proxy-body-size: "130m"
-            cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+            cert-manager.io/cluster-issuer: "{{ .Context.platform.certificateIssuers.selfSigned.name }}"
             nginx.ingress.kubernetes.io/auth-type: basic
             nginx.ingress.kubernetes.io/auth-secret: creds-seaweedfs-filer-basic
             nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
@@ -253,10 +278,14 @@ modules:
         enableAuth: true
         existingConfigSecret: {{ .Context.defaultStorage.settings.s3.s3_secret }}
         createBuckets:
-          - name: {{ .Context.hiveMetastore.storage.bucket }}
+          - name: {{ trimPrefix "s3://" .Context.hiveMetastore.storage.location.uri }}
             anonymousRead: {{ .Context.defaultStorage.settings.s3.bucketAnonymousRead }}
-          - name: {{ .Context.sparkHistory.storage.bucket }}
+          {{- $sparkHistoryLogDir := index .Context.sparkHistory.config "spark.history.fs.logDirectory" | default "" -}}
+          {{- $sparkHistoryBucket := $sparkHistoryLogDir | trimPrefix "s3a://" | trimPrefix "s3://" | regexReplaceAll "/.*$" "" -}}
+          {{- if $sparkHistoryBucket }}
+          - name: {{ $sparkHistoryBucket | quote }}
             anonymousRead: {{ .Context.defaultStorage.settings.s3.bucketAnonymousRead }}
+          {{- end }}
       
         extraVolumes: |
           - name: auth-config
@@ -277,7 +306,7 @@ modules:
           className: nginx
           annotations:
             nginx.ingress.kubernetes.io/proxy-body-size: "130m"
-            cert-manager.io/cluster-issuer: "{{ .Context.certificateIssuers.selfSigned.name }}"
+            cert-manager.io/cluster-issuer: "{{ .Context.platform.certificateIssuers.selfSigned.name }}"
           host: {{ $seaweedfsS3Host }}
           path: "/"
           pathType: Prefix

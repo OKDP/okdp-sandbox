@@ -16,20 +16,24 @@
 
 */}}
 
-{{- range .Values.databases }}
-{{- $owner := .owner }}
-{{- if and $owner $owner.username (not $owner.passwordSecret) }}
+{{- $config := (.Values.config | default dict) -}}
+{{- $lines := list -}}
+{{- range $key := (keys $config | sortAlpha) -}}
+{{- $lines = append $lines (printf "%s=%v" $key (index $config $key)) -}}
+{{- end -}}
 apiVersion: v1
-kind: Secret
+kind: ConfigMap
 metadata:
-  name: {{ printf "%s-owner-secret" $owner.username }}
+  name: spark-defaults
+  namespace: 
   labels:
-    cnpg.io/reload: "true"
-    {{- include "cnpg-postgresql.labels" $ | nindent 4 }}
-type: kubernetes.io/basic-auth
-stringData:
-  username: {{ $owner.username | quote }}
-  password: {{ required (printf "owner.password is required for database owner %s when owner.passwordSecret is not set" $owner.username) $owner.password | quote }}
----
-{{- end }}
+    {{- include "spark-defaults.labels" . | indent 4 }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  spark-defaults.conf: |
+{{- if $lines }}
+{{ join "\n" $lines | nindent 4 }}
 {{- end }}

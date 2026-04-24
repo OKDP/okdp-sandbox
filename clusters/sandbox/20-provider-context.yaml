@@ -1,0 +1,57 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# you may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Context
+metadata:
+  name: provider
+  namespace: kubocd-system
+spec:
+  # -- Provider interface bindings used by service contexts. Replace these with external providers that satisfy the same contracts.
+  context:
+    # -- Object storage provider contract. The sandbox binds it to SeaweedFS using S3-compatible API, STS, and console endpoints.
+    defaultStorage:
+      provider:
+        type: s3
+        name: SeaweedFS
+        region: dummy
+        endpoints:
+          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          stsUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+          consoleUrl: https://seaweedfs-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
+    # -- OIDC identity provider contract. The sandbox binds it to Keycloak, but any OIDC provider exposing these endpoints can be plugged in.
+    defaultIdp:
+      provider:
+        type: oidc
+        name: keycloak
+        issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
+        baseUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect"
+        endpoints:
+          authUrl: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/auth"
+          tokenUrl: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/token"
+          userinfoUrl: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/userinfo"
+          jwksUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/certs"
+
+    # -- Database server provider contract for services that need PostgreSQL-compatible databases.
+    defaultDatabaseServer:
+      provider:
+        type: postgresql
+        driver: org.postgresql.Driver
+        endpoints:
+          host: postgresql-instance-rw.cnpg-system.svc.cluster.local
+          port: 5432
+          jdbcUrl: jdbc:postgresql://{{ connection.host }}:{{ connection.port }}/{{ dbName }}

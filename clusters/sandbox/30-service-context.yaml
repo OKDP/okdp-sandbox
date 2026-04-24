@@ -1,0 +1,303 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# you may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Context
+metadata:
+  name: service
+  namespace: kubocd-system
+spec:
+  # -- Base service contexts that consume provider interfaces and expose service endpoints for packages.
+  context:
+    # -- Hive Metastore service configuration for metadata storage, S3 warehouse access, and Thrift endpoint discovery.
+    hiveMetastore:
+      database:
+        provider: defaultDatabaseServer
+        name: hms
+        credentialsSecret:
+          name: creds-hive-metastore-db
+          usernameKey: username
+          passwordKey: password
+      storage:
+        provider: defaultStorage
+        location:
+          name: hive
+          uri: s3://hive
+          warehouseDir: hive-warehouse/
+        credentialsSecret:
+          name: creds-hive-metastore-s3
+          accessKeyKey: accessKey
+          secretKeyKey: secretKey
+      endpoints:
+        url: thrift://hive-metastore.{{ .Release.namespace }}.svc.cluster.local:9083
+
+    # -- Trino service configuration for catalog wiring, OIDC login, internal security, and external endpoint discovery.
+    trino:
+      catalogs: []
+      oidc:
+        enabled: true
+        provider: defaultIdp
+        scope: "openid profile email groups"
+        credentialsSecret:
+          name: creds-trino-oauth2
+          clientIdKey: client_id
+          clientSecretKey: client_secret
+      advanced:
+        config:
+          security:
+            # https://trino.io/docs/current/security/internal-communication.html
+            credentialsSecret:
+              name: creds-trino-security
+              sharedSecret: shared-secret
+      endpoints:
+        url: https://trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+        uri: "trino://trino@trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}"
+
+    # -- Superset service configuration for its metadata database, examples database, Redis, OIDC, Trino integration, and endpoint.
+    superset:
+      dataSources: |
+      database:
+        provider: defaultDatabaseServer
+        name: superset
+        credentialsSecret:
+          name: creds-superset-db
+          usernameKey: username
+          passwordKey: password
+      # Secret Key for Superset's Flask App
+      advanced:
+        config:
+          security:
+            # https://trino.io/docs/current/security/internal-communication.html
+            credentialsSecret:
+              name: creds-superset-secret-key
+              key: superset_secret_key
+      load_examples:
+        database:
+          provider: defaultDatabaseServer
+          connection:
+            jdbcUrl: "postgresql+psycopg2://{{ username }}:{{ password }}@{{ connection.host }}:{{ connection.port }}/{{ dbName }}?options=-csearch_path%3Dmain"
+          name: superset-examples
+          credentialsSecret:
+            name: creds-superset-examples-db
+            usernameKey: username
+            passwordKey: password
+      redis:
+        host: ~
+        port: 6379
+        credentialsSecret:
+          name: creds-superset-redis
+          usernameKey: username
+          passwordKey: password
+      oidc:
+        enabled: true
+        provider: defaultIdp
+        scope: "openid profile email groups"
+        usePKCE: true
+        credentialsSecret:
+          name: creds-superset-oauth2
+          clientIdKey: client_id
+          clientSecretKey: client_secret
+      trino:
+        oidc:
+          enabled: true
+          provider: defaultIdp
+          scope: "openid profile email groups"
+          credentialsSecret:
+            name: creds-superset-oauth2-trino
+            clientIdKey: client_id
+            clientSecretKey: client_secret
+      endpoints:
+        url: https://superset-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
+    # -- JupyterHub service configuration for the file browser, PySpark connections, OIDC, and endpoint.
+    jupyterHub:
+      welcomeNotebook: |
+      fileBrowser:
+        provider: defaultStorage
+        locations: []
+        credentialsSecret:
+          name: creds-jupyterhub-s3
+          accessKeyKey: S3_ACCESS_KEY
+          secretKeyKey: S3_SECRET_KEY
+      pyspark: []
+      oidc:
+        enabled: true
+        provider: defaultIdp
+        credentialsSecret:
+          name: creds-jupyterhub-oauth2
+          clientIdKey: client_id
+          clientSecretKey: client_secret
+          jupyterHubCryptKey: JUPYTERHUB_CRYPT_KEY
+      endpoints:
+        url: https://jupyterhub-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
+    # -- Spark runtime defaults and Kubernetes RBAC settings shared by Spark applications.
+    spark:
+      rbac:
+        rbac:
+          create: true
+        serviceAccount:
+          create: true
+          name: "spark"
+          automountServiceAccountToken: true
+      defaults:
+        spark.eventLog.dir: "s3a://spark-events/event-logs/"
+        spark.eventLog.enabled: true
+        spark.eventLog.compress: true
+        spark.eventLog.rolling.enabled: true
+        spark.hive.metastore.uris: "{{ hiveMetastore.endpoints.url }}"
+        spark.hive.metastore.client.connect.retry.delay: 5
+        spark.hive.metastore.client.socket.timeout: 1800
+        spark.sql.debug.maxToStringFields: 25
+        spark.network.timeout: 600
+
+    # -- Spark History Server configuration for event log storage, retention, OIDC protection, and endpoint.
+    sparkHistory:
+      storage:
+        provider: defaultStorage
+        credentialsSecret:
+          name: creds-spark-history-s3
+          accessKeyKey: accessKey
+          secretKeyKey: secretKey
+      config:
+        spark.history.fs.logDirectory: "s3a://spark-events/event-logs/"
+        spark.history.kerberos.enabled: false
+        spark.history.ui.acls.enable: true
+        spark.history.fs.eventLog.rolling.maxFilesToRetain: 5
+        spark.history.fs.cleaner.enabled: true
+        spark.history.fs.cleaner.interval: 1d
+        spark.history.fs.cleaner.maxAge: 7d
+        spark.history.fs.update.interval: 60s
+        spark.hadoop.fs.s3a.connection.ssl.enabled: true
+        spark.hadoop.fs.s3a.impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+        spark.hadoop.fs.s3a.path.style.access: true
+        spark.ui.filters: io.okdp.spark.authc.OidcAuthFilter
+        spark.user.groups.mapping: io.okdp.spark.authz.OidcGroupMappingServiceProvider
+      oidc:
+        enabled: true
+        provider: defaultIdp
+        scope: "openid+profile+email+offline_access+groups"
+        usePKCE: true
+        credentialsSecret:
+          name: creds-spark-history-oauth2
+          clientIdKey: client_id
+          clientSecretKey: client_secret
+      endpoints:
+        url: https://spark-history-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
+    # -- Polaris service configuration for realms, database, storage, OIDC principal mapping, features, CORS, and endpoint.
+    polaris:
+      realms: []
+      database:
+        provider: defaultDatabaseServer
+        name: polaris
+        credentialsSecret:
+          name: creds-polaris-db
+          usernameKey: username
+          passwordKey: password
+      storage:
+        provider: defaultStorage
+        # The access key is used for STS interactions between Polaris and S3 (sts:AssumeRole)
+        # + catalog-side Iceberg metadata ops
+        # The Polaris SeaweedFS identity for STS
+        credentialsSecret:
+          name: creds-polaris-s3
+          accessKeyKey: accessKey
+          secretKeyKey: secretKey
+      oidc:
+        enabled: true
+        provider: defaultIdp
+        scope: "openid+profile+email+offline_access+groups"
+        credentialsSecret:
+          name: creds-polaris-oauth2
+          clientIdKey: client_id
+          clientSecretKey: client_secret
+        # Map polaris internal principal and roles with OIDC principal and roles
+        # Here, the oidc principal should exist in the OIDC provider as service-account-svc-polaris-api-admin having roles:
+        # polaris_catalog_admin and polaris_service_admin
+        principalMapper:
+          # service-account-svc-polaris-api-admin oidc principal maps to polaris service-account-svc-polaris-api-admin user
+          type: default
+          # You can use 'sub' as stable and immutable identity
+          idClaimPath: ~
+          nameClaimPath: "preferred_username"
+        # Issue: https://github.com/apache/polaris/issues/2373
+        # Polaris activates only the internal principal roles that are actually granted to that principal in Polaris RBAC
+        # Active Polaris roles = (mapped external roles) ∩ (principal roles granted in Polaris)
+        principalRolesMapper:
+          type: default
+          rolesClaimPath: realm_access/roles
+          filter: "^(?!default-roles-.*|offline_access$|uma_authorization$).*$"
+          mappings:
+            # The rules are applied sequentially as ordered transforms
+            # Strip the "polaris_" prefix from admin roles and convert them to Polaris roles:
+            # polaris_service_admin -> PRINCIPAL_ROLE:service_admin
+            # polaris_catalog_admin -> PRINCIPAL_ROLE:catalog_admin
+            # platform_admin -> PRINCIPAL_ROLE:platform_admin
+            - regex: "^polaris_(.*)$"
+              replacement: "PRINCIPAL_ROLE:$1"
+            # Fallback for normal roles, but do NOT touch values already prefixed by Polaris.
+            - regex: "^(?!PRINCIPAL_ROLE:)(?!polaris_)(.*)$"
+              replacement: "PRINCIPAL_ROLE:$1"
+
+      features:
+        DROP_WITH_PURGE_ENABLED: true
+        # ENFORCE_PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_CHECKING: false
+        SUPPORTED_CATALOG_STORAGE_TYPES:
+          - S3
+        realmOverrides: {}
+        # my-realm:
+        #   ENFORCE_PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_CHECKING: true
+      advanced:
+        config:
+          polaris.realm-context.header-name: "Polaris-Realm"
+          # Spark and Trino does not pass the header
+          # polaris.realm-context.require-header: false
+          quarkus.http.cors.enabled: "true"
+        cors:
+          allowedOrigins:
+            - "https://polaris-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}"
+          allowedMethods:
+            - "GET"
+            - "POST"
+            - "PUT"
+            - "DELETE"
+            - "PATCH"
+            - "OPTIONS"
+          allowedHeaders:
+            - "Content-Type"
+            - "Authorization"
+            - "Polaris-Realm"
+            - "X-Request-ID"
+          exposedHeaders:
+            - "*"
+          accessControlMaxAge: "PT10M"
+          accessControlAllowCredentials: true
+      endpoints:
+        url: https://polaris-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
+    # -- Polaris Console configuration for default realm selection, API endpoint, OIDC client, and console endpoint.
+    polarisConsole:
+      defaultRealm: ~
+      apiUrl: https://polaris-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+      oidc:
+        enabled: true
+        provider: defaultIdp
+        scope: "openid profile email roles offline_access"
+        # Public OIDC client with PKCE enabled
+        clientId: polaris-console
+      endpoints:
+        url: https://polaris-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
