@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: airflow
-tag: 2.9.3-p08
+tag: 2.9.3-p09
 protected: false
 description: |
   Apache Airflow 2.9.3 - Workflow orchestration platform with Spark Operator integration
@@ -354,36 +354,15 @@ modules:
                 enabled: true
                 secretName: airflow-tls
 
-      # Inject DB credentials from the K8s secret — password never appears in the package.
-      # AIRFLOW__DATABASE__SQL_ALCHEMY_CONN overrides the chart-generated airflow-metadata secret.
-      extraEnv: |
-        - name: AIRFLOW_DB_USER
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Context.airflow.database.credentialsSecret.name }}
-              key: {{ .Context.airflow.database.credentialsSecret.usernameKey }}
-        - name: AIRFLOW_DB_PASS
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Context.airflow.database.credentialsSecret.name }}
-              key: {{ .Context.airflow.database.credentialsSecret.passwordKey }}
-        - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
-          value: "postgresql+psycopg2://$(AIRFLOW_DB_USER):$(AIRFLOW_DB_PASS)@{{ .Context.airflow.database.host }}:{{ .Context.airflow.database.port }}/{{ .Context.airflow.database.name }}?sslmode=disable"
-
       # Use the shared CNPG PostgreSQL instance instead of the bundled bitnami subchart
       postgresql:
         enabled: false
 
+      # Point to the pre-provisioned secret (via local-secrets-provider) that holds the
+      # full SQLAlchemy connection string. The chart skips generating its own airflow-metadata
+      # secret, so credentials never appear in the package values.
       data:
-        metadataConnection:
-          # user/pass overridden at runtime via AIRFLOW__DATABASE__SQL_ALCHEMY_CONN (see extraEnv above)
-          user: placeholder
-          pass: placeholder
-          protocol: postgresql
-          host: {{ .Context.airflow.database.host }}
-          port: {{ .Context.airflow.database.port }}
-          db: {{ .Context.airflow.database.name }}
-          sslmode: disable
+        metadataSecretName: creds-airflow-metadata
 
       redis:
         enabled: false
