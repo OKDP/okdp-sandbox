@@ -43,3 +43,8 @@ okdp-sandbox-ca.crt
 # Local overrides
 local/
 .tmp/
+*oidc-secret*.yaml
+*OIDC*
+.OIDC*
+*.bak
+*.draft
