@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: airflow
-tag: 2.9.3-p09
+tag: 2.9.3-p10
 protected: false
 description: |
   Apache Airflow 2.9.3 - Workflow orchestration platform with Spark Operator integration
@@ -13,7 +13,7 @@ usage:
     Access the Airflow UI:
       URL: https://airflow-{{ .Release.spec.targetNamespace }}.{{ .Context.ingress.suffix }}
       Alternate URL: https://airflow.{{ .Context.ingress.suffix }}
-      Sandbox Keycloak credentials: adm / adm
+      Authenticate via Keycloak (use the credentials provisioned in your sandbox).
 
     Note:
       This sandbox uses a self-signed TLS issuer by default.
