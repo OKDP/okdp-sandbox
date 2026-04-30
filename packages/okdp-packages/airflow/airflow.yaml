@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: airflow
-tag: 2.9.3-p07
+tag: 2.9.3-p10
 protected: false
 description: |
   Apache Airflow 2.9.3 - Workflow orchestration platform with Spark Operator integration
@@ -13,7 +13,7 @@ usage:
     Access the Airflow UI:
       URL: https://airflow-{{ .Release.spec.targetNamespace }}.{{ .Context.ingress.suffix }}
       Alternate URL: https://airflow.{{ .Context.ingress.suffix }}
-      Default credentials: admin / admin
+      Authenticate via Keycloak (use the credentials provisioned in your sandbox).
 
     Note:
       This sandbox uses a self-signed TLS issuer by default.
@@ -25,8 +25,8 @@ schema:
     properties:
       dagsSource:
         type: string
-        default: local
-        description: "DAG source mode. Supported values: local, git, s3"
+        default: git
+        description: "DAG source mode. Supported values: git, s3 (local requires manual DAG injection)"
       dagSyncIntervalSeconds:
         type: integer
         default: 60
@@ -82,6 +82,21 @@ schema:
       airflow:
         required: true
         properties:
+          auth:
+            properties:
+              enabled: { type: boolean }
+              method: { type: string }
+              oidc:
+                properties:
+                  provider: { type: string }
+                  baseUrl: { type: string }
+                  scope: { type: string }
+                  insecureSkipVerify: { type: boolean }
+                  credentialsSecret:
+                    properties:
+                      name: { type: string }
+                      clientIdKey: { type: string }
+                      clientSecretKey: { type: string }
           database:
             required: true
             properties:
@@ -122,8 +137,13 @@ modules:
 
       defaultAirflowTag: "2.9.3"
       airflowVersion: "2.9.3"
-      {{ $dagsSource := default "local" .Parameters.dagsSource }}
+      {{ $dagsSource := default "git" .Parameters.dagsSource }}
       {{ $dagSyncIntervalSeconds := default 60 .Parameters.dagSyncIntervalSeconds }}
+      {{- $airflowAuth := .Context.airflow.auth | default dict }}
+      {{- $airflowOidc := $airflowAuth.oidc | default dict }}
+      {{- $airflowOidcEnabled := and ($airflowAuth.enabled | default false) (eq ($airflowAuth.method | default "") "oidc") }}
+      {{- $airflowOidcBaseUrl := (default "" $airflowOidc.baseUrl) | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
+      {{- $airflowOidcRealmUrl := trimSuffix "/protocol/openid-connect" $airflowOidcBaseUrl }}
 
       webserver:
         defaultUser:
@@ -144,6 +164,35 @@ modules:
         startupProbe:
           failureThreshold: 24
           timeoutSeconds: 30
+        {{- if $airflowOidcEnabled }}
+        extraConfigmapMounts:
+          - name: airflow-webserver-config
+            mountPath: /opt/airflow/webserver_config.py
+            subPath: webserver_config.py
+        extraEnv:
+          - name: AIRFLOW_OIDC_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.airflow.auth.oidc.credentialsSecret.name }}
+                key: {{ .Context.airflow.auth.oidc.credentialsSecret.clientIdKey }}
+          - name: AIRFLOW_OIDC_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Context.airflow.auth.oidc.credentialsSecret.name }}
+                key: {{ .Context.airflow.auth.oidc.credentialsSecret.clientSecretKey }}
+          - name: AIRFLOW_OIDC_API_BASE_URL
+            value: {{ $airflowOidcBaseUrl | quote }}
+          - name: AIRFLOW_OIDC_ACCESS_TOKEN_URL
+            value: {{ printf "%s/token" $airflowOidcBaseUrl | quote }}
+          - name: AIRFLOW_OIDC_AUTHORIZE_URL
+            value: {{ printf "%s/auth" $airflowOidcBaseUrl | quote }}
+          - name: AIRFLOW_OIDC_SERVER_METADATA_URL
+            value: {{ printf "%s/.well-known/openid-configuration" $airflowOidcRealmUrl | quote }}
+          - name: AIRFLOW_OIDC_SCOPE
+            value: {{ .Context.airflow.auth.oidc.scope | quote }}
+          - name: AIRFLOW_OIDC_VERIFY_TLS
+            value: {{ if .Context.airflow.auth.oidc.insecureSkipVerify }}"false"{{ else }}"true"{{ end }}
+        {{- end }}
         {{- if eq $dagsSource "s3" }}
         extraVolumes:
           - name: dags-shared
@@ -293,6 +342,7 @@ modules:
             kubernetes.io/ingress.class: nginx
             cert-manager.io/cluster-issuer: {{ .Context.certificateIssuers.selfSigned.name }}
             acme.cert-manager.io/http01-edit-in-place: "true"
+            nginx.ingress.kubernetes.io/proxy-body-size: "0"
 
           hosts:
             - name: airflow-{{ .Release.spec.targetNamespace }}.{{ .Context.ingress.suffix }}
@@ -308,15 +358,11 @@ modules:
       postgresql:
         enabled: false
 
+      # Point to the pre-provisioned secret (via local-secrets-provider) that holds the
+      # full SQLAlchemy connection string. The chart skips generating its own airflow-metadata
+      # secret, so credentials never appear in the package values.
       data:
-        metadataConnection:
-          user: airflow
-          pass: airflow123
-          protocol: postgresql
-          host: {{ .Context.airflow.database.host }}
-          port: {{ .Context.airflow.database.port }}
-          db: {{ .Context.airflow.database.name }}
-          sslmode: disable
+        metadataSecretName: creds-airflow-metadata
 
       redis:
         enabled: false
