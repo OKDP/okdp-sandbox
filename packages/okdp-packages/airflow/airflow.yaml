@@ -388,6 +388,21 @@ modules:
           {{- if .Parameters.dagGitCredentialsSecret }}
           credentialsSecret: {{ .Parameters.dagGitCredentialsSecret | quote }}
           {{- end }}
+          {{- if or .Context.proxy.httpProxy .Context.proxy.httpsProxy .Context.proxy.noProxy }}
+          env:
+            {{- if .Context.proxy.httpProxy }}
+            - name: HTTP_PROXY
+              value: {{ .Context.proxy.httpProxy | quote }}
+            {{- end }}
+            {{- if .Context.proxy.httpsProxy }}
+            - name: HTTPS_PROXY
+              value: {{ .Context.proxy.httpsProxy | quote }}
+            {{- end }}
+            {{- if .Context.proxy.noProxy }}
+            - name: NO_PROXY
+              value: {{ .Context.proxy.noProxy | quote }}
+            {{- end }}
+          {{- end }}
 
       flower:
         enabled: false
