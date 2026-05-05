@@ -29,6 +29,12 @@ subjects:
   - kind: ServiceAccount
     name: {{ .Values.serviceAccount.name }}
     namespace: {{ .Release.Namespace }}
+  # Also bind to the namespace ServiceAccount group so DAG tasks running in the
+  # Airflow scheduler pod (under <release>-main-scheduler SA, name unknown at
+  # spark-rbac install time) can manage SparkApplication custom resources.
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: "system:serviceaccounts:{{ .Release.Namespace }}"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
