@@ -16,7 +16,7 @@
 
 apiVersion: v1alpha1
 name: spark-rbac
-tag: 1.0.0-p02
+tag: 1.0.0-p03
 protected: false
 description: |
   Helm chart that provisions the Kubernetes ServiceAccount and RBAC resources
