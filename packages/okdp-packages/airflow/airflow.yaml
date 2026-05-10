@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: airflow
-tag: 2.9.3-p10
+tag: 2.9.3-p11
 protected: false
 description: |
   Apache Airflow 2.9.3 - Workflow orchestration platform with Spark Operator integration
@@ -33,7 +33,7 @@ schema:
         description: "Sync interval for gitSync or S3 sidecar"
       dagGitRepo:
         type: string
-        default: https://github.com/OKDP/okdp-sandbox.git
+        default: https://github.com/OKDP/okdp-examples.git
         description: "Git repository URL used when dagsSource=git"
       dagGitBranch:
         type: string
@@ -49,7 +49,7 @@ schema:
         description: "Git clone depth when dagsSource=git"
       dagGitSubPath:
         type: string
-        default: examples/airflow/dags
+        default: airflow/dags
         description: "Sub-path inside the Git repo where DAGs are stored"
       dagGitCredentialsSecret:
         type: string
@@ -379,11 +379,11 @@ modules:
           enabled: false
         gitSync:
           enabled: {{ eq $dagsSource "git" }}
-          repo: {{ default "https://github.com/OKDP/okdp-sandbox.git" .Parameters.dagGitRepo | quote }}
+          repo: {{ default "https://github.com/OKDP/okdp-examples.git" .Parameters.dagGitRepo | quote }}
           branch: {{ default "main" .Parameters.dagGitBranch | quote }}
           ref: {{ default "HEAD" .Parameters.dagGitRef | quote }}
           depth: {{ default 1 .Parameters.dagGitDepth }}
-          subPath: {{ default "examples/airflow/dags" .Parameters.dagGitSubPath | quote }}
+          subPath: {{ default "airflow/dags" .Parameters.dagGitSubPath | quote }}
           period: "{{ $dagSyncIntervalSeconds }}s"
           {{- if .Parameters.dagGitCredentialsSecret }}
           credentialsSecret: {{ .Parameters.dagGitCredentialsSecret | quote }}
