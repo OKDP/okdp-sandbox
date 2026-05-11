@@ -341,7 +341,6 @@ modules:
           annotations:
             kubernetes.io/ingress.class: nginx
             cert-manager.io/cluster-issuer: {{ .Context.certificateIssuers.selfSigned.name }}
-            acme.cert-manager.io/http01-edit-in-place: "true"
             nginx.ingress.kubernetes.io/proxy-body-size: "0"
 
           hosts:
