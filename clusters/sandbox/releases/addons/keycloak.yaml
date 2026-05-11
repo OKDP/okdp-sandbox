@@ -24,8 +24,8 @@ spec:
   description: Keycloak identity and access management
   package:
     interval: 30m
-    repository: quay.io/okdp/sandbox-packages-v0.1/keycloak
-    tag: 24.4.11-p06
+    repository: quay.io/okdp/sandbox-packages-v0.2/keycloak
+    tag: 24.4.11-p07
     timeout: 10m
   parameters:
     adminPassword: admin

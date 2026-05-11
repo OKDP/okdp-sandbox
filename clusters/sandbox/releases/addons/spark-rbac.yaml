@@ -4,9 +4,9 @@ metadata:
   name: spark-rbac
   namespace: kubocd-system
 spec:
-  description: "Spark ServiceAccount and RBAC for SparkApplication execution from Airflow"
+  description: "Spark ServiceAccount and RBAC for Spark applications"
   package:
-    repository: quay.io/okdp/sandbox-packages-v0.1/spark-rbac
-    tag: 1.0.0-p03
+    repository: quay.io/okdp/sandbox-packages-v0.2/spark-rbac
+    tag: 1.0.1-p01
   targetNamespace: default
   createNamespace: false

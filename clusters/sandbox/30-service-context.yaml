@@ -301,3 +301,30 @@ spec:
         clientId: polaris-console
       endpoints:
         url: https://polaris-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+
+    airflow:
+      database:
+        provider: defaultDatabaseServer
+        name: airflow
+        credentialsSecret:
+          name: creds-airflow-db
+          connectionKey: connection
+      oidc:
+        enabled: true
+        provider: defaultIdp
+        scope: "openid+profile+email+offline_access+groups"
+        credentialsSecret:
+          name: creds-airflow-oauth2
+          clientIdKey: client_id
+          clientSecretKey: client_secret
+      advanced:
+        config:
+          security:
+            credentialsSecret:
+              name: creds-airflow-security
+              jwtSecret: jwt-secret
+              apiSecretKey: api-secret-key
+              fernetKey: fernet-key
+      endpoint:
+        url: https://airflow-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+

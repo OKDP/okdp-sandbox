@@ -78,3 +78,28 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{- define "cnpg-postgresql.requireSecretKey" -}}
+{{- $ns := .namespace -}}
+{{- $secretName := .secretName -}}
+{{- $key := .key -}}
+{{- $s := lookup "v1" "Secret" $ns $secretName -}}
+{{- if not $s -}}
+{{- fail (printf "cnpg-postgresql: required owner password Secret %q not found in namespace %q" $secretName $ns) -}}
+{{- end -}}
+{{- $v := index $s.data $key -}}
+{{- if not $v -}}
+{{- fail (printf "cnpg-postgresql: key %q not found in owner password Secret %q (namespace %q)" $key $secretName $ns) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "cnpg-postgresql.requireOwnerPasswordSecrets" -}}
+{{- $root := . -}}
+{{- range $db := .Values.databases }}
+  {{- $owner := $db.owner -}}
+  {{- if and $owner $owner.username $owner.passwordSecret }}
+    {{- include "cnpg-postgresql.requireSecretKey" (dict "namespace" $root.Release.Namespace "secretName" $owner.passwordSecret "key" "username") -}}
+    {{- include "cnpg-postgresql.requireSecretKey" (dict "namespace" $root.Release.Namespace "secretName" $owner.passwordSecret "key" "password") -}}
+  {{- end }}
+{{- end }}
+{{- end -}}

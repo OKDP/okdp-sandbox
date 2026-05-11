@@ -16,7 +16,7 @@
 
 apiVersion: v1alpha1
 name: cloudnative-pg
-tag: 1.29.0-p01
+tag: 1.29.1-p01
 protected: false
 description: |
   CloudNativePG is the Kubernetes operator that covers the full lifecycle of a highly available PostgreSQL database cluster 
@@ -40,7 +40,7 @@ modules:
       image:
         repository: ghcr.io/cloudnative-pg/cloudnative-pg
         pullPolicy: IfNotPresent
-        tag: "1.29.0"
+        tag: "1.29.1"
       resources:
         requests:
           cpu: 500m

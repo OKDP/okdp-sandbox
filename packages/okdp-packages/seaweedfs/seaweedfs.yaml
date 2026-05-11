@@ -175,7 +175,7 @@ modules:
               accessKeyKey: {{ .Context.polaris.storage.credentialsSecret.accessKeyKey }}
               secretKeyKey: {{ .Context.polaris.storage.credentialsSecret.secretKeyKey }}
             actions: {{ .Context.defaultStorage.settings.s3.advanced.identities.polaris.actions | default list | toJson }}
-
+      
       filer:
         auth:
           method: basic

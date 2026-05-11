@@ -1,6 +1,6 @@
 apiVersion: v1alpha1
 name: airflow
-tag: 2.9.3-p11
+tag: 3.2.1-p1
 protected: false
 description: |
   Apache Airflow 2.9.3 - Workflow orchestration platform with Spark Operator integration
@@ -11,118 +11,25 @@ usage:
     Pods, ingress, and certificate provisioning may still take a few minutes.
 
     Access the Airflow UI:
-      URL: https://airflow-{{ .Release.spec.targetNamespace }}.{{ .Context.ingress.suffix }}
-      Alternate URL: https://airflow.{{ .Context.ingress.suffix }}
-      Authenticate via Keycloak (use the credentials provisioned in your sandbox).
-
-    Note:
-      This sandbox uses a self-signed TLS issuer by default.
-      If the browser shows NET::ERR_CERT_AUTHORITY_INVALID, use "Advanced" -> "Proceed"
-      or trust the cluster certificate authority locally.
+      URL: {{ .Context.airflow.endpoint.url | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.platform.ingress.suffix }}
+      Authenticate via the configured OIDC provider.
 
 schema:
-  parameters:
-    properties:
-      dagsSource:
-        type: string
-        default: git
-        description: "DAG source mode. Supported values: git, s3 (local requires manual DAG injection)"
-      dagSyncIntervalSeconds:
-        type: integer
-        default: 60
-        description: "Sync interval for gitSync or S3 sidecar"
-      dagGitRepo:
-        type: string
-        default: https://github.com/OKDP/okdp-examples.git
-        description: "Git repository URL used when dagsSource=git"
-      dagGitBranch:
-        type: string
-        default: main
-        description: "Git branch used when dagsSource=git"
-      dagGitRef:
-        type: string
-        default: HEAD
-        description: "Git ref used when dagsSource=git"
-      dagGitDepth:
-        type: integer
-        default: 1
-        description: "Git clone depth when dagsSource=git"
-      dagGitSubPath:
-        type: string
-        default: airflow/dags
-        description: "Sub-path inside the Git repo where DAGs are stored"
-      dagGitCredentialsSecret:
-        type: string
-        default: ""
-        description: "Optional secret with git credentials (GITSYNC_USERNAME/GITSYNC_PASSWORD)"
-      dagS3Bucket:
-        type: string
-        default: ""
-        description: "Optional S3 bucket used when dagsSource=s3 (falls back to context airflow.storage.s3.bucket)"
-      dagS3Prefix:
-        type: string
-        default: dags
-        description: "S3 prefix containing DAG files when dagsSource=s3"
-      dagS3Image:
-        type: string
-        default: bitnami/aws-cli:2.17.0
-        description: "Image used by S3 DAG sync sidecars"
   context:
     properties:
-      certificateIssuers:
+      platform:
         required: true
         properties:
-          selfSigned:
-            properties:
-              name: { type: string, required: true }
-      ingress:
-        required: true
-        properties:
-          suffix: { type: string, required: true }
-      airflow:
-        required: true
-        properties:
-          auth:
-            properties:
-              enabled: { type: boolean }
-              method: { type: string }
-              oidc:
-                properties:
-                  provider: { type: string }
-                  baseUrl: { type: string }
-                  scope: { type: string }
-                  insecureSkipVerify: { type: boolean }
-                  credentialsSecret:
-                    properties:
-                      name: { type: string }
-                      clientIdKey: { type: string }
-                      clientSecretKey: { type: string }
-          database:
+          certificateIssuers:
             required: true
             properties:
-              name: { type: string, required: true }
-              host: { type: string, required: true }
-              port: { type: integer, required: true }
-              credentialsSecret:
-                required: true
+              selfSigned:
                 properties:
                   name: { type: string, required: true }
-                  usernameKey: { type: string, required: true }
-                  passwordKey: { type: string, required: true }
-          storage:
+          ingress:
+            required: true
             properties:
-              s3:
-                properties:
-                  apiUrl: { type: string }
-                  bucket: { type: string }
-                  credentialsSecret:
-                    properties:
-                      name: { type: string }
-                      accessKeyKey: { type: string }
-                      secretKeyKey: { type: string }
-                  tls:
-                    properties:
-                      insecureSkipVerify: { type: boolean }
+              suffix: { type: string, required: true }
 
 modules:
   - name: main
@@ -131,29 +38,84 @@ modules:
       helmRepository:
         url: https://airflow.apache.org
         chart: airflow
-        version: 1.17.0
+        version: 1.21.0
     values: |
-      executor: LocalExecutor
+      executor: KubernetesExecutor
+      
+      defaultAirflowTag: "3.2.1"
+      airflowVersion: "3.2.1"
+      
+      {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
+      {{- $release := printf "%v" .Release.metadata.name -}}
+      {{- $domain := printf "%v" .Context.platform.ingress.suffix -}}
+      {{- $airflowUrl := .Context.airflow.endpoint.url
+            | replace "{{ .Release.namespace }}" $namespace
+            | replace "{{ .Release.metadata.name }}" $release
+            | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      {{- $airflowHost := regexReplaceAll "^https?://" $airflowUrl "" -}}
+      {{- $airflowGitSync := .Context.airflow.dags.gitSync | default dict }}
+      {{- $airflowGitSyncValues := omit $airflowGitSync "credentialsSecret" }}
+      {{- $airflowOidc := .Context.airflow.oidc | default dict }}
+      {{- $airflowOidcEnabled := $airflowOidc.enabled | default false }}
+      {{- $airflowOidcRoleMapping := $airflowOidc.roleMapping | default dict }}
+      {{- $airflowOidcBaseUrl := "" }}
+      {{- $airflowOidcAuthUrl := "" }}
+      {{- $airflowOidcTokenUrl := "" }}
+      {{- $airflowOidcIssuerUri := "" }}
+      {{- if $airflowOidcEnabled }}
+        {{- $oidcId := required "context.airflow.oidc.provider is required when Airflow OIDC is enabled" $airflowOidc.provider -}}
+        {{- $oidcProvider := (index .Context $oidcId).provider -}}
+        {{- $airflowOidcBaseUrl = (required "context airflow OIDC provider baseUri is required" $oidcProvider.baseUri)
+              | replace "{{ .Release.namespace }}" $namespace
+              | replace "{{ .Release.metadata.name }}" $release
+              | replace "{{ .Context.ingress.suffix }}" $domain -}}
+        {{- $airflowOidcAuthUrl = (required "context airflow OIDC provider authUrl is required" $oidcProvider.endpoints.authUrl)
+              | replace "{{ .Release.namespace }}" $namespace
+              | replace "{{ .Release.metadata.name }}" $release
+              | replace "{{ .Context.ingress.suffix }}" $domain -}}
+        {{- $airflowOidcTokenUrl = (required "context airflow OIDC provider tokenUrl is required" $oidcProvider.endpoints.tokenUrl)
+              | replace "{{ .Release.namespace }}" $namespace
+              | replace "{{ .Release.metadata.name }}" $release
+              | replace "{{ .Context.ingress.suffix }}" $domain -}}
+        {{- $airflowOidcIssuerUri = (required "context airflow OIDC provider issuerUri is required" $oidcProvider.issuerUri)
+              | replace "{{ .Release.namespace }}" $namespace
+              | replace "{{ .Release.metadata.name }}" $release
+              | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      {{- end }}
 
-      defaultAirflowTag: "2.9.3"
-      airflowVersion: "2.9.3"
-      {{ $dagsSource := default "git" .Parameters.dagsSource }}
-      {{ $dagSyncIntervalSeconds := default 60 .Parameters.dagSyncIntervalSeconds }}
-      {{- $airflowAuth := .Context.airflow.auth | default dict }}
-      {{- $airflowOidc := $airflowAuth.oidc | default dict }}
-      {{- $airflowOidcEnabled := and ($airflowAuth.enabled | default false) (eq ($airflowAuth.method | default "") "oidc") }}
-      {{- $airflowOidcBaseUrl := (default "" $airflowOidc.baseUrl) | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix }}
-      {{- $airflowOidcRealmUrl := trimSuffix "/protocol/openid-connect" $airflowOidcBaseUrl }}
+      extraEnv: |
+      {{- if $airflowOidcEnabled }}
+        - name: AIRFLOW_OIDC_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ $airflowOidc.credentialsSecret.name }}
+              key: {{ $airflowOidc.credentialsSecret.clientIdKey }}
+        - name: AIRFLOW_OIDC_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ $airflowOidc.credentialsSecret.name }}
+              key: {{ $airflowOidc.credentialsSecret.clientSecretKey }}
+        - name: AIRFLOW_OIDC_API_BASE_URL
+          value: {{ $airflowOidcBaseUrl | quote }}
+        - name: AIRFLOW_OIDC_ACCESS_TOKEN_URL
+          value: {{ $airflowOidcTokenUrl | quote }}
+        - name: AIRFLOW_OIDC_AUTHORIZE_URL
+          value: {{ $airflowOidcAuthUrl | quote }}
+        - name: AIRFLOW_OIDC_SERVER_METADATA_URL
+          value: {{ printf "%s/.well-known/openid-configuration" $airflowOidcIssuerUri | quote }}
+        - name: AIRFLOW_OIDC_SCOPE
+          value: {{ $airflowOidc.scope | quote }}
+      {{- end }}
+        - name: INSECURE_VERIFY_TLS
+          value: {{ if ($airflowOidc.insecureSkipVerify | default false) }}"false"{{ else }}"true"{{ end }}
+        - name: REQUESTS_CA_BUNDLE
+          value: "/cacerts/ca.crt"
+        - name: SSL_CERT_FILE
+          value: "/cacerts/ca.crt"
+        - name: CURL_CA_BUNDLE
+          value: "/cacerts/ca.crt"
 
-      webserver:
-        defaultUser:
-          enabled: true
-          role: Admin
-          username: admin
-          email: admin@example.com
-          firstName: admin
-          lastName: user
-          password: admin
+      apiServer:
         resources:
           requests:
             memory: "384Mi"
@@ -165,93 +127,55 @@ modules:
           failureThreshold: 24
           timeoutSeconds: 30
         {{- if $airflowOidcEnabled }}
-        extraConfigmapMounts:
-          - name: airflow-webserver-config
-            mountPath: /opt/airflow/webserver_config.py
-            subPath: webserver_config.py
-        extraEnv:
-          - name: AIRFLOW_OIDC_CLIENT_ID
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Context.airflow.auth.oidc.credentialsSecret.name }}
-                key: {{ .Context.airflow.auth.oidc.credentialsSecret.clientIdKey }}
-          - name: AIRFLOW_OIDC_CLIENT_SECRET
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Context.airflow.auth.oidc.credentialsSecret.name }}
-                key: {{ .Context.airflow.auth.oidc.credentialsSecret.clientSecretKey }}
-          - name: AIRFLOW_OIDC_API_BASE_URL
-            value: {{ $airflowOidcBaseUrl | quote }}
-          - name: AIRFLOW_OIDC_ACCESS_TOKEN_URL
-            value: {{ printf "%s/token" $airflowOidcBaseUrl | quote }}
-          - name: AIRFLOW_OIDC_AUTHORIZE_URL
-            value: {{ printf "%s/auth" $airflowOidcBaseUrl | quote }}
-          - name: AIRFLOW_OIDC_SERVER_METADATA_URL
-            value: {{ printf "%s/.well-known/openid-configuration" $airflowOidcRealmUrl | quote }}
-          - name: AIRFLOW_OIDC_SCOPE
-            value: {{ .Context.airflow.auth.oidc.scope | quote }}
-          - name: AIRFLOW_OIDC_VERIFY_TLS
-            value: {{ if .Context.airflow.auth.oidc.insecureSkipVerify }}"false"{{ else }}"true"{{ end }}
+        apiServerConfig: |
+          import os
+
+          from flask_appbuilder.security.manager import AUTH_OAUTH
+      
+          verify_tls = os.environ.get("INSECURE_VERIFY_TLS", "true").lower() == "true"
+          oauth_verify = os.environ.get("REQUESTS_CA_BUNDLE") if verify_tls else False
+
+          AUTH_TYPE = AUTH_OAUTH
+          AUTH_USER_REGISTRATION = True
+          AUTH_USER_REGISTRATION_ROLE = "Viewer"
+          # Sync Airflow roles from OIDC groups at every login
+          AUTH_ROLES_SYNC_AT_LOGIN = True
+          # Map OIDC groups to Airflow roles
+          AUTH_ROLES_MAPPING = {
+          {{- range $oidcRole, $airflowRoles := $airflowOidcRoleMapping }}
+              {{ $oidcRole | quote }}: {{ $airflowRoles | toJson }},
+          {{- end }}
+          }
+
+          OAUTH_PROVIDERS = [
+              {
+                  "name": "oidc",
+                  "icon": "fa-circle-o",
+                  "token_key": "access_token",
+                  "remote_app": {
+                      "client_id": os.environ["AIRFLOW_OIDC_CLIENT_ID"],
+                      "client_secret": os.environ["AIRFLOW_OIDC_CLIENT_SECRET"],
+                      "api_base_url": os.environ["AIRFLOW_OIDC_API_BASE_URL"],
+                      "access_token_url": os.environ["AIRFLOW_OIDC_ACCESS_TOKEN_URL"],
+                      "authorize_url": os.environ["AIRFLOW_OIDC_AUTHORIZE_URL"],
+                      "server_metadata_url": os.environ["AIRFLOW_OIDC_SERVER_METADATA_URL"],
+                      "client_kwargs": {
+                          "scope": os.environ.get("AIRFLOW_OIDC_SCOPE", "openid profile email").replace("+", " "),
+                          oauth_verify: oauth_verify,
+                      },
+                  },
+              },
+          ]
         {{- end }}
-        {{- if eq $dagsSource "s3" }}
+        
         extraVolumes:
-          - name: dags-shared
-            emptyDir: {}
+          - name: cacerts
+            secret:
+              secretName: certs-bundle
+      
         extraVolumeMounts:
-          - name: dags-shared
-            mountPath: /opt/airflow/dags
-        extraContainers:
-          - name: dags-s3-sync
-            image: {{ default "bitnami/aws-cli:2.17.0" .Parameters.dagS3Image | quote }}
-            imagePullPolicy: IfNotPresent
-            command: ["/bin/sh", "-ec"]
-            args:
-              - |
-                set -euo pipefail
-                while true; do
-                  if [ -n "$AIRFLOW_DAGS_S3_PREFIX" ]; then
-                    DAGS_URI="s3://$AIRFLOW_DAGS_S3_BUCKET/$AIRFLOW_DAGS_S3_PREFIX"
-                  else
-                    DAGS_URI="s3://$AIRFLOW_DAGS_S3_BUCKET"
-                  fi
-                  echo "Syncing DAGs from $DAGS_URI"
-                  if aws --endpoint-url "$AIRFLOW_DAGS_S3_ENDPOINT" s3 sync "$DAGS_URI" /opt/airflow/dags --delete --no-progress{{- if .Context.airflow.storage.s3.tls.insecureSkipVerify }} --no-verify-ssl{{- end }}; then
-                    echo "DAG sync completed"
-                  else
-                    echo "DAG sync failed, retrying..."
-                  fi
-                  sleep {{ $dagSyncIntervalSeconds }}
-                done
-            env:
-              - name: AIRFLOW_DAGS_S3_BUCKET
-                value: {{ default .Context.airflow.storage.s3.bucket .Parameters.dagS3Bucket | quote }}
-              - name: AIRFLOW_DAGS_S3_PREFIX
-                value: {{ default "dags" .Parameters.dagS3Prefix | quote }}
-              - name: AIRFLOW_DAGS_S3_ENDPOINT
-                value: {{ .Context.airflow.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix | quote }}
-              - name: AWS_DEFAULT_REGION
-                value: "us-east-1"
-              - name: AWS_ACCESS_KEY_ID
-                valueFrom:
-                  secretKeyRef:
-                    name: {{ .Context.airflow.storage.s3.credentialsSecret.name }}
-                    key: {{ .Context.airflow.storage.s3.credentialsSecret.accessKeyKey }}
-              - name: AWS_SECRET_ACCESS_KEY
-                valueFrom:
-                  secretKeyRef:
-                    name: {{ .Context.airflow.storage.s3.credentialsSecret.name }}
-                    key: {{ .Context.airflow.storage.s3.credentialsSecret.secretKeyKey }}
-            volumeMounts:
-              - name: dags-shared
-                mountPath: /opt/airflow/dags
-            resources:
-              requests:
-                memory: "64Mi"
-                cpu: "25m"
-              limits:
-                memory: "256Mi"
-                cpu: "200m"
-        {{- end }}
+          - name: cacerts
+            mountPath: /cacerts
 
       scheduler:
         resources:
@@ -264,65 +188,6 @@ modules:
         startupProbe:
           failureThreshold: 12
           timeoutSeconds: 60
-        {{- if eq $dagsSource "s3" }}
-        extraVolumes:
-          - name: dags-shared
-            emptyDir: {}
-        extraVolumeMounts:
-          - name: dags-shared
-            mountPath: /opt/airflow/dags
-        extraContainers:
-          - name: dags-s3-sync
-            image: {{ default "bitnami/aws-cli:2.17.0" .Parameters.dagS3Image | quote }}
-            imagePullPolicy: IfNotPresent
-            command: ["/bin/sh", "-ec"]
-            args:
-              - |
-                set -euo pipefail
-                while true; do
-                  if [ -n "$AIRFLOW_DAGS_S3_PREFIX" ]; then
-                    DAGS_URI="s3://$AIRFLOW_DAGS_S3_BUCKET/$AIRFLOW_DAGS_S3_PREFIX"
-                  else
-                    DAGS_URI="s3://$AIRFLOW_DAGS_S3_BUCKET"
-                  fi
-                  echo "Syncing DAGs from $DAGS_URI"
-                  if aws --endpoint-url "$AIRFLOW_DAGS_S3_ENDPOINT" s3 sync "$DAGS_URI" /opt/airflow/dags --delete --no-progress{{- if .Context.airflow.storage.s3.tls.insecureSkipVerify }} --no-verify-ssl{{- end }}; then
-                    echo "DAG sync completed"
-                  else
-                    echo "DAG sync failed, retrying..."
-                  fi
-                  sleep {{ $dagSyncIntervalSeconds }}
-                done
-            env:
-              - name: AIRFLOW_DAGS_S3_BUCKET
-                value: {{ default .Context.airflow.storage.s3.bucket .Parameters.dagS3Bucket | quote }}
-              - name: AIRFLOW_DAGS_S3_PREFIX
-                value: {{ default "dags" .Parameters.dagS3Prefix | quote }}
-              - name: AIRFLOW_DAGS_S3_ENDPOINT
-                value: {{ .Context.airflow.storage.s3.apiUrl | replace "{{ .Release.namespace }}" .Release.spec.targetNamespace | replace "{{ .Release.metadata.name }}" .Release.metadata.name | replace "{{ .Context.ingress.suffix }}" .Context.ingress.suffix | quote }}
-              - name: AWS_DEFAULT_REGION
-                value: "us-east-1"
-              - name: AWS_ACCESS_KEY_ID
-                valueFrom:
-                  secretKeyRef:
-                    name: {{ .Context.airflow.storage.s3.credentialsSecret.name }}
-                    key: {{ .Context.airflow.storage.s3.credentialsSecret.accessKeyKey }}
-              - name: AWS_SECRET_ACCESS_KEY
-                valueFrom:
-                  secretKeyRef:
-                    name: {{ .Context.airflow.storage.s3.credentialsSecret.name }}
-                    key: {{ .Context.airflow.storage.s3.credentialsSecret.secretKeyKey }}
-            volumeMounts:
-              - name: dags-shared
-                mountPath: /opt/airflow/dags
-            resources:
-              requests:
-                memory: "64Mi"
-                cpu: "25m"
-              limits:
-                memory: "256Mi"
-                cpu: "200m"
-        {{- end }}
 
       triggerer:
         enabled: true
@@ -335,93 +200,88 @@ modules:
             cpu: "300m"
 
       ingress:
-        web:
+        apiServer:
           enabled: true
           ingressClassName: nginx
           annotations:
             kubernetes.io/ingress.class: nginx
-            cert-manager.io/cluster-issuer: {{ .Context.certificateIssuers.selfSigned.name }}
+            cert-manager.io/cluster-issuer: {{ .Context.platform.certificateIssuers.selfSigned.name }}
             nginx.ingress.kubernetes.io/proxy-body-size: "0"
 
           hosts:
-            - name: airflow-{{ .Release.spec.targetNamespace }}.{{ .Context.ingress.suffix }}
+            - name: {{ $airflowHost }}
               tls:
                 enabled: true
                 secretName: airflow-tls
-            - name: airflow.{{ .Context.ingress.suffix }}
-              tls:
-                enabled: true
-                secretName: airflow-tls
-
-      # Use the shared CNPG PostgreSQL instance instead of the bundled bitnami subchart
-      postgresql:
-        enabled: false
 
       # Point to the pre-provisioned secret (via local-secrets-provider) that holds the
       # full SQLAlchemy connection string. The chart skips generating its own airflow-metadata
       # secret, so credentials never appear in the package values.
       data:
-        metadataSecretName: creds-airflow-metadata
-
-      redis:
-        enabled: false
-
-      workers:
-        replicas: 0
-
-      dagProcessor:
-        enabled: false
+        metadataSecretName: {{ .Context.airflow.database.credentialsSecret.name }}
 
       dags:
         mountPath: /opt/airflow/dags
         persistence:
-          enabled: false
+            enabled: false
         gitSync:
-          enabled: {{ eq $dagsSource "git" }}
-          repo: {{ default "https://github.com/OKDP/okdp-examples.git" .Parameters.dagGitRepo | quote }}
-          branch: {{ default "main" .Parameters.dagGitBranch | quote }}
-          ref: {{ default "HEAD" .Parameters.dagGitRef | quote }}
-          depth: {{ default 1 .Parameters.dagGitDepth }}
-          subPath: {{ default "airflow/dags" .Parameters.dagGitSubPath | quote }}
-          period: "{{ $dagSyncIntervalSeconds }}s"
-          {{- if .Parameters.dagGitCredentialsSecret }}
-          credentialsSecret: {{ .Parameters.dagGitCredentialsSecret | quote }}
+          {{- toYaml $airflowGitSyncValues | nindent 10 }}
+          {{- with $airflowGitSync.credentialsSecret }}
+          credentialsSecret: {{ required "context.airflow.dags.gitSync.credentialsSecret.name is required" .name | quote }}
           {{- end }}
-          {{- if or .Context.proxy.httpProxy .Context.proxy.httpsProxy .Context.proxy.noProxy }}
+          {{- if or .Context.platform.proxy.httpProxy .Context.platform.proxy.httpsProxy .Context.platform.proxy.noProxy }}
           env:
-            {{- if .Context.proxy.httpProxy }}
+            {{- if .Context.platform.proxy.httpProxy }}
             - name: HTTP_PROXY
-              value: {{ .Context.proxy.httpProxy | quote }}
+              value: {{ .Context.platform.proxy.httpProxy | quote }}
             {{- end }}
-            {{- if .Context.proxy.httpsProxy }}
+            {{- if .Context.platform.proxy.httpsProxy }}
             - name: HTTPS_PROXY
-              value: {{ .Context.proxy.httpsProxy | quote }}
+              value: {{ .Context.platform.proxy.httpsProxy | quote }}
             {{- end }}
-            {{- if .Context.proxy.noProxy }}
+            {{- if .Context.platform.proxy.noProxy }}
             - name: NO_PROXY
-              value: {{ .Context.proxy.noProxy | quote }}
+              value: {{ .Context.platform.proxy.noProxy | quote }}
             {{- end }}
           {{- end }}
-
+      
+      dagProcessor:
+        enabled: true
       flower:
         enabled: false
       pgbouncer:
         enabled: false
       statsd:
         enabled: false
-
+      redis:
+        enabled: false
+      workers:
+        replicas: 0
+      postgresql:
+        enabled: false
+      webserver:
+        enabled: false
+      createUserJob:
+        enabled: false
+        useHelmHooks: false
+        #defaultUser:
+        #  enabled: true
+        #  role: Admin
+        #  username: admin
+        #  email: admin@example.com
+        #  firstName: admin
+        #  lastName: user
+        #  password: admin
+        #resources:
+        #  requests:
+        #    memory: "64Mi"
+        #   cpu: "25m"
+        #  limits:
+        #   memory: "256Mi"
+        #   cpu: "200m"
+      
       migrateDatabaseJob:
         enabled: true
-        useHelmHooks: false
-        resources:
-          requests:
-            memory: "64Mi"
-            cpu: "25m"
-          limits:
-            memory: "256Mi"
-            cpu: "200m"
-
-      createUserJob:
         useHelmHooks: false
         resources:
           requests:
@@ -434,6 +294,15 @@ modules:
       config:
         core:
           load_examples: 'False'
+          auth_manager: "airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager"
+        fab:
+          enable_proxy_fix: "True"
+          cookie_secure: "True"
+          cookie_samesite: "Lax"
+      
+      apiSecretKeySecretName: {{ .Context.airflow.advanced.config.security.credentialsSecret.name }}
+      jwtSecretName: {{ .Context.airflow.advanced.config.security.credentialsSecret.name }}
+      fernetKeySecretName: {{ .Context.airflow.advanced.config.security.credentialsSecret.name }}
 
 roles:
   - airflow

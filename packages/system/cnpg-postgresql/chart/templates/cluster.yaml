@@ -16,6 +16,7 @@
 
 */}}
 
+{{- include "cnpg-postgresql.requireOwnerPasswordSecrets" . -}}
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:

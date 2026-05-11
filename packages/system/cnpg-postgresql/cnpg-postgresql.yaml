@@ -16,7 +16,7 @@
 
 apiVersion: v1alpha1
 name: cnpg-postgresql
-tag: 18.0-p01
+tag: 18.3-p01
 protected: false
 description: |
   Defines multiple logical PostgreSQL databases managed by the CloudNativePG operator within a single PostgreSQL 
@@ -32,22 +32,22 @@ modules:
         path: ./chart
     values: |
       replicaCount: 1
-      fullnameOverride: {{ regexReplaceAll "-rw.*" .Context.databaseServer.endpoint.host "" }}
+      fullnameOverride: {{ regexReplaceAll "-rw.*" .Context.defaultDatabaseServer.provider.endpoints.host "" }}
       
       image:
-        repository: quay.io/okdp/sandbox-images/postgresql
+        repository: ghcr.io/cloudnative-pg/postgresql
         pullPolicy: IfNotPresent
-        tag: 17.4.0-debian-12-r2
+        tag: 18.3
       
       storage:
         size: 2Gi
         class: standard
       
       databases:
-      {{ toYaml .Context.databaseServer.postgresql.databases | indent 4 }}
+      {{ toYaml .Context.defaultDatabaseServer.settings.databases | indent 4 }}
 roles:
   - database-server
 dependencies:
   - pg-operator
   - external-secrets
-  - tools
+

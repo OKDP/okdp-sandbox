@@ -429,17 +429,30 @@ spec:
           "nbformat_minor": 5
         }
 
-    polarisConsole:
-      defaultRealm: sandbox
-      apiUrl: https://polaris-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+    airflow:
+      dags:
+        gitSync:
+          enabled: true
+          repo: https://github.com/OKDP/okdp-examples.git
+          branch: main
+          ref: HEAD
+          depth: 1
+          subPath: airflow/dags
+          period: 60s
+          # credentialsSecret:
+          #   name: creds-git-examples
+          #   usernameKey: GITSYNC_USERNAME
+          #   passwordKey: GITSYNC_PASSWORD
       oidc:
-        enabled: true
-        provider: defaultIdp
-        scope: "openid profile email roles offline_access"
-        # Public OIDC client with PKCE enabled
-        clientId: polaris-console
-      endpoints:
-        url: https://polaris-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+        # https://airflow.apache.org/docs/apache-airflow-providers-fab/stable/auth-manager/access-control.html
+        # Map OIDC roles into airflow internal roles
+        roleMapping:
+          platform_admin: [ "Admin" ]
+          data_engineer: [ "Op" ]
+          data_scientist: [ "User" ]
+          business_analyst: [ "Viewer" ]
+          data_steward: [ "Viewer" ]
+          auditor: [ "Viewer" ]
 
     examples:
       mylakehouse:
@@ -451,7 +464,6 @@ spec:
           storageUri: s3://silver
         gold:
           storageUri: s3://gold
-
       storage:
         provider: defaultStorage
         credentialsSecret:
@@ -459,7 +471,7 @@ spec:
           accessKeyKey: S3_ACCESS_KEY
           secretKeyKey: S3_SECRET_KEY
       trino:
-        url: https://trino-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
+        url: https://trino-{{ .Release.namespace }}.{{ .Context.platform.ingress.suffix }}
         oidc:
           enabled: true
           provider: defaultIdp
@@ -664,15 +676,8 @@ spec:
                   - service_admin
                   - catalog_admin
 
+    # -- Sandbox-specific storage provider implementation settings for SeaweedFS databases, S3 credentials, STS, and identities.
     defaultStorage:
-      provider:
-        type: s3
-        name: SeaweedFS
-        region: dummy
-        endpoints:
-          apiUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-          stsUrl: https://seaweedfs-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
-          consoleUrl: https://seaweedfs-console-{{ .Release.namespace }}.{{ .Context.ingress.suffix }}
       # Sandbox implementation-specific
       # Consider this part already provided by your platform
       # settings: {}
@@ -690,9 +695,9 @@ spec:
           s3_secret: creds-seaweedfs-identities
           bucketAnonymousRead: true
           credentialsSecret:
-              name: creds-seaweedfs-s3
-              accessKeyKey: accessKey
-              secretKeyKey: secretKey
+            name: creds-seaweedfs-s3
+            accessKeyKey: accessKey
+            secretKeyKey: secretKey
 
           sts:
             enabled: true
@@ -720,6 +725,9 @@ spec:
               polaris:
                 identity: polaris
                 actions: [ Read, Write, List, Admin ]
+              airflow:
+                identity: airflow
+                actions: [ Read, Write, List, Admin ]
               examples:
                 identity: examples
                 actions: [ Admin, Read, Write, List ]
@@ -727,21 +735,8 @@ spec:
                 identity: seaweedfs
                 actions: [ Admin ]
 
-        info: |
-          We add an ability for KuboCD to reuse/inherit (variable substitution) later.
-          All the required access keys for the services are provisioned in the package seaweedfs.yaml itself.
-
+    # -- Sandbox-specific identity provider settings for Keycloak users, roles, clients, service accounts, and OIDC scopes.
     defaultIdp:
-      provider:
-        type: oidc
-        name: keycloak
-        issuerUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master"
-        baseUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect"
-        endpoints:
-          authUrl: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/auth"
-          tokenUrl: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/token"
-          userinfoUrl: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/userinfo"
-          jwksUri: "https://keycloak.{{ .Context.ingress.suffix }}/realms/master/protocol/openid-connect/certs"
       # Sandbox implementation-specific
       # Consider this part already provided by your IDP
       # settings: {}
@@ -987,6 +982,28 @@ spec:
               - organization
               - offline_access
               - microprofile-jwt
+          - clientId: airflow
+            name: airflow
+            secret: myAirflowSecret
+            publicClient: false
+            redirectUris:
+              - "https://*"
+            webOrigins:
+              - "https://*"
+            defaultClientScopes:
+              - web-origins
+              - acr
+              - roles
+              - profile
+              - groups
+              - basic
+              - email
+            optionalClientScopes:
+              - address
+              - phone
+              - organization
+              - offline_access
+              - microprofile-jwt
           - clientId: svc-trino-polaris-writer
             name: svc-trino-polaris-writer
             secret: myTrinoPolarisSecret
@@ -1064,14 +1081,8 @@ spec:
                   userinfo.token.claim: "true"
 
     # Provision the following databases and configure the provider part.
+    # -- Sandbox-specific database provisioning for service databases and owners.
     defaultDatabaseServer:
-      provider:
-        type: postgresql
-        driver: org.postgresql.Driver
-        connection:
-          host: postgresql-instance-rw.cnpg-system.svc.cluster.local
-          port: 5432
-          jdbcUrl: jdbc:postgresql://{{ connection.host }}:{{ connection.port }}/{{ dbName }}
       # Sandbox implementation-specific
       # Consider this part already provided by your platform
       # settings: {}
@@ -1103,11 +1114,15 @@ spec:
               passwordSecret: creds-superset-examples-db
             schemas:
               - main
+          - name: airflow
+            owner:
+              username: "airflow"
+              password: "airflow123"
 
     # Create all the kubernetes secrets required by the services
     # The provisioning is local, but you can provide them using external secrets or vault provider
     # In order to have a predictable behaviour on re-deployment, we provision the secrets statically
+    # -- Local static secrets provisioning used by the sandbox examples when no external secret manager is configured.
     localSecretsProvider:
       info: |
         Currently, the secrets are created inside the package `local-secrets-provider.yaml` itself.
-        We add an ability for KuboCD to reuse/inherit (substitution) the context variables later so that we can list them here.
