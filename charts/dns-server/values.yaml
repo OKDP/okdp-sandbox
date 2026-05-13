@@ -1,0 +1,57 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# -- Number of DNS server replicas to run.
+replicaCount: 1
+
+image:
+  # -- DNS server container image repository.
+  repository: 4km3/dnsmasq
+  # -- DNS server container image tag.
+  tag: 2.90-r3
+  # -- DNS server container image pull policy.
+  pullPolicy: IfNotPresent
+
+config:
+  # -- Wildcard DNS suffix to resolve.
+  domain: okdp.sandbox
+  # -- IP address returned for the configured wildcard DNS suffix.
+  target: 127.0.0.1
+
+service:
+  # -- Kubernetes Service type.
+  type: NodePort
+  # -- DNS service port.
+  port: 53
+  # -- NodePort used for UDP DNS queries. TCP uses the next port number.
+  nodePort: 30053
+  # -- Primary DNS protocol exposed by the first service port.
+  protocol: UDP
+
+# -- Container resource requests and limits.
+resources:
+  requests:
+    memory: 32Mi
+    cpu: 50m
+  limits:
+    memory: 64Mi
+    cpu: 100m
+
+# -- Override the chart name.
+nameOverride: ""
+
+# -- Override the full release name.
+fullnameOverride: ""

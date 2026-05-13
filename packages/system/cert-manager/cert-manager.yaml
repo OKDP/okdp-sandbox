@@ -114,8 +114,9 @@ modules:
     enabled: "{{ .Parameters.issuers.enabled }}"
     timeout: 10m
     source:
-      local:
-        path: ./chart
+      oci:
+        repository: quay.io/okdp/charts/cert-issuers
+        tag: 0.2.0
     values: |
       {{ toYaml .Parameters.issuers }}
       bundle:

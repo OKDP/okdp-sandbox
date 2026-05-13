@@ -55,8 +55,9 @@ modules:
   - name: spark-rbac
     timeout: 10m
     source:
-      local:
-        path: ../spark-rbac/chart
+      oci:
+        repository: quay.io/okdp/charts/spark-rbac
+        tag: 1.0.1
     values: |
       rbac:
         create: {{ .Context.spark.rbac.rbac.create }}

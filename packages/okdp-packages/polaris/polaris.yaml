@@ -47,8 +47,9 @@ modules:
   - name: bootstrap
     timeout: 10m
     source:
-      local:
-        path: ./polaris-admin
+      oci:
+        repository: quay.io/okdp/charts/polaris-admin
+        tag: 1.0.0
     values: |
       
       {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}
@@ -272,8 +273,9 @@ modules:
       - main
     timeout: 10m
     source:
-      local:
-        path: ./polaris-admin
+      oci:
+        repository: quay.io/okdp/charts/polaris-admin
+        tag: 1.0.0
     values: |
       
       {{- $namespace := printf "%v" .Release.spec.targetNamespace -}}

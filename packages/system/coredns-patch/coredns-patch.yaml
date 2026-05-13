@@ -42,8 +42,9 @@ modules:
   - name: main
     timeout: 10m
     source:
-      local:
-        path: ./chart/0.1.0
+      oci:
+        repository: quay.io/okdp/charts/coredns-patch
+        tag: 0.1.0
     values: |
       ingressSuffix: "{{ .Context.platform.ingress.suffix }}"
       ingressService: "{{ .Parameters.ingressService }}"
