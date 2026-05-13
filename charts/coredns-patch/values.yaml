@@ -14,11 +14,19 @@
 #  limitations under the License.
 #
 
+# -- Local ingress DNS suffix to route through CoreDNS.
 ingressSuffix: "okdp.sandbox"
+
+# -- Kubernetes DNS name of the ingress service used as the wildcard target.
 ingressService: "ingress-nginx-controller.ingress-nginx.svc.cluster.local"
 
+# -- Job settings for patching the kube-system CoreDNS ConfigMap.
 job:
+  # -- kubectl image used by the patch Job.
   image: bitnami/kubectl:latest
+  # -- Restart policy for the patch Job pod.
   restartPolicy: OnFailure
+  # -- Node selector applied to the patch Job pod.
   nodeSelector:
+    # -- Operating system required for the patch Job pod.
     kubernetes.io/os: linux 

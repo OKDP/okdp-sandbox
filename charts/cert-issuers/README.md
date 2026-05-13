@@ -20,26 +20,36 @@ A Helm chart for managing cert-manager ClusterIssuers and Certificate bundles
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| bundle.enabled | bool | `false` |  |
-| bundle.name | string | `"certs-bundle"` |  |
-| bundle.namespaceSelector.matchLabels | object | `{}` |  |
-| bundle.target.additionalFormats.jks.enabled | bool | `false` |  |
-| bundle.target.additionalFormats.jks.key | string | `"bundle.jks"` |  |
-| bundle.target.additionalFormats.pkcs12.enabled | bool | `false` |  |
-| bundle.target.additionalFormats.pkcs12.key | string | `"bundle.p12"` |  |
-| bundle.target.configMap.enabled | bool | `false` |  |
-| bundle.target.configMap.key | string | `"root-certs.pem"` |  |
-| bundle.target.secret.enabled | bool | `false` |  |
-| bundle.target.secret.key | string | `"ca.crt"` |  |
-| bundle.useDefaultCAs | bool | `true` |  |
-| caClusterIssuers | list | `[]` |  |
-| global.certificateNamespace | string | `""` |  |
-| replication.allowedNamespaces | string | `".*"` |  |
-| replication.enabled | bool | `true` |  |
-| replication.method | string | `"replicator"` |  |
-| security.podSecurityStandards.enabled | bool | `false` |  |
-| security.podSecurityStandards.enforce | string | `"restricted"` |  |
-| selfSignedClusterIssuers | list | `[]` |  |
+| bundle | object | `{"enabled":false,"name":"certs-bundle","namespaceSelector":{"matchLabels":{}},"target":{"additionalFormats":{"jks":{"enabled":false,"key":"bundle.jks"},"pkcs12":{"enabled":false,"key":"bundle.p12"}},"configMap":{"enabled":false,"key":"root-certs.pem"},"secret":{"enabled":false,"key":"ca.crt"}},"useDefaultCAs":true}` | trust-manager Bundle configuration. |
+| bundle.enabled | bool | `false` | Enable trust bundle creation. |
+| bundle.name | string | `"certs-bundle"` | Bundle name. Also used for target ConfigMap and Secret names. |
+| bundle.namespaceSelector | object | `{"matchLabels":{}}` | Namespace selector for bundle distribution. |
+| bundle.namespaceSelector.matchLabels | object | `{}` | Namespace labels that receive the bundle. Empty means all namespaces. |
+| bundle.target | object | `{"additionalFormats":{"jks":{"enabled":false,"key":"bundle.jks"},"pkcs12":{"enabled":false,"key":"bundle.p12"}},"configMap":{"enabled":false,"key":"root-certs.pem"},"secret":{"enabled":false,"key":"ca.crt"}}` | Bundle target configuration. |
+| bundle.target.additionalFormats | object | `{"jks":{"enabled":false,"key":"bundle.jks"},"pkcs12":{"enabled":false,"key":"bundle.p12"}}` | Additional bundle output formats. |
+| bundle.target.additionalFormats.jks.enabled | bool | `false` | Enable JKS bundle output. |
+| bundle.target.additionalFormats.jks.key | string | `"bundle.jks"` | JKS bundle data key. |
+| bundle.target.additionalFormats.pkcs12.enabled | bool | `false` | Enable PKCS#12 bundle output. |
+| bundle.target.additionalFormats.pkcs12.key | string | `"bundle.p12"` | PKCS#12 bundle data key. |
+| bundle.target.configMap | object | `{"enabled":false,"key":"root-certs.pem"}` | ConfigMap bundle target settings. |
+| bundle.target.configMap.enabled | bool | `false` | Create a ConfigMap containing the trust bundle. |
+| bundle.target.configMap.key | string | `"root-certs.pem"` | ConfigMap data key used for the trust bundle. |
+| bundle.target.secret | object | `{"enabled":false,"key":"ca.crt"}` | Secret bundle target settings. |
+| bundle.target.secret.enabled | bool | `false` | Create a Secret containing the trust bundle. |
+| bundle.target.secret.key | string | `"ca.crt"` | Secret data key used for the trust bundle. |
+| bundle.useDefaultCAs | bool | `true` | Include default system CAs in the trust bundle. |
+| caClusterIssuers | list | `[]` | CA-backed cert-manager ClusterIssuers to create from provided CA material. |
+| global | object | `{"certificateNamespace":""}` | Global chart settings. |
+| global.certificateNamespace | string | `""` | Namespace where certificates are stored. Defaults to the release namespace when empty. |
+| replication | object | `{"allowedNamespaces":".*","enabled":true,"method":"replicator"}` | Certificate replication settings. |
+| replication.allowedNamespaces | string | `".*"` | Namespace pattern for replication (regular expression). |
+| replication.enabled | bool | `true` | Enable certificate replication across namespaces. |
+| replication.method | string | `"replicator"` | Replication method. Supported values are "kubed" and "replicator". |
+| security | object | `{"podSecurityStandards":{"enabled":false,"enforce":"restricted"}}` | Security settings. |
+| security.podSecurityStandards | object | `{"enabled":false,"enforce":"restricted"}` | Pod Security Standards configuration. |
+| security.podSecurityStandards.enabled | bool | `false` | Enable Pod Security Standards enforcement. |
+| security.podSecurityStandards.enforce | string | `"restricted"` | Pod Security Standards enforcement profile. |
+| selfSignedClusterIssuers | list | `[]` | Self-signed cert-manager ClusterIssuers and CA certificates to create. |
 
 ----------------------------------------------
 Autogenerated from chart metadata using [helm-docs v1.13.1](https://github.com/norwoodj/helm-docs/releases/v1.13.1)

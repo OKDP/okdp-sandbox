@@ -1,4 +1,3 @@
-# values.yaml
 # -- Override the name of the chart.
 nameOverride: ""
 # -- Override the full name of the release.
@@ -10,8 +9,9 @@ fullnameOverride: ""
 #   - principals
 phase: bootstrap
 
+# -- Bootstrap Job configuration.
 bootstrap:
-
+  # -- Bootstrap container image settings.
   image:
     # -- Bootstrap container image repository.
     repository: apache/polaris-admin-tool
@@ -23,9 +23,11 @@ bootstrap:
   # -- Purge realms and all associated entities.
   purge: false
 
+  # -- Polaris metastore database connection settings.
   database:
     # -- JDBC URL for Polaris metastore database. If set, this value is used directly and `database.secret` is ignored for JDBC URL.
     jdbcUrl: ""
+    # -- Secret-backed database credential settings.
     secret:
       # -- Secret name containing the database credentials. Required when `database.jdbcUrl` is empty.
       name: ~
@@ -34,6 +36,7 @@ bootstrap:
       # -- Secret key holding the database password.
       passwordKey: password
 
+  # -- Extra annotations to add to the bootstrap Job.
   annotations:
     # -- Helm hook events to run bootstrap on (example: post-install,post-upgrade).
     "helm.sh/hook": "pre-install,pre-upgrade"
@@ -48,8 +51,9 @@ bootstrap:
   # -- Job pod restart policy. For Jobs, must be OnFailure or Never.
   restartPolicy: Never
 
+# -- Principal provisioning Job configuration.
 principals:
-
+  # -- Principal provisioning container image settings.
   image:
     # -- Job container image repository (must include /bin/sh and curl).
     repository: curlimages/curl
@@ -58,11 +62,13 @@ principals:
     # -- Job container image pull policy.
     pullPolicy: IfNotPresent
 
+  # -- Polaris API endpoint settings.
   polaris:
     # -- Base URL of the Polaris service (e.g. https://polaris-default.okdp.sandbox).
     # Used by the Job to call Polaris management APIs.
     url: ""
 
+  # -- Extra annotations to add to the principal provisioning Job.
   annotations:
     # -- Helm hook events to run provisioning on.
     "helm.sh/hook": "post-install,post-upgrade"
@@ -97,7 +103,7 @@ principals:
 # treated as bootstrap/break-glass only (not for normal day-to-day OIDC flows).
 #
 # If this list is empty OR no realm contains principals entries, the Job will not be rendered.
-# principal → principal role → catalog role → privilege
+# principal -> principal role -> catalog role -> privilege
 # https://polaris.apache.org/in-dev/unreleased/managing-security/access-control
 realms: []
 # - name: SANDBOX
@@ -135,4 +141,3 @@ extraVolumes: []
 #     mountPath: /cacerts
 #     readOnly: true
 extraVolumeMounts: []
-

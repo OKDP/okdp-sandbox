@@ -14,20 +14,21 @@
 #  limitations under the License.
 #
 
+# -- RBAC resource settings for Spark workloads.
 rbac:
-  # Specifies whether a role and role binding should be created
+  # -- Create a Role and RoleBinding for Spark workloads.
   create: true
+  # -- Extra annotations to add to RBAC resources.
   annotations: {}
 
+# -- ServiceAccount settings for Spark workloads.
 serviceAccount:
-  # Specifies whether a service account should be created
+  # -- Create a ServiceAccount for Spark workloads.
   create: true
-  # Automatically mount a ServiceAccount's API credentials?
+  # -- Automatically mount the ServiceAccount API credentials.
   automount: true
-  # Annotations to add to the service account
+  # -- Extra annotations to add to the ServiceAccount.
   annotations: {}
-  # The name of the service account to use.
-  # If not set and create is true, a name is generated using the fullname template
+  # -- ServiceAccount name to use. If empty and create is true, a name is generated using the fullname template.
   name: "spark"
-
 

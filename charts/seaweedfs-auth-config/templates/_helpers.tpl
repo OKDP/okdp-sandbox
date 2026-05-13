@@ -55,4 +55,3 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 {{- $v | b64dec -}}
 {{- end -}}
-

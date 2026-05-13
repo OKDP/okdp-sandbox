@@ -14,17 +14,28 @@
 #  limitations under the License.
 #
 
+# -- Extra annotations to add to the spark-defaults ConfigMap.
 annotations: {}
 
+# -- Spark properties rendered into spark-defaults.conf.
 config:
+  # -- Enable Spark event log writing.
   spark.eventLog.enabled: false
+  # -- Compress Spark event logs.
   spark.eventLog.compress: true
+  # -- Enable rolling event logs.
   spark.eventLog.rolling.enabled: true
-  # Spark History
+  # -- Enable Kerberos support for Spark History Server.
   spark.history.kerberos.enabled: false
+  # -- Enable Spark History Server UI ACLs.
   spark.history.ui.acls.enable: true
+  # -- Maximum number of rolling event log files retained by Spark History Server.
   spark.history.fs.eventLog.rolling.maxFilesToRetain: 5
+  # -- Enable Spark History Server filesystem cleaner.
   spark.history.fs.cleaner.enabled: true
+  # -- Spark History Server filesystem cleaner interval.
   spark.history.fs.cleaner.interval: 1d
+  # -- Maximum age of event logs retained by Spark History Server.
   spark.history.fs.cleaner.maxAge: 7d
+  # -- Spark History Server filesystem update interval.
   spark.history.fs.update.interval: 60s

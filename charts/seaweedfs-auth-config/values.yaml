@@ -6,6 +6,7 @@ fullnameOverride: ""
 # -- Extra annotations to add to the ConfigMap metadata.
 annotations: {}
 
+# -- SeaweedFS IAM and STS configuration rendered into iam.json.
 iamConfig:
   # -- SeaweedFS STS configuration rendered into iam.json.
   sts:
@@ -19,7 +20,9 @@ iamConfig:
     # Example: "b64:Zm9vYmFy..." (recommend supplying via a Secret in real deployments)
     signingKey: ""
 
+  # -- Identity provider configuration for SeaweedFS IAM.
   providers:
+    # -- OIDC provider configuration for SeaweedFS IAM.
     oidc:
       # -- Enable/disable OIDC provider configuration rendering.
       enabled: false
@@ -70,6 +73,7 @@ iamConfig:
       #   tokenEndpoint: "https://issuer.example.com/oauth/token"
       configExtra: {}
 
+      # -- Claim-to-role mapping for AssumeRoleWithWebIdentity.
       roleMapping:
         # -- Default role ARN if no rule matches. Must be a valid IAM Role ARN.
         # Format: arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>
@@ -142,11 +146,14 @@ s3Config:
   #     actions: ["Admin","Read","Write","List","Tagging"]
   identities: []
 
-  # Optional: match SeaweedFS chart “keep + pre-install/pre-upgrade” behavior
+  # -- Extra annotations to add to the generated S3 config Secret.
   annotations:
+    # -- Helm resource policy for the generated S3 config Secret.
     "helm.sh/resource-policy": keep
+    # -- Helm hook events for the generated S3 config Secret.
     "helm.sh/hook": "pre-install,pre-upgrade"
 
+# -- SeaweedFS filer configuration.
 filer:
   # -- Authentication settings for the filer endpoint.
   auth:
@@ -163,4 +170,3 @@ filer:
       # -- Basic auth password used to generate the htpasswd entry.
       # Consider supplying via an existing Secret or external secret manager in real deployments.
       password: admin123
-

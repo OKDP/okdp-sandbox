@@ -14,15 +14,12 @@
 #  limitations under the License.
 #
 
-# Default values for cert-issuers
-# This chart creates cert-manager ClusterIssuers and trust bundles
-
-# Global settings
+# -- Global chart settings.
 global:
-  # Namespace where certificates will be stored
+  # -- Namespace where certificates are stored. Defaults to the release namespace when empty.
   certificateNamespace: ""
 
-# CA-based ClusterIssuers configuration
+# -- CA-backed cert-manager ClusterIssuers to create from provided CA material.
 caClusterIssuers: []
 # Each item should contain:
 # - name: issuer-name                    # Name of the ClusterIssuer
@@ -37,7 +34,7 @@ caClusterIssuers: []
 # WARNING: Including private keys in values is a security risk
 # Consider using external secret management for ca_key values
 
-# Self-signed ClusterIssuers configuration  
+# -- Self-signed cert-manager ClusterIssuers and CA certificates to create.
 selfSignedClusterIssuers: []
 # Each item should contain:
 # - name: issuer-name                    # Name of the ClusterIssuer
@@ -56,56 +53,67 @@ selfSignedClusterIssuers: []
 #     organization: "OKDP"
 #     country: "FR"
 
-# Trust bundle configuration (requires trust-manager)
+# -- trust-manager Bundle configuration.
 bundle:
-  # Enable bundle creation
+  # -- Enable trust bundle creation.
   enabled: false
   
-  # Bundle name - will be used for target ConfigMap/Secret name
+  # -- Bundle name. Also used for target ConfigMap and Secret names.
   name: "certs-bundle"
   
-  # Include default system CAs
+  # -- Include default system CAs in the trust bundle.
   useDefaultCAs: true
   
-  # Target configuration
+  # -- Bundle target configuration.
   target:
-    # Create a ConfigMap with the bundle
+    # -- ConfigMap bundle target settings.
     configMap:
+      # -- Create a ConfigMap containing the trust bundle.
       enabled: false
+      # -- ConfigMap data key used for the trust bundle.
       key: "root-certs.pem"
     
-    # Create a Secret with the bundle  
+    # -- Secret bundle target settings.
     secret:
+      # -- Create a Secret containing the trust bundle.
       enabled: false
+      # -- Secret data key used for the trust bundle.
       key: "ca.crt"
     
-    # Additional formats
+    # -- Additional bundle output formats.
     additionalFormats:
       jks:
+        # -- Enable JKS bundle output.
         enabled: false
+        # -- JKS bundle data key.
         key: "bundle.jks"
       pkcs12:
+        # -- Enable PKCS#12 bundle output.
         enabled: false
+        # -- PKCS#12 bundle data key.
         key: "bundle.p12"
   
-  # Namespace selector for bundle distribution
+  # -- Namespace selector for bundle distribution.
   namespaceSelector:
-    matchLabels: {}  # Empty means all namespaces
+    # -- Namespace labels that receive the bundle. Empty means all namespaces.
+    matchLabels: {}
 
-# Certificate replication settings
+# -- Certificate replication settings.
 replication:
-  # Enable certificate replication across namespaces
+  # -- Enable certificate replication across namespaces.
   enabled: true
   
-  # Replication method: "kubed" or "replicator"
+  # -- Replication method. Supported values are "kubed" and "replicator".
   method: "replicator"
   
-  # Namespace pattern for replication (regex)
+  # -- Namespace pattern for replication (regular expression).
   allowedNamespaces: ".*"
 
-# Security settings
+# -- Security settings.
 security:
-  # Enable Pod Security Standards
+  # -- Pod Security Standards configuration.
   podSecurityStandards:
+    # -- Enable Pod Security Standards enforcement.
     enabled: false
+    # -- Pod Security Standards enforcement profile.
     enforce: "restricted" 

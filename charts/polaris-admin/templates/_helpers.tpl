@@ -58,4 +58,3 @@ app.kubernetes.io/component: bootstrap
 {{ include "polaris-admin.labels" . }}
 app.kubernetes.io/component: principals
 {{- end -}}
-
