@@ -34,7 +34,6 @@ usage:
 schema:
   parameters:
     properties:
-      adminGroups: { type: string, default: "platform_admin", description: "Admin groups for superset access" }
       load_examples: { type: boolean, default: true, description: "Whether to load superset examples" }
   context:
     properties:
@@ -95,6 +94,10 @@ modules:
             | replace "{{ .Release.namespace }}" $namespace
             | replace "{{ .Release.metadata.name }}" $release
             | replace "{{ .Context.ingress.suffix }}" $domain -}}
+      
+      {{- $supersetOidc := .Context.superset.oidc | default dict }}
+      {{- $supersetOidcEnabled := $supersetOidc.enabled | default false }}
+      {{- $supersetOidcRoleMapping := $supersetOidc.roleMapping | default dict }}
       
       {{- $supersetUrl := .Context.superset.endpoints.url 
           | replace "{{ .Release.namespace }}" $namespace
@@ -194,7 +197,9 @@ modules:
             AUTH_ROLES_SYNC_AT_LOGIN = True
           oauth2_superset_roles_mapping: &oauth2_superset_roles_mapping |
             AUTH_ROLES_MAPPING = {
-              "{{ .Parameters.adminGroups }}": ["Admin"]
+            {{- range $oidcRole, $supersetRoles := $supersetOidcRoleMapping }}
+              {{ $oidcRole | quote }}: {{ $supersetRoles | toJson }},
+            {{- end }}
             }
         
         trino:

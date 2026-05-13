@@ -30,7 +30,6 @@ schema:
   parameters:
     properties:
       startTimeout: { type: integer, default: 600, description: "Maximum number of seconds JupyterHub will wait for a user’s server to become reachable" }
-      allowedRoles: { type: string, default: "platform_admin", description: "Allowed roles for JupyterHub access" }
       memoryGi: { type: number, default: 1, multipleOf: 0.25, description: "Notebook (singleuser) pod memory (GiB) for requests/limits." }
       cpu:      { type: number, default: 0.5, multipleOf: 0.25, description: "Notebook (singleuser) pod CPU (vCPU) for requests/limits." }
   context:
@@ -82,6 +81,7 @@ modules:
       
       {{- $oidcId := .Context.jupyterHub.oidc.provider -}}
       {{- $oidcProvider := (index .Context $oidcId).provider -}}
+      {{- $oidcRoleMapping := .Context.jupyterHub.oidc.roleMapping | default dict -}}
       
       {{- $oidcName := $oidcProvider.name -}}
       
@@ -196,10 +196,9 @@ modules:
             manage_groups: true
             userdata_params:
               state: state
-            admin_groups:
-              - "{{ .Parameters.allowedRoles }}"
-            allowed_groups:
-              - "{{ .Parameters.allowedRoles }}"
+            {{- if gt (len $oidcRoleMapping) 0 }}
+            {{- toYaml $oidcRoleMapping | nindent 6 }}
+            {{- end }}
             username_key: preferred_username
             scope:
             - openid

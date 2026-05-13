@@ -233,6 +233,37 @@ spec:
             allow_ctas: true
             allow_cvas: true
             expose_in_sqllab: true    
+      oidc:
+        roleMapping:
+          "platform_admin": ["Admin"]
+          "data_engineer": ["Alpha", "sql_lab"]
+          "data_scientist": ["Alpha", "sql_lab"]
+          "business_analyst": ["Gamma"]
+          "data_steward": ["Gamma", "sql_lab"]
+          "auditor": ["Gamma"]
+
+    # -- Example Spark History Server OIDC role mapping
+    sparkHistory:
+      oidc:
+        roleMapping:
+          # spark.admin.acls.groups
+          admin_groups:
+            - platform_admin
+          # spark.history.ui.admin.acls.groups
+          history_admin_groups:
+            - platform_admin
+            - auditor
+          # spark.modify.acls.groups
+          modify_groups:
+            - platform_admin
+            - data_engineer
+          # spark.ui.view.acls.groups
+          view_groups:
+            - platform_admin
+            - data_engineer
+            - data_scientist
+            - data_steward
+            - business_analyst
 
     # -- Example Polaris realm model, administrative principals, catalogs, catalog roles, principal roles, and demo principal grants.
     polaris:
@@ -363,6 +394,16 @@ spec:
             spark.sql.catalog.{{ connection.name }}.client.region={{ storage.region }}
             spark.sql.catalog.{{ connection.name }}.s3.region={{ storage.region }}
             spark.sql.catalog.{{ connection.name }}.io-impl=org.apache.iceberg.io.ResolvingFileIO
+      oidc:
+        roleMapping:
+          admin_groups:
+            - platform_admin
+          allowed_groups:
+            - platform_admin
+            - data_engineer
+            - data_scientist
+            - data_steward
+            - business_analyst
       welcomeNotebook: |
         {
           "cells": [

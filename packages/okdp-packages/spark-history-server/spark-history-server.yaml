@@ -39,7 +39,6 @@ usage:
 schema:
   parameters:
     properties:
-      adminGroups: { type: string, default: "platform_admin", description: "Comma separated list of admin groups" }
       enableWebProxy: { type: boolean, default: true, description: "Whether to enable Spark History web proxy" }
       webProxyUrlPrefix: { type: string, default: "spark-web-proxy", description: "Spark web proxy url prefix" }
   context:
@@ -71,6 +70,14 @@ modules:
       
       {{- $oidcId := .Context.sparkHistory.oidc.provider -}}
       {{- $oidcProvider := (index .Context $oidcId).provider -}}
+      {{- $oidcRoleMapping := .Context.sparkHistory.oidc.roleMapping | default dict -}}
+      {{- if not (kindIs "map" $oidcRoleMapping) }}
+        {{- fail "context.sparkHistory.oidc.roleMapping must be a map" -}}
+      {{- end }}
+      {{- $adminGroups := get $oidcRoleMapping "admin_groups" | default list -}}
+      {{- $historyAdminGroups := get $oidcRoleMapping "history_admin_groups" | default list -}}
+      {{- $modifyGroups := get $oidcRoleMapping "modify_groups" | default list -}}
+      {{- $viewGroups := get $oidcRoleMapping "view_groups" | default list -}}
       
       {{- $oidcIssuerUri := $oidcProvider.issuerUri
       | replace "{{ .Release.namespace }}" $namespace
@@ -138,7 +145,22 @@ modules:
         spark.io.okdp.spark.authc.OidcAuthFilter.param.cookie-cipher-secret-key: FC5E81345CED0E256DC42E410362FF6E
         spark.io.okdp.spark.authc.OidcAuthFilter.param.cookie-is-secure: true
         spark.io.okdp.spark.authc.OidcAuthFilter.param.use-pkce: {{ .Context.sparkHistory.oidc.usePKCE }}
-        spark.history.ui.admin.acls.groups: {{ .Parameters.adminGroups }}
+      {{- if gt (len $adminGroups) 0 }}
+        # spark.admin.acls.groups
+        spark.admin.acls.groups: {{ $adminGroups | join "," | quote }}
+      {{- end }}
+      {{- if gt (len $historyAdminGroups) 0 }}
+        # spark.history.ui.admin.acls.groups
+        spark.history.ui.admin.acls.groups: {{ $historyAdminGroups | join "," | quote }}
+      {{- end }}
+      {{- if gt (len $modifyGroups) 0 }}
+        # spark.modify.acls.groups
+        spark.modify.acls.groups: {{ $modifyGroups | join "," | quote }}
+      {{- end }}
+      {{- if gt (len $viewGroups) 0 }}
+        # spark.ui.view.acls.groups
+        spark.ui.view.acls.groups: {{ $viewGroups | join "," | quote }}
+      {{- end }}
       {{- range $key := (keys $sparkHistoryExtraConfig | sortAlpha) }}
         {{ $key }}: {{ index $sparkHistoryExtraConfig $key }}
       {{- end }}
