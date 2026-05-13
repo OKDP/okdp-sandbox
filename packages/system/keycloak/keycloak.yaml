@@ -30,11 +30,11 @@ schema:
     properties:
       adminUser:
         type: string
-        default: "admin"
+        default: "adm"
         description: "Keycloak admin username"
       adminPassword:
         type: string
-        default: "admin"
+        default: "adm"
         description: "Keycloak admin password"
 
 modules:
