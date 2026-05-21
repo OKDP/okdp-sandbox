@@ -56,7 +56,7 @@ modules:
         version: 4.12.1
     values: |
       controller:
-        allowSnippetAnnotations: "true"
+        allowSnippetAnnotations: "false"
         extraArgs:
           enable-ssl-passthrough: true
         admissionWebhooks:
