@@ -275,7 +275,7 @@ modules:
                       "\n",
                       "> Tip: If you already cloned it before, this will **pull the latest changes**.\n",
                       "\n",
-                      "[✅ Sync OKDP Examples]({{ $jupyterUrl }}/hub/user-redirect/git-pull?repo=https://github.com/OKDP/okdp-examples&branch=main&urlpath=lab/tree/okdp-examples/notebooks/index.ipynb)\n",
+                      "[✅ Sync OKDP Examples]({{ $jupyterUrl }}/hub/user-redirect/git-pull?repo=https://github.com/OKDP/okdp-examples&branch=v1.1.0&urlpath=lab/tree/okdp-examples/notebooks/index.ipynb)\n",
                       "\n",
                       "---\n",
                       "\n",

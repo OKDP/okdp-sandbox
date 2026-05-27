@@ -96,6 +96,7 @@ modules:
 
       server:
         policyRepoUrl: https://github.com/OKDP/trino-opal-example-policy.git
+        policyRepoMainBranch: "v0.1.0"
 
         OPAL_AUTH_PRIVATE_KEY:
           valueFrom:
