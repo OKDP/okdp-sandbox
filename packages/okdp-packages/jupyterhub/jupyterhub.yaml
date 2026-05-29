@@ -390,7 +390,7 @@ modules:
                   --conf spark.kubernetes.driverEnv.SPARK_USER=$(NB_USER)
                   --conf spark.executorEnv.SPARK_USER=$(NB_USER)
                   --conf spark.kubernetes.container.image=$(SPARK_EXECUTOR_IMAGE)
-                  --conf spark.kubernetes.authenticate.ccountName={{ .Context.sparkRBAC.serviceAccount.name }}
+                  --conf spark.kubernetes.authenticate.executor.serviceAccountName={{ .Context.sparkRBAC.serviceAccount.name }}
                   --conf spark.kubernetes.namespace={{ .Release.spec.targetNamespace }}
                   --conf spark.eventLog.enabled=true
                   --conf spark.eventLog.dir={{ .Parameters.sparkEventsLogDir }}
