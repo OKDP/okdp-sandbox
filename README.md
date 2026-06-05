@@ -1,5 +1,3 @@
-[![ci](https://github.com/okdp/okdp-sandbox/actions/workflows/ci.yml/badge.svg)](https://github.com/okdp/okdp-sandbox/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/okdp/okdp-sandbox)](https://github.com/okdp/okdp-sandbox/releases/latest)&ensp;&ensp;
 [![Flux](https://img.shields.io/badge/flux-latest-purple.svg)](https://fluxcd.io/)
 [![KuboCD](https://img.shields.io/badge/kubocd-v0.2.1-green.svg)](https://github.com/kubocd/kubocd)&ensp;&ensp;
 [![Kubernetes](https://img.shields.io/badge/kubernetes-1.28+-blue.svg)](https://kubernetes.io/)
@@ -11,11 +9,9 @@
 
 ![OKDP UI Demo](https://raw.githubusercontent.com/OKDP/okdp-ui/main/docs/images/demo.gif)
 
-A complete sandbox environment for testing and evaluating OKDP (Open Kubernetes Data Platform) components.
+OKDP Sandbox is a hands-on environment for deploying, testing, and exploring the [OKDP](https://okdp.io) ecosystem on a local Kubernetes cluster.
 
-## What is OKDP Sandbox?
-
-OKDP Sandbox provides a ready-to-use data platform environment that includes:
+It provides a ready-to-use data platform environment that includes:
 - Identity and access management (Keycloak)
 - Object storage (SeaweedFS)
 - Spark processing and monitoring (Spark Operator + Spark History Server)
@@ -24,38 +20,56 @@ OKDP Sandbox provides a ready-to-use data platform environment that includes:
 - Data visualization (Apache Superset)
 - Platform management (OKDP Server & UI)
 
-## Existing Services
+## What is included in the sandbox?
 
-Core services available in the sandbox:
-- SeaweedFS (object storage)
-- Spark Operator + Spark History Server (Spark workloads and monitoring)
-- Airflow (workflow orchestration and scheduling)
-- JupyterHub (interactive data science workspaces)
-- Trino + Hive Metastore (SQL query and metadata layer)
-- Superset (dashboards and visual analytics)
+The default OKDP sandbox deploys a complete local data-platform environment with:
+
+- Keycloak for identity and access management
+- SeaweedFS for object storage
+- Spark Operator and Spark History Server for Spark workloads and monitoring
+- Apache Airflow for workflow orchestration
+- JupyterHub for interactive data-science workspaces
+- Trino and Hive Metastore for SQL query and metadata services
+- Apache Superset for dashboards and visual analytics
+- OKDP Server and OKDP UI for platform management
+
+## Repository status
+
+This repository is now a lightweight entry point. The reusable deployment assets have been moved to dedicated repositories so they can evolve independently from the sandbox.
+
+The implementation assets previously owned by this repository were migrated as follows:
+
+| Asset | New owner | Reference |
+|---|---|---|
+| KuboCD packages, release definitions, context layers, package build and release automation | [`OKDP/platform-packages`](https://github.com/OKDP/platform-packages) | [`OKDP/platform-packages#1`](https://github.com/OKDP/platform-packages/pull/1), [`OKDP/okdp-sandbox#51`](https://github.com/OKDP/okdp-sandbox/issues/51) |
+| Reusable utility Helm charts | [`OKDP/helm-charts-utilities`](https://github.com/OKDP/helm-charts-utilities) | [`OKDP/helm-charts-utilities#1`](https://github.com/OKDP/helm-charts-utilities/pull/1), [`OKDP/okdp-sandbox#52`](https://github.com/OKDP/okdp-sandbox/issues/52) |
+| Notebooks, DAGs, and runnable examples | [`OKDP/okdp-examples`](https://github.com/OKDP/okdp-examples) | Examples repository |
+
+As a result, this repository should no longer contain duplicated `.github/`, `clusters/`, or `packages/` directories.
 
 ## Prerequisites
 
-### System Requirements
+### System requirements
 
-- **Minimum**: 16GB RAM and 4 CPUs
-- **Docker/Podman allocation**: 8GB RAM and 2 CPUs minimum
+- Minimum: 16 GB RAM and 4 CPUs
+- Docker or Podman allocation: at least 8 GB RAM and 2 CPUs
 
-### Software Dependencies
+### Software dependencies
 
-- [Docker](https://docs.docker.com/get-docker/)
+- [Docker](https://docs.docker.com/get-docker/) or a compatible container runtime
 - [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 - [Flux CLI](https://fluxcd.io/flux/installation/)
 
+## Quick start
 
-## Installation
+The maintained sandbox deployment files now live in [`OKDP/platform-packages`](https://github.com/OKDP/platform-packages).
 
-### 1. Clone the Git Repository
+### 1. Clone the platform packages repository
 
 ```sh
-git clone https://github.com/okdp/okdp-sandbox.git
-cd okdp-sandbox
+git clone https://github.com/OKDP/platform-packages.git
+cd platform-packages
 ```
 
 ### 2. Create Kubernetes Kind Cluster
@@ -199,7 +213,7 @@ kubectl wait --for=condition=ready pod -l app=source-controller -n flux-system -
 > It manages platform components and applications **declaratively**, providing a higher-level CD abstraction for GitOps workflows.
 
 ```sh
-kubectl apply -f clusters/sandbox/flux/kubocd.yaml
+kubectl apply -f kubocd.yaml
 ```
 
 #### Deploy/Upgrade OKDP platform components
@@ -248,7 +262,10 @@ Deploy/Upgrade the sandbox default context:
 
 
 ```sh
-kubectl apply -f clusters/sandbox/default-context.yaml
+kubectl apply -f 10-platform-context.yaml
+kubectl apply -f 20-provider-context.yaml
+kubectl apply -f 30-service-context.yaml
+kubectl apply -f 99-examples-context.yaml
 ```
 
 > 💡 By default, the **default Context** uses **okdp.sandbox** as the ingress domain suffix.  
@@ -257,8 +274,8 @@ kubectl apply -f clusters/sandbox/default-context.yaml
 > Use the following command to update the domain suffix to match your organization’s domain (replace **<CUSTOM_DOMAIN>** with your actual domain name):
 >
 > ```sh
-> kubectl -n kubocd-system patch context default \
->   -p '{"spec":{"context":{"ingress":{"suffix":"<CUSTOM_DOMAIN>"}}}}' \
+> kubectl -n kubocd-system patch context platform \
+>   -p '{"spec":{"context":{"platform":{"ingress":{"suffix":"<CUSTOM_DOMAIN>"}}}}}' \
 >   --type=merge
 > ```
 
@@ -267,13 +284,14 @@ Configure proxy settings for OKDP Services (Optional)
 If your environment requires a proxy to reach external datasets (Superset examples, okdp examples, quay.io KuboCD packages), the following command sets the proxy configuration variables to the required OKDP services:
 
 ```sh
-kubectl -n kubocd-system patch context default --type merge -p "$(cat <<EOF
+kubectl -n kubocd-system patch context platform --type merge -p "$(cat <<EOF
 spec:
   context:
-    proxy:
-      httpProxy: "${HTTP_PROXY:-${http_proxy}}"
-      httpsProxy: "${HTTPS_PROXY:-${https_proxy}}"
-      noProxy: "${NO_PROXY:-${no_proxy}}"
+    platform:
+      proxy:
+        httpProxy: "${HTTP_PROXY:-${http_proxy}}"
+        httpsProxy: "${HTTPS_PROXY:-${https_proxy}}"
+        noProxy: "${NO_PROXY:-${no_proxy}}"
 EOF
 )"
 ```
@@ -283,13 +301,14 @@ EOF
 <br>
 
 ```powershell
-kubectl -n kubocd-system patch context default --type merge -p @"
+kubectl -n kubocd-system patch context platform --type merge -p @"
 spec:
   context:
-    proxy:
-      httpProxy: "$($env:HTTP_PROXY ?? $env:http_proxy)"
-      httpsProxy: "$($env:HTTPS_PROXY ?? $env:https_proxy)"
-      noProxy: "$($env:NO_PROXY ?? $env:no_proxy)"
+    platform:
+      proxy:
+        httpProxy: "$($env:HTTP_PROXY ?? $env:http_proxy)"
+        httpsProxy: "$($env:HTTPS_PROXY ?? $env:https_proxy)"
+        noProxy: "$($env:NO_PROXY ?? $env:no_proxy)"
 "@
 ```
 </details>
@@ -297,7 +316,7 @@ spec:
 Deploy/Upgrade OKDP components:
 
 ```sh
-kubectl apply -f clusters/sandbox/releases/addons
+kubectl apply -f releases/
 ```
 
 #### Verify and monitor release deployment status
@@ -326,7 +345,9 @@ For HTTPS access without warnings, two options:
 
 **Option 1**: Install the CA certificate
 
-Import okdp-sandbox-ca.crt into your system's or browser's certificate store
+The sandbox uses a local certificate authority.
+
+To avoid browser warnings, export the generated CA certificate and import it into your system or browser trust store:
 
 ```sh
 kubectl get secret default-issuer -n cert-manager -o jsonpath='{.data.ca\.crt}' | base64 -d > okdp-sandbox-ca.crt
@@ -370,6 +391,20 @@ Remove-Item "$env:TEMP\okdp-sandbox-config.yaml" -Force
 ```
 
 </details>
+
+## Related repositories
+
+| Repository | Purpose |
+|---|---|
+| [`OKDP/platform-packages`](https://github.com/OKDP/platform-packages) | KuboCD packages, release definitions, context layers, and deployment assets |
+| [`OKDP/helm-charts-utilities`](https://github.com/OKDP/helm-charts-utilities) | Reusable utility Helm charts consumed by packages and examples |
+| [`OKDP/okdp-examples`](https://github.com/OKDP/okdp-examples) | Notebooks, DAGs, and data-platform examples |
+| [`OKDP/okdp-ui`](https://github.com/OKDP/okdp-ui) | OKDP web UI |
+| [`OKDP/okdp-server`](https://github.com/OKDP/okdp-server) | OKDP backend server |
+
+## License
+
+This project is licensed under the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
 
 ---
 
