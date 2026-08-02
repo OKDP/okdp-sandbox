@@ -76,7 +76,7 @@ spec:
             name: "Interactive Query"
             description: "Interactive-query packages"
             packages:
-              - name: trinodb
+              - name: trino
           - id: Data-Catalog
             name: "Data Catalog"
             description: "Central metadata catalog packages"
