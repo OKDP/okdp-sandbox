@@ -880,13 +880,14 @@ spec:
             name: polaris-console
             publicClient: true
             # The console is deployed per project, so its host carries the project
-            # namespace. Keycloak only supports a trailing wildcard, which keeps the
-            # match scoped to the console hosts instead of the "https://*" used by
-            # the other clients.
+            # namespace. Redirect URIs accept a trailing wildcard, which keeps the
+            # match scoped to the console hosts. Web origins are matched exactly and
+            # do not support any wildcard form, so the console, which calls the token
+            # endpoint from the browser, needs "*" to get its CORS headers.
             redirectUris:
               - "https://polaris-console-*"
             webOrigins:
-              - "https://polaris-console-*"
+              - "*"
           - clientId: seaweedfs-s3
             name: seaweedfs-s3
             publicClient: true
