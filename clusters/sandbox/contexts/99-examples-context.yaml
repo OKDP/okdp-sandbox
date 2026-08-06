@@ -879,10 +879,14 @@ spec:
           - clientId: polaris-console
             name: polaris-console
             publicClient: true
+            # The console is deployed per project, so its host carries the project
+            # namespace. Keycloak only supports a trailing wildcard, which keeps the
+            # match scoped to the console hosts instead of the "https://*" used by
+            # the other clients.
             redirectUris:
-              - "https://polaris-console-default.{{ .Context.ingress.suffix }}/auth/callback"
+              - "https://polaris-console-*"
             webOrigins:
-              - "https://polaris-console-default.{{ .Context.ingress.suffix }}"
+              - "https://polaris-console-*"
           - clientId: seaweedfs-s3
             name: seaweedfs-s3
             publicClient: true
