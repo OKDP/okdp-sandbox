@@ -20,11 +20,11 @@ metadata:
   name: okdp-ui
   namespace: kubocd-system
 spec:
-  createNamespace: true
-  description: OKDP UI - Frontend web interface for the Open Kubernetes Data Platform
+  createNamespace: false
+  description: OKDP UI - Web interface for the Open Kubernetes Data Platform
   package:
     interval: 30m
-    repository: quay.io/okdp/platform-packages/okdp-ui
-    tag: 0.4.1-p02
+    repository: ghcr.io/alex-mabrouk/okdp-packages/okdp-ui
+    tag: 0.6.0-p03
     timeout: 10m
-  targetNamespace: okdp-ui
+  targetNamespace: okdp-server

@@ -22,7 +22,7 @@ metadata:
 spec:
   # -- KuboCD context values for the platform layer.
   context:
-    # -- Platform-wide defaults for ingress, certificates, storage classes, portal catalogs, exposed services, and UI metadata.
+    # -- Platform-wide defaults for ingress, certificates and storage classes.
     platform:
       proxy:
         httpProxy: ~
@@ -40,112 +40,80 @@ spec:
         data: standard
         workspace: standard
 
-      portal:
-        oidc:
-          enabled: true
-          provider: defaultIdp
-        packageRepository: quay.io/okdp/platform-packages
-        clusters:
-          - id: sandbox
-            name: "OKDP Sandbox Cluster"
-            env: dev
-            auth:
-              inCluster: true
-        catalogs:
-          - id: Dataviz
-            name: "Dataviz catalog"
-            description: "Dataviz packages"
-            packages:
-              - name: superset
-          - id: Notebook
-            name: "Notebooks catalog"
-            description: "Notebooking packages"
-            packages:
-              - name: jupyterhub
-          - id: Spark
-            name: "Spark packages"
-            description: "Spark packages"
-            packages:
-              - name: spark-history-server
-          - id: Storage
-            name: "Storage catalog"
-            description: "Storage packages"
-            packages:
-              - name: seaweedfs
-          - id: Interactive-Query
-            name: "Interactive Query"
-            description: "Interactive-query packages"
-            packages:
-              - name: trino
-          - id: Data-Catalog
-            name: "Data Catalog"
-            description: "Central metadata catalog packages"
-            packages:
-              - name: hive-metastore
-              - name: polaris
-          - id: Applications
-            name: "OKDP Examples"
-            description: "A collection of hands-on okdp examples"
-            packages:
-              - name: okdp-examples
-          - id: Workflows
-            name: "Workflow Orchestration"
-            description: "Workflow orchestration and scheduling packages"
-            packages:
-              - name: airflow
-        services:
-          - Notebook
-          - Spark
-          - Dataviz
-          - Interactive-Query
-          - Data-Catalog
-          - Storage
-          - Applications
-          - Workflows
-        kadCatalogsInfo:
-          Interactive-Query:
-            displayName: "Interactive Query"
-            menuIcon: "fa-solid fa-database"
-          Data-Catalog:
-            displayName: "Data Catalog"
-            menuIcon: "fa-solid fa-sitemap"
-          Applications:
-            displayName: "Applications"
-            menuIcon: "fa-solid fa-code"
-          Workflows:
-            displayName: "Workflows"
-            menuIcon: "fa-solid fa-route"
-        kadServicesInfo:
-          hive-metastore:
-            icon: "okdp-notext.svg"
-            menuIcon: "fa-solid fa-book"
-            description: |
-              The central repository of metadata for Hive tables and partitions, providing clients including Hive, Impala, and Spark access through the metastore service API.
-              A fundamental building block for modern data lakes.
-            home: "https://hive.apache.org"
-          polaris:
-            icon: "okdp-notext.svg"
-            menuIcon: "fa-solid fa-book"
-            description: |
-              Apache Polaris is an open-source, fully-featured catalog for Apache Iceberg™.
-              It implements Iceberg's REST API, enabling seamless multi-engine interoperability across a wide range of platforms,
-              including Apache Doris™, Apache Flink®, Apache Spark™, Dremio® OSS, StarRocks, and Trino.
-            home: "https://polaris.apache.org"
-          okdp-examples:
-            icon: "okdp-notext.svg"
-            menuIcon: "fa-solid fa-code"
-            description: |
-              A collection of hands-on examples, helper utilities, Jupyter notebooks, and data workflows
-              that showcases how to work with the OKDP Platform.
-            home: "https://github.com/okdp/okdp-examples"
-          airflow:
-            icon: "okdp-notext.svg"
-            menuIcon: "fa-solid fa-route"
-            description: |
-              Apache Airflow is a platform to programmatically author, schedule, and monitor workflows.
-              Use Airflow to orchestrate complex data pipelines and Spark jobs on OKDP.
-            home: "https://airflow.apache.org"
-          seaweedfs:
-            description: |
-              SeaweedFS is a simple and highly scalable distributed file system. There are the objectives to store billions of files and to serve the files fast!
-            home: "https://seaweedfs.com/"
+    # -- Root-level ingress contract read by the (new) okdp-server.
+    ingress:
+      suffix: okdp.sandbox
+      className: nginx
+
+    # -- Catalog contract consumed by the (new) okdp-server console.
+    okdp:
+      packageRepository: quay.io/okdp/platform-packages
+      services:
+        - name: seaweedfs
+          # TEMPORARY: personal ghcr build while OKDP/sandbox-dependencies#9 is in
+          # review — the package now lives in quay.io/okdp/sandbox-dependencies.
+          repository: ghcr.io/alex-mabrouk/okdp-packages
+          default: 4.17.0-p4
+          versions: ["4.17.0-p4","4.17.0-p3", "4.17.0-p2", "4.17.0-p1"]
+          category: Storage
+          description: SeaweedFS — S3-compatible distributed object storage.
+        - name: hive-metastore
+          default: 4.0.1-p01
+          versions: ["4.0.1-p01"]
+          category: Data-Catalog
+          description: Central metadata repository for Hive tables and partitions.
+        - name: polaris
+          default: 1.3.0-incubating-p01
+          versions: ["1.3.0-incubating-p01"]
+          category: Data-Catalog
+          description: Apache Polaris — REST catalog for Apache Iceberg.
+        - name: trino
+          default: 480.0.0-p06
+          versions: ["480.0.0-p06"]
+          category: Interactive-Query
+          description: Trino — distributed SQL query engine.
+        - name: superset
+          default: 6.0.0-p01
+          versions: ["6.0.0-p01"]
+          category: Dataviz
+          description: Apache Superset — dashboards and visual analytics.
+        - name: jupyterhub
+          default: 4.3.3-p02
+          versions: ["4.3.3-p02", "4.3.3-p01"]
+          category: Notebook
+          description: JupyterHub — multi-user interactive notebooks.
+        - name: airflow
+          default: 3.2.1-p2
+          versions: ["3.2.1-p2", "3.2.1-p1"]
+          category: Workflows
+          description: Apache Airflow — workflow orchestration and scheduling.
+        - name: spark-history-server
+          default: 3.5.1-p04
+          versions: ["3.5.1-p04"]
+          category: Spark
+          description: Spark History Server — Spark application monitoring.
+        - name: okdp-examples
+          default: 1.2.0-p01
+          versions: ["1.2.0-p01"]
+          category: Applications
+          description: Hands-on OKDP examples, notebooks and data workflows.
+
+    # -- Identity
+    # Set to "kubauth" to enable the built-in fallback IdP and its user/group management API.
+    identity:
+      provider: external
+
+      # -- OIDC client the console UI receives at bootstrap through GET /api/capabilities.
+      oidc:
+        authority: https://keycloak.okdp.sandbox/realms/master
+        clientId: okdp-ui
+        scope: openid profile email groups offline_access
+      # -- OIDC client provisioning
+      provisioning:
+        provider: keycloak
+        keycloak:
+          issuerUri: https://keycloak.okdp.sandbox/realms/master
+          insecureSkipTLSVerify: true
+          credentialsSecret:
+            namespace: keycloak
+            name: creds-okdp-provisioner

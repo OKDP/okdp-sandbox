@@ -840,7 +840,7 @@ spec:
             firstName: adm
             lastName: adm
             password: adm
-            roles: [ platform_admin, polaris_service_admin, polaris_catalog_admin ]
+            roles: [ admins, platform_admin, polaris_service_admin, polaris_catalog_admin ]
           - username: svc-spark-etl-polaris-writer
             serviceAccountClientId: svc-spark-etl-polaris-writer
             roles: [ data_engineer, data_scientist, business_analyst ]
@@ -853,7 +853,19 @@ spec:
           - username: svc-trino-polaris-writer
             serviceAccountClientId: svc-trino-polaris-writer
             roles: [ platform_admin, polaris_service_admin, polaris_catalog_admin ]
+          # Service account used by okdp-server to provision OIDC clients
+          # (identity.provisioning.provider: keycloak in the platform context).
+          # The username MUST be the real service-account username
+          # (service-account-<clientId>), otherwise config-cli creates a
+          # separate regular user instead of granting the service account.
+          # Sandbox shortcut: the master-realm "admin" realm role, because the
+          # declarative template cannot grant client roles. In production, grant
+          # only the realm-management "manage-clients" client role instead.
+          - username: service-account-okdp-provisioner
+            serviceAccountClientId: okdp-provisioner
+            roles: [ admin ]
         roles:
+          - name: admins
           - name: data_engineer
           - name: data_scientist
           - name: business_analyst
@@ -866,21 +878,42 @@ spec:
           - name: polaris_service_admin
           - name: polaris_catalog_admin
         clients:
-          - clientId: okdp-server
-            name: okdp-server
-            publicClient: true
-            redirectUris:
-              - "https://okdp-server.{{ .Context.ingress.suffix }}/swagger/oauth2-redirect.html"
-            webOrigins:
-              - "https://okdp-server.{{ .Context.ingress.suffix }}"
+          # OKDP console (deployed at okdp-ui.<suffix>) + local dev of the UI.
+          # This client is also what the platform publishes to the UI through
+          # identity.oidc in the platform Context (GET /api/capabilities).
           - clientId: okdp-ui
             name: okdp-ui
             publicClient: true
             redirectUris:
-              - "https://okdp-ui.{{ .Context.ingress.suffix }}/index.html"
-              - "https://okdp-ui.{{ .Context.ingress.suffix }}/silent-refresh.html"
+              - "https://okdp-ui.{{ .Context.ingress.suffix }}/*"
+              - "http://localhost:4200/*"
             webOrigins:
               - "https://okdp-ui.{{ .Context.ingress.suffix }}"
+              - "http://localhost:4200"
+            defaultClientScopes:
+              - web-origins
+              - acr
+              - roles
+              - profile
+              - groups
+              - basic
+              - email
+            optionalClientScopes:
+              - address
+              - phone
+              - organization
+              - offline_access
+              - microprofile-jwt
+          # Confidential client used by okdp-server (client_credentials) to
+          # manage OIDC clients through the Keycloak Admin API. Its secret must
+          # match the creds-okdp-provisioner Kubernetes Secret.
+          - clientId: okdp-provisioner
+            name: okdp-provisioner
+            secret: okdp-provisioner-sandbox-secret
+            serviceAccountsEnabled: true
+            standardFlowEnabled: false
+            redirectUris: []
+            webOrigins: []
           - clientId: polaris-console
             name: polaris-console
             publicClient: true
