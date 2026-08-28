@@ -229,7 +229,7 @@ spec:
       - name: lakehouse
         s3SecretRef: creds-examples-s3
         properties: |
-          spark.hadoop.fs.s3a.endpoint=https://storage-default-api.{{ .Context.ingress.suffix }}
+          spark.hadoop.fs.s3a.endpoint={{ `{{ storage.endpoints.apiUrl }}` }}
           spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
           spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
           spark.hadoop.fs.s3a.access.key=$(S3_ACCESS_KEY)
