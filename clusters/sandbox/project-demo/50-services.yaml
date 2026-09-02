@@ -30,7 +30,7 @@ spec:
   description: Hive metastore of the demo project
   package:
     repository: quay.io/okdp/platform-packages/hive-metastore
-    tag: 4.0.1-p02
+    tag: 4.0.1-1.0.1
     interval: 30m
     timeout: 10m
   parameters:
@@ -53,7 +53,7 @@ spec:
   description: Polaris Iceberg catalog of the demo project
   package:
     repository: quay.io/okdp/platform-packages/polaris
-    tag: 1.3.0-incubating-p09
+    tag: 1.3.0-incubating-2.0.0
     interval: 30m
     timeout: 10m
   parameters:
@@ -81,7 +81,7 @@ spec:
   description: Trino of the demo project, bronze plus Iceberg catalogs
   package:
     repository: quay.io/okdp/platform-packages/trino
-    tag: 480.0.0-p21
+    tag: 480.0.0-1.0.1
     interval: 30m
     timeout: 10m
   parameters:
@@ -130,7 +130,7 @@ spec:
   description: Superset of the demo project
   package:
     repository: quay.io/okdp/platform-packages/superset
-    tag: 6.0.0-p05
+    tag: 6.0.0-1.1.0
     interval: 30m
     timeout: 10m
   parameters:
@@ -163,7 +163,7 @@ spec:
   description: Airflow of the demo project
   package:
     repository: quay.io/okdp/platform-packages/airflow
-    tag: 3.2.1-p09
+    tag: 3.2.1-1.0.1
     interval: 30m
     timeout: 10m
   parameters:
@@ -202,7 +202,7 @@ spec:
   description: JupyterHub of the demo project
   package:
     repository: quay.io/okdp/platform-packages/jupyterhub
-    tag: 4.3.3-p07
+    tag: 4.3.3-1.0.1
     interval: 30m
     timeout: 10m
   parameters:
@@ -344,7 +344,7 @@ spec:
   description: Spark History Server of the demo project
   package:
     repository: quay.io/okdp/platform-packages/spark-history-server
-    tag: 3.5.1-p08
+    tag: 3.5.1-1.0.1
     interval: 30m
     timeout: 10m
   parameters:

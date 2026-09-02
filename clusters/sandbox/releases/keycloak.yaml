@@ -23,7 +23,7 @@ spec:
   description: Keycloak identity provider (oidc Connection producer)
   package:
     repository: quay.io/okdp/sandbox-dependencies/keycloak
-    tag: 24.4.11-p16
+    tag: 24.4.11-1.0.1
     interval: 30m
     timeout: 10m
   parameters:
