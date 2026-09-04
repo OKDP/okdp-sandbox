@@ -26,7 +26,7 @@ spec:
     - certManager
   package:
     repository: quay.io/okdp/sandbox-dependencies/kubauth
-    tag: 0.3.0-snapshot-p02
+    tag: 1.0.0
     interval: 30m
     timeout: 10m
   parameters:

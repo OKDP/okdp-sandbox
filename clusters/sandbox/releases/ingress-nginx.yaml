@@ -23,7 +23,7 @@ spec:
   description: "NGINX Ingress Controller for HTTP/HTTPS routing"
   package:
     repository: quay.io/okdp/sandbox-dependencies/ingress-nginx
-    tag: 4.12.1-p03
+    tag: 1.0.0
     interval: 30m
     timeout: 10m
   parameters:

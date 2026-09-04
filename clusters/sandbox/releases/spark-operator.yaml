@@ -7,7 +7,7 @@ spec:
   description: "Spark Operator for managing Apache Spark applications on Kubernetes"
   package:
     repository: quay.io/okdp/platform-packages/spark-operator
-    tag: 2.4.0-p04
+    tag: 1.0.0
   parameters:
     jobNamespaces: [""] # Allow all namespaces for sandbox simplicity
     metricsEnabled: true

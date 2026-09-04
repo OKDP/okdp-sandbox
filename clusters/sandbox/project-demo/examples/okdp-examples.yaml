@@ -32,7 +32,7 @@ spec:
   description: okdp-examples seed for the demo project
   package:
     repository: quay.io/okdp/platform-packages/okdp-examples
-    tag: 1.3.0-p08
+    tag: 1.0.0
     interval: 30m
     timeout: 30m
   parameters:

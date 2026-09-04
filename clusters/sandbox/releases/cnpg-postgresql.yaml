@@ -23,7 +23,7 @@ spec:
   description: PostgreSQL server (CNPG), one Connection per logical database
   package:
     repository: quay.io/okdp/sandbox-dependencies/cnpg-postgresql
-    tag: 18.3-p03
+    tag: 1.0.0
     interval: 30m
     timeout: 10m
   parameters:

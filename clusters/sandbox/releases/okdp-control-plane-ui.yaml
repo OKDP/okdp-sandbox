@@ -25,7 +25,7 @@ spec:
   package:
     interval: 30m
     repository: quay.io/okdp/platform-packages/okdp-control-plane-ui
-    tag: 0.7.0-p01
+    tag: 1.0.0
     timeout: 10m
   parameters:
     oidcAuthority: https://keycloak.{{ .Context.ingress.suffix }}/realms/master

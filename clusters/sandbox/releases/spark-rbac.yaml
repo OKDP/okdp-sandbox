@@ -7,6 +7,6 @@ spec:
   description: "Spark ServiceAccount and RBAC for Spark applications"
   package:
     repository: quay.io/okdp/platform-packages/spark-rbac
-    tag: 1.0.1-p02
+    tag: 1.0.0
   targetNamespace: default
   createNamespace: false
