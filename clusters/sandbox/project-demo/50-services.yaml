@@ -163,7 +163,7 @@ spec:
   description: Airflow of the demo project
   package:
     repository: quay.io/okdp/platform-packages/airflow
-    tag: 3.2.1-p07
+    tag: 3.2.1-p09
     interval: 30m
     timeout: 10m
   parameters:

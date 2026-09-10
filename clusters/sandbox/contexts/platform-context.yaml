@@ -87,7 +87,7 @@ spec:
         - title: Data Engineering
           icon: pi-cog
           services:
-            - { name: airflow, versions: ["3.2.1-p07"], default: "3.2.1-p07", description: Apache Airflow }
+            - { name: airflow, versions: ["3.2.1-p09"], default: "3.2.1-p09", description: Apache Airflow }
         - title: Spark
           icon: pi-bolt
           services:
