@@ -53,31 +53,19 @@ spec:
   description: Polaris Iceberg catalog of the demo project
   package:
     repository: quay.io/okdp/platform-packages/polaris
-    tag: 1.3.0-incubating-p07
+    tag: 1.3.0-incubating-p09
     interval: 30m
     timeout: 10m
   parameters:
     db: demo-db-polaris
     storage: demo-storage
     s3SecretRef: creds-polaris-s3
-    realms:
-      - name: sandbox
-        rootPrincipal:
-          name: root
-          credentialsSecret:
-            name: creds-polaris-root-okdp-sandbox
-            clientIdKey: client_id
-            clientSecretKey: client_secret
-        # Polaris principal used through the management API: Polaris does not
-        # authenticate Keycloak clients, it keeps its own principals.
-        principals:
-          - name: service-account-svc-polaris-api-admin
-            clientId: svc-polaris-api-admin
-            credentialsSecret:
-              name: creds-polaris-oauth2-admin-okdp-sandbox
-              clientIdKey: client_id
-              clientSecretKey: client_secret
-            roles: [service_admin, catalog_admin]
+    realm: sandbox
+    # Polaris principal used through the management API: Polaris does not
+    # authenticate Keycloak clients, it keeps its own principals.
+    principals:
+      - name: service-account-svc-polaris-api-admin
+        roles: [service_admin, catalog_admin]
   targetNamespace: demo
 ---
 apiVersion: kubocd.kubotal.io/v1alpha1
@@ -112,17 +100,17 @@ spec:
         catalog: kcd-demo-polaris-catalog
         storage: demo-storage
         warehouse: demo
-        oidcSecretRef: creds-polaris-root-okdp-sandbox
+        oidcSecretRef: creds-demo-polaris-root
       - name: silver
         catalog: kcd-demo-polaris-catalog
         storage: demo-storage
         warehouse: silver
-        oidcSecretRef: creds-polaris-root-okdp-sandbox
+        oidcSecretRef: creds-demo-polaris-root
       - name: gold
         catalog: kcd-demo-polaris-catalog
         storage: demo-storage
         warehouse: gold
-        oidcSecretRef: creds-polaris-root-okdp-sandbox
+        oidcSecretRef: creds-demo-polaris-root
     # Fine-grained authorization is its own subject: the reference OPA policy
     # only knows named users, which the sandbox does not provision.
     enableOPA: false

@@ -71,7 +71,7 @@ spec:
           icon: pi-database
           services:
             - { name: hive-metastore, versions: ["4.0.1-p02"], default: "4.0.1-p02", description: Hive metastore }
-            - { name: polaris, versions: ["1.3.0-incubating-p07"], default: "1.3.0-incubating-p07", description: Apache Polaris Iceberg catalog }
+            - { name: polaris, versions: ["1.3.0-incubating-p09"], default: "1.3.0-incubating-p09", description: Apache Polaris Iceberg catalog }
         - title: Interactive Query
           icon: pi-bolt
           services:

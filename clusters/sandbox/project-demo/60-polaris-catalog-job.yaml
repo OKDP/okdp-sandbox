@@ -35,9 +35,9 @@ spec:
           image: curlimages/curl:latest
           env:
             - name: RCID
-              valueFrom: { secretKeyRef: { name: creds-polaris-root-okdp-sandbox, key: client_id } }
+              valueFrom: { secretKeyRef: { name: creds-demo-polaris-root, key: client_id } }
             - name: RCS
-              valueFrom: { secretKeyRef: { name: creds-polaris-root-okdp-sandbox, key: client_secret } }
+              valueFrom: { secretKeyRef: { name: creds-demo-polaris-root, key: client_secret } }
             - name: AK
               valueFrom: { secretKeyRef: { name: creds-seaweedfs-s3, key: accessKey } }
             - name: SK
