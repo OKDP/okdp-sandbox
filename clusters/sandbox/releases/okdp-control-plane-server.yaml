@@ -25,6 +25,6 @@ spec:
   package:
     interval: 30m
     repository: quay.io/okdp/platform-packages/okdp-control-plane-server
-    tag: 0.7.1-p02
+    tag: 0.8.0-p01
     timeout: 10m
   targetNamespace: okdp-system
