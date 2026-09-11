@@ -52,7 +52,7 @@ spec:
               # 404 or 503 while the service deploys must keep waiting.
               while true; do
                 T=$(curl -s -X POST "$API/api/catalog/v1/oauth/tokens" \
-                  -d grant_type=client_credentials -d client_id=$RCID -d client_secret=$RCS \
+                  -d grant_type=client_credentials --data-urlencode "client_id=$RCID" --data-urlencode "client_secret=$RCS" \
                   -d scope=PRINCIPAL_ROLE:ALL | sed -n 's/.*"access_token":"//;s/".*//p')
                 [ -n "$T" ] && break
                 echo "waiting for Polaris..."; sleep 10
