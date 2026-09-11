@@ -1,5 +1,63 @@
 # Changelog
 
+## [1.0.0](https://github.com/OKDP/okdp-sandbox/compare/v0.5.0...v1.0.0) (2026-09-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* **context:** nest the catalog services under their console section
+* **contexts:** merge the context layers into a single platform Context
+
+### Features
+
+* added conventional commits ([b031a79](https://github.com/OKDP/okdp-sandbox/commit/b031a79c95a786e30191fe2b5a729b8996a7396b))
+* **contracts:** declare the cluster contracts for typed platform connections ([2ede6d7](https://github.com/OKDP/okdp-sandbox/commit/2ede6d799f9507bcf71cf1dd44f921f86e0a5c22))
+* **control-plane:** deploy the Control Plane as two KuboCD Releases ([55b727e](https://github.com/OKDP/okdp-sandbox/commit/55b727e27191314e3cf6ff33507884eda6e17b71))
+* **demo:** add the demo project as layers two and three ([626fa3d](https://github.com/OKDP/okdp-sandbox/commit/626fa3d484a8e77ddbfc31910416ed325713e7d3))
+* **demo:** declare the hive catalogs as a list ([7632bb7](https://github.com/OKDP/okdp-sandbox/commit/7632bb7954530aec658b2496294eee2281600881))
+* **demo:** declare the human principals of the Polaris realm ([4f05fc8](https://github.com/OKDP/okdp-sandbox/commit/4f05fc8c8aceefc9bfc94afbef9002b5c887601e))
+* **demo:** map the platform roles onto the History Server ACLs ([78a6bd4](https://github.com/OKDP/okdp-sandbox/commit/78a6bd4325aac147b6d5b127d5c6814488a84fc2))
+* **demo:** mount the lakehouse buckets in the JupyterHub file browser ([5456be7](https://github.com/OKDP/okdp-sandbox/commit/5456be79d842b92fe64bdd78bf3230f05c61ff51))
+* **kubocd:** install the released KuboCD v0.3.2 with Flux ([acd37fd](https://github.com/OKDP/okdp-sandbox/commit/acd37fde169f4552ab420d3f453d8cbfcca4edd2))
+* **optional:** offer storage, vault and kubauth as optional components ([13cb049](https://github.com/OKDP/okdp-sandbox/commit/13cb0499855075031ff55458f8487491075eaec8))
+* **packages:** move every pin to the published package versions ([ea08594](https://github.com/OKDP/okdp-sandbox/commit/ea08594e1504383f36a009ffb7b8af372f1a3a77))
+* **packages:** update platform context versions to latest published version ([806b6cc](https://github.com/OKDP/okdp-sandbox/commit/806b6cc2d1a7ab0d39f15dbbf767f0b2e25e1b73))
+* **releases:** point the infrastructure Releases at the reworked packages ([a807186](https://github.com/OKDP/okdp-sandbox/commit/a8071864d72338a9299b10006d375723c036052e))
+* restore the cluster deployment layer under clusters/sandbox ([10a3f23](https://github.com/OKDP/okdp-sandbox/commit/10a3f23cd38a6a0de0867af6b8c8f0ef949734d4))
+* updated readme to deployment scope only ([18f5e9c](https://github.com/OKDP/okdp-sandbox/commit/18f5e9cb342c2d8bd687911523a550d3601659cd))
+
+
+### Bug Fixes
+
+* adjust the keycloak and local secrets provider tag as it is the one sandbox dependencies will publish ([244b92d](https://github.com/OKDP/okdp-sandbox/commit/244b92d35ed7bba03876c760c8f2eda6e0cc86d9))
+* **contexts:** replace SeaweedFS-specific storage with neutral storage settings ([#70](https://github.com/OKDP/okdp-sandbox/issues/70)) ([6650e73](https://github.com/OKDP/okdp-sandbox/commit/6650e737d3512548a6cec15c59a6bc9d6dfa89c9))
+* **contexts:** scope defaultStorage endpoints to the release name ([#68](https://github.com/OKDP/okdp-sandbox/issues/68)) ([b3ab1da](https://github.com/OKDP/okdp-sandbox/commit/b3ab1dae2dd1ec0b4057b070e9addb76211105c4))
+* **contexts:** use the renamed trino package in the catalog ([6920a4c](https://github.com/OKDP/okdp-sandbox/commit/6920a4ce1c84b54d99b7c0de555736747b2a893d))
+* correct readme to reflect packages ownership ([a6cf128](https://github.com/OKDP/okdp-sandbox/commit/a6cf128bb8e46ede4e5e123fb72a800b6a797020))
+* **demo:** bound the catalog job and reach Polaris in cluster ([c595c94](https://github.com/OKDP/okdp-sandbox/commit/c595c94d4a394397d31c0bfc77c2e88f8d69dd3b))
+* **demo:** give SQL Lab back to the technical Superset profiles ([1a72c4d](https://github.com/OKDP/okdp-sandbox/commit/1a72c4ded6a088e93704285c634a88630f260025))
+* **demo:** name the Polaris realm and the storage region in the PySpark catalogs ([a19e32d](https://github.com/OKDP/okdp-sandbox/commit/a19e32d1fdb72848fbea1666e8fca79bc6452337))
+* **demo:** point the examples sync link at a branch that exists ([b425aa2](https://github.com/OKDP/okdp-sandbox/commit/b425aa22b290ed23c8775f4578c5432a2f3f578b))
+* **demo:** read the object store endpoint from the s3 Connection ([1cf459e](https://github.com/OKDP/okdp-sandbox/commit/1cf459e7231dbe39bba99a47863298afacf8190b))
+* derive the release parameters from the ingress suffix ([7528504](https://github.com/OKDP/okdp-sandbox/commit/752850428fc294547024820c0aafe7570046c41f))
+* **keycloak:** add keycloak context variables for the dcr setting ([#81](https://github.com/OKDP/okdp-sandbox/issues/81)) ([00570d4](https://github.com/OKDP/okdp-sandbox/commit/00570d45511cb49057ee6991dc69969840bbec89))
+* **keycloak:** allow the polaris-console redirect URI on any project ([e0fd48a](https://github.com/OKDP/okdp-sandbox/commit/e0fd48a128f7284eb7ffae3e45c16cc35d6f5137))
+* **keycloak:** use a wildcard web origin so the console can call the token endpoint ([be0ddc0](https://github.com/OKDP/okdp-sandbox/commit/be0ddc0c7d744d913ed1e5fe35865c37c83c59e7))
+* **packages:** updated jupytherhub version to 4.3.3-p07 ([54716ff](https://github.com/OKDP/okdp-sandbox/commit/54716fffcd027b54587b6e4b29cc939ac244be6a))
+* point at current platform-packages registry without version prefix ([3ee6935](https://github.com/OKDP/okdp-sandbox/commit/3ee69353ec90610159fe5453b131b37d5e2ba7b5))
+* point sandbox-dependencies owned releases to the corresponding OCI path ([ab1d807](https://github.com/OKDP/okdp-sandbox/commit/ab1d80700980ee4887a32e271c25b7a848a0f3ae))
+* **project-demo:** sync the DAGs from the okdp-examples main branch ([1c857e7](https://github.com/OKDP/okdp-sandbox/commit/1c857e7f679e62787dac1b732c8ea52c21251bc6))
+* send secrets with encoding ([2a8518d](https://github.com/OKDP/okdp-sandbox/commit/2a8518d7a499bbc04c0e1ec584a308feb4280fb0))
+* Update clusters/sandbox/project-demo/50-services.yaml ([ab6feb1](https://github.com/OKDP/okdp-sandbox/commit/ab6feb108ae1a2e29e3705b273931d4966eaf408))
+* update readme ([e9a3eba](https://github.com/OKDP/okdp-sandbox/commit/e9a3ebaa1ddd9c2c65ef9213fc4f171ff7c1c97c))
+* updated the correct flux version to match with the readme pined version ([9b804ea](https://github.com/OKDP/okdp-sandbox/commit/9b804eae4e4e38f3ba5aed545742255904fb3646))
+
+
+### Code Refactoring
+
+* **context:** nest the catalog services under their console section ([e1dd213](https://github.com/OKDP/okdp-sandbox/commit/e1dd2134fbcf4e4df476556e0a030f4c121e59e5))
+* **contexts:** merge the context layers into a single platform Context ([7a53a48](https://github.com/OKDP/okdp-sandbox/commit/7a53a480ac5361187daa54c5bbbce6e867ee1416))
+
 ## [0.5.0](https://github.com/OKDP/okdp-sandbox/compare/v0.4.0...v0.5.0) (2026-05-27)
 
 
