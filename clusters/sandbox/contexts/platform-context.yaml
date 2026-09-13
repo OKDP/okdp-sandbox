@@ -45,7 +45,8 @@ spec:
       displayName: keycloak
       scope: "openid profile email groups"
       usePKCE: true
-      insecureSkipVerify: false
+      # Self-signed sandbox certificate the server pod does not carry a CA for.
+      insecureSkipVerify: true
       clientProvisioning: existing
 
     proxy:
