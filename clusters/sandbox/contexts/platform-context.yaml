@@ -38,6 +38,7 @@ spec:
     oidc:
       enabled: true
       issuerUri: https://keycloak.okdp.sandbox/realms/master
+      clientId: okdp-ui
       authUrl: https://keycloak.okdp.sandbox/realms/master/protocol/openid-connect/auth
       tokenUrl: https://keycloak.okdp.sandbox/realms/master/protocol/openid-connect/token
       jwksUri: https://keycloak.okdp.sandbox/realms/master/protocol/openid-connect/certs
