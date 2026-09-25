@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/OKDP/okdp-sandbox/compare/v1.0.0...v1.1.0) (2026-09-25)
+
+
+### Features
+
+* **platform:** declare the console's client id for audience verification ([4ce3f64](https://github.com/OKDP/okdp-sandbox/commit/4ce3f643baa22b7379bbd6d3485214e753fd1309))
+
+
+### Bug Fixes
+
+* **platform:** trust the sandbox's self-signed issuer certificate ([b6edf48](https://github.com/OKDP/okdp-sandbox/commit/b6edf48133649173c60552f013d4e9a24eff21dc))
+
 ## [1.0.0](https://github.com/OKDP/okdp-sandbox/compare/v0.5.0...v1.0.0) (2026-09-11)
 
 
