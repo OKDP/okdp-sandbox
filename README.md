@@ -79,6 +79,8 @@ The **packages themselves** (the KuboCD packages bundled as OCI artifacts) live 
 - [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 - [Flux CLI v2.7.5](https://fluxcd.io/flux/installation/)
+- [Cilium CLI](https://docs.cilium.io/en/stable/gettingstarted/k8s-install-default/#install-the-cilium-cli)
+- [Helm](https://helm.sh/docs/intro/install/) 
 
 ## Quick start
 
@@ -109,6 +111,9 @@ cat > /tmp/okdp-sandbox-config.yaml <<EOF
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: okdp-sandbox
+networking:
+  disableDefaultCNI: true
+  kubeProxyMode: "none"
 nodes:
 - role: control-plane
   extraPortMappings:
@@ -135,6 +140,9 @@ kind create cluster --config /tmp/okdp-sandbox-config.yaml
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: okdp-sandbox
+networking:
+  disableDefaultCNI: true
+  kubeProxyMode: "none"
 nodes:
 - role: control-plane
   extraPortMappings:
@@ -153,8 +161,35 @@ kind create cluster --config "$env:TEMP\okdp-sandbox-config.yaml"
 
 </details>
 
+### 3. Install Cilium (CNI)
 
-### 3. Install Platform Components
+Until Cilium is installed, the cluster has no Pod networking. `kubectl get nodes` reports `NotReady` and this is expected. Installing Cilium brings networking into the cluster.
+
+Make sure to install Cilium before Flux as they need networking to start.
+Cilium also replaces **kube-proxy** for service exposure.
+
+To install Cilium:
+
+```sh
+# Cilium needs the API server address because kube-proxy is disabled.
+CLUSTER=okdp-sandbox # result of "kind get clusters" command
+NODE=$(kind get nodes --name "$CLUSTER" | grep -m1 control-plane)
+CP_IP=$(docker inspect "$NODE" -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+echo "control-plane IP: $CP_IP" # must be non-empty before you continue
+
+helm repo add cilium https://helm.cilium.io/ --force-update
+helm repo update cilium
+helm upgrade --install cilium cilium/cilium --version 1.19.6 \
+  --namespace kube-system \
+  -f clusters/sandbox/cilium/values.yaml \
+  --set k8sServiceHost="$CP_IP" --set k8sServicePort=6443
+
+# Wait for the datapath to come up
+kubectl -n kube-system rollout status ds/cilium --timeout=180s
+
+```
+
+### 4. Install Platform Components
 #### Install Flux (GitOps engine)
 
 > ℹ️ Note
@@ -451,7 +486,7 @@ Or block until every release is ready instead of watching:
 kubectl wait --for=jsonpath='{.status.phase}'=READY release --all -n kubocd-system --timeout=900s
 ```
 
-### 4. DNS Setup
+### 5. DNS Setup
 
 Enable access to OKDP services through DNS resolution for the `okdp.sandbox` or your custom domain `<CUSTOM_DOMAIN>`:
 
@@ -461,7 +496,7 @@ Enable access to OKDP services through DNS resolution for the `okdp.sandbox` or 
 
 📋 **See [dns-configuration.md](docs/dns-configuration.md) for detailed setup instructions for your operating system.**
 
-### 5. SSL Certificate
+### 6. SSL Certificate
 
 For HTTPS access without warnings, two options:
 

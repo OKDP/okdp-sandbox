@@ -1,0 +1,48 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# Cilium replaces kube-proxy. Required by Cilium Ingress/Gateway (https://docs.cilium.io/en/stable/network/servicemesh/ingress/#prerequisites)
+kubeProxyReplacement: true
+
+# Envoy-based L7 datapath. Default to true. Ingress/Gateway depend on it.
+l7Proxy: true
+
+# Ingress/Gateway API: OFF for time being.
+# nginx (ingress-nginx) continues to serve all Ingress objects.
+ingressController:
+  enabled: false
+gatewayAPI:
+  enabled: false
+
+# Observability: Used to validate the datapath
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+    frontend:
+      server:
+        ipv6:
+          # The sandbox is IPv4-only. The default chart value is set to true
+          # frontend bind [::]:8081 and CrashLoopBackOff on hots without an
+          # IPv6 stack in the pod netns
+          enabled: false
+
+# Kind single-node sizing/defaults
+operator:
+  # Single control-plane node. One operator replicas (default is 2 and would stay Pending)
+  replicas: 1
