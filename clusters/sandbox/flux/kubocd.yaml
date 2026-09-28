@@ -66,6 +66,11 @@ spec:
         defaultContexts:
           - name: platform
             namespace: okdp-system
+        # Optional, looked up in the Release namespace and applied after the
+        # platform Context.
+        defaultNamespaceContexts:
+          - platform-services
+          - project
     controller:
       enabled: true
       replicaCount: 1

@@ -34,7 +34,7 @@ spec:
       className: nginx
 
     # The 5 URLs are maintained by hand (changing the realm or the suffix means changing all five).
-    # In existing mode, the default client Secret name follows the creds-<release>-oauth2 convention.
+    # dcr by default, platform Releases excepted (kubocd-system-context.yaml).
     oidc:
       enabled: true
       issuerUri: https://keycloak.okdp.sandbox/realms/master
@@ -48,7 +48,10 @@ spec:
       usePKCE: true
       # Self-signed sandbox certificate the server pod does not carry a CA for.
       insecureSkipVerify: true
-      clientProvisioning: existing
+      clientProvisioning: dcr
+      dcr:
+        registrationUrl: https://keycloak.okdp.sandbox/realms/master/clients-registrations/openid-connect
+        authMethod: anonymous
 
     proxy:
       httpProxy: ""

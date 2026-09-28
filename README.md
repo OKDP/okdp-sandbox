@@ -48,7 +48,7 @@ This repository owns the **single-cluster sandbox deployment**. It describes how
 
 - `clusters/sandbox/flux/` : Flux bootstrap of the KuboCD controller (`kubocd.yaml`)
 - `clusters/sandbox/releases/` : KuboCD `Release` manifests (what gets installed, which package tag, which parameters)
-- `clusters/sandbox/contexts/` : the platform `Context` (in `okdp-system`, whose namespace is declared at the top of the file)
+- `clusters/sandbox/contexts/` : the platform `Context` (in `okdp-system`, whose namespace is declared at the top of the file) and the `kubocd-system` one that keeps the platform Releases on hand-declared OIDC clients
 - `clusters/sandbox/contracts/` : the KuboCD `ClusterContract` files, applied before the contexts
 - `clusters/sandbox/optional/` : components the platform can run on but does not need, applied by hand only, see [its README](clusters/sandbox/optional/README.md)
 - `clusters/sandbox/project-demo/` : the demo project and its example workloads (layers 2 and 3), see [its README](clusters/sandbox/project-demo/README.md)
