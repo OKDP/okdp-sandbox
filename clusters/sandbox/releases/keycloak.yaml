@@ -32,6 +32,8 @@ spec:
     memoryGi: 2
     cpu: 0.5
     db: kcd-cnpg-postgresql-keycloak
+    anonymousDCR:
+      enabled: true
     realm:
       name: master
       displayName: "OKDP internal Realm"
