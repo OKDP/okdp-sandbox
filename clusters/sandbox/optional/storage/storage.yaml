@@ -56,3 +56,18 @@ type: Opaque
 stringData:
   accessKey: "snu8yoP6QAlY0ne4"
   secretKey: "PNzBcmeLNEdR0oviwm04NQAicOrDH1Km"
+---
+# SeaweedFS verifies the service account tokens of its provisioning job against
+# the cluster OIDC issuer, and fetches the issuer keys without credentials.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: service-account-issuer-discovery-unauthenticated
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:service-account-issuer-discovery
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:unauthenticated
