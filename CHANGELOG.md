@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.0](https://github.com/OKDP/okdp-sandbox/compare/v1.0.0...v1.1.0) (2026-10-05)
+
+
+### Features
+
+* **oidc:** register project service clients through dcr by default ([f174c19](https://github.com/OKDP/okdp-sandbox/commit/f174c19173648d13aa653f787187416631da703c))
+* **packages:** move every package to its released version owned by release-please ([a5d6e9d](https://github.com/OKDP/okdp-sandbox/commit/a5d6e9d2e59ab20acfe3d49d59ee2ff6c300b3ea))
+* **platform:** declare the console's client id for audience verification ([4ce3f64](https://github.com/OKDP/okdp-sandbox/commit/4ce3f643baa22b7379bbd6d3485214e753fd1309))
+* **platform:** move the control plane to server 0.9.0 and console-ui to 0.9.1 ([84f3a89](https://github.com/OKDP/okdp-sandbox/commit/84f3a89868a0f0a514aeeef79401bf5f44c3216b))
+
+
+### Bug Fixes
+
+* **platform:** trust the sandbox's self-signed issuer certificate ([b6edf48](https://github.com/OKDP/okdp-sandbox/commit/b6edf48133649173c60552f013d4e9a24eff21dc))
+
 ## [1.0.0](https://github.com/OKDP/okdp-sandbox/compare/v0.5.0...v1.0.0) (2026-09-11)
 
 
