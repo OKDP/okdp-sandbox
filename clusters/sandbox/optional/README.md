@@ -119,6 +119,11 @@ kubectl apply -f clusters/sandbox/optional/storage/storage.yaml
 kubectl -n kubocd-system wait --for=jsonpath='{.status.phase}'=READY release/storage --timeout=10m
 ```
 
+`storage.yaml` also lets unauthenticated clients read the cluster OIDC discovery
+document and keys (`system:service-account-issuer-discovery`). SeaweedFS needs
+them to verify the service account token its provisioning job presents to
+assume its role, so the job runs without static keys.
+
 ### Bring your own S3 instead
 
 An external S3-compatible store replaces SeaweedFS entirely:
