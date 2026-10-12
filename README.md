@@ -20,7 +20,7 @@ The default OKDP sandbox deploys the platform foundations and the Control Plane:
 - OKDP Control Plane (server and UI) for platform management
 
 SeaweedFS (S3 object storage, needed by the data services, replaceable by any
-S3-compatible backend such as RustFS) and Vault (secret backend) are optional
+S3-compatible backend such as RustFS) and OpenBao (secret backend) are optional
 components: see
 [clusters/sandbox/optional](clusters/sandbox/optional/README.md).
 
@@ -434,7 +434,7 @@ kubectl apply -f clusters/sandbox/releases/
 
 > ℹ️ **Installing optional components:**
 > 
-> The directory [clusters/sandbox/optional](clusters/sandbox/optional) is deliberately excluded from that apply. It contains components that are supported by the platform but are not required, including KubAuth, SeaweedFS, and HashiCorp Vault.  
+> The directory [clusters/sandbox/optional](clusters/sandbox/optional) is deliberately excluded from that apply. It contains components that are supported by the platform but are not required, including KubAuth, SeaweedFS, and OpenBao.  
 > To install an optional component, see [clusters/sandbox/optional/README.md](clusters/sandbox/optional/README.md) for its purpose and configuration.
 
 ##### Verify and monitor release deployment status

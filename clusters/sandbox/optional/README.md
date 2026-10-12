@@ -140,22 +140,26 @@ An external S3-compatible store replaces SeaweedFS entirely:
 kubectl delete release storage -n kubocd-system
 ```
 
-## vault
+## openbao
 
-The secret backend a Control Plane `SecretStore` can point at, in dev mode
-(in-memory, sealed on restart). Nothing depends on it: the platform secrets
-come from local-secrets-provider, and the Control Plane's secret-store screens
-only need the External Secrets CRDs, which the platform install carries.
+OpenBao, the secret backend a Control Plane `SecretStore` can point at, in dev
+mode: in memory, emptied on restart, root token `root`, no isolation between
+projects. Nothing depends on it: the platform secrets come from
+local-secrets-provider, and the Control Plane's secret-store screens only need
+the External Secrets CRDs, which the platform install carries.
+
+External Secrets reaches it through its `vault` provider, at
+`http://openbao.openbao.svc:8200`, path `secret`, version `v2`.
 
 ### Install
 
 ```sh
-kubectl apply -f clusters/sandbox/optional/vault/vault.yaml
-kubectl -n kubocd-system wait --for=jsonpath='{.status.phase}'=READY release/vault --timeout=10m
+kubectl apply -f clusters/sandbox/optional/openbao/openbao.yaml
+kubectl -n kubocd-system wait --for=jsonpath='{.status.phase}'=READY release/openbao --timeout=10m
 ```
 
 ### Remove
 
 ```sh
-kubectl delete release vault -n kubocd-system
+kubectl delete release openbao -n kubocd-system
 ```

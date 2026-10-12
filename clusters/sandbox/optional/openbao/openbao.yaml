@@ -17,20 +17,19 @@
 apiVersion: kubocd.kubotal.io/v1alpha1
 kind: Release
 metadata:
-  name: vault
+  name: openbao
   namespace: kubocd-system
 spec:
-  description: HashiCorp Vault in dev mode, the backend a project SecretStore points at
+  description: OpenBao in dev mode, the backend a project SecretStore points at
   # Its Ingress needs the ingress-nginx admission webhook up.
   dependencies:
     - ingress
   package:
-    repository: quay.io/okdp/sandbox-dependencies/vault
-    tag: 0.29.1-1.0.1
+    repository: quay.io/okdp/community-packages/openbao
+    tag: 2.7.1-1.0.0
     interval: 30m
     timeout: 10m
   parameters:
-    # Unseals itself, keeps everything in memory. Sandbox only.
-    dev: true
-  targetNamespace: vault
+    ingressHost: openbao
+  targetNamespace: openbao
   createNamespace: true
