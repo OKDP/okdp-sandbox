@@ -1,0 +1,17 @@
+# PostgreSQL of the demo project (former project-demo/30-postgres.yaml): one CNPG cluster
+# demo-pg, one database per service, each owned by its own role (credentials from
+# services/secrets). Each database is published as a database-server output; the
+# connections/demo-db-*.yaml files point at them.
+databases:
+  - name: hive
+    owner: {username: hms, passwordSecret: creds-hive-metastore-db}
+  - name: superset
+    owner: {username: superset, passwordSecret: creds-superset-db}
+  # The Superset examples loader connects with search_path=main.
+  - name: superset_examples
+    owner: {username: examples, passwordSecret: creds-superset-examples-db}
+    schemas: [main]
+  - name: polaris
+    owner: {username: polaris, passwordSecret: creds-polaris-db}
+  - name: airflow
+    owner: {username: airflow, passwordSecret: creds-airflow-db}

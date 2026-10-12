@@ -1,0 +1,52 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# The platform components: the Application <project>-<instance> the compile writes for
+# each, compiled/platform/components/<NN>-<i>/application.yaml (a package: the umbrella
+# chart of that directory in the output repository, with its instance.values.yaml; a
+# plain chart: the chart from its registry, with the compiled values.yaml), applied by
+# this Application (app of apps), from the output repository only.
+# Layer ordering: their sync waves (NN, plus the instances each waits for): a wave is
+# applied when the Applications of the previous ones are Healthy, which needs the
+# health assessment of Applications in argocd-cm (README, "Install with Argo CD").
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: okdp-components
+  namespace: argocd
+spec:
+  project: okdp
+  source:
+    repoURL: http://forgejo-http.forgejo.svc.cluster.local:3000/okdp/okdp-deployments.git
+    targetRevision: main
+    path: compiled/platform/components
+    directory:
+      recurse: true
+      include: '*/application.yaml'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      # Unlimited: a layer may wait for the previous one on a first install.
+      limit: -1
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m

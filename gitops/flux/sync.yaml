@@ -1,0 +1,49 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# Flux entry point. Bootstrap once, from the okdp-sandbox checkout, with:
+#   kubectl apply -f gitops/flux/sync.yaml
+# then Flux manages this directory in the output repository (Kustomization "okdp",
+# path ./flux), where scripts/configure.sh --push puts it with the compiled tree and
+# the generated components.yaml. GitRepository okdp-gitops is the output repository,
+# the only one Flux reads: okdp-deployments in the mono topology (the sources and the
+# output), okdp-output in io and split; compiled/, flux/, argocd/ at its root (paths
+# ./flux, ./compiled/...). scripts/configure.sh --topology rewrites the URL of flux/ and
+# argocd/.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: okdp-gitops
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: http://forgejo-http.forgejo.svc.cluster.local:3000/okdp/okdp-deployments.git
+  ref:
+    branch: main
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: okdp
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  sourceRef:
+    kind: GitRepository
+    name: okdp-gitops
+  path: ./flux
+  prune: true

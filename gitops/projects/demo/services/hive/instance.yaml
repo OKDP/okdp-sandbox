@@ -1,0 +1,7 @@
+name: hive
+project: demo
+service: hive-metastore
+version: 4.0.1-1.0.0
+connections:
+  - demo-db-hive
+  - demo-storage

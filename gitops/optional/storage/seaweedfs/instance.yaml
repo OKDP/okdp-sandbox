@@ -1,0 +1,5 @@
+name: storage
+project: default
+service: seaweedfs
+version: 4.47.0-1.0.0
+connections: []

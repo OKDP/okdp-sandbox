@@ -1,0 +1,26 @@
+# Platform component 00-external-secrets: the upstream chart, no OKDP wrapper.
+# Former KuboCD package sandbox-dependencies/external-secrets 0.15.1-1.0.1 (module main),
+# its parameters installCRDs/webhookEnabled/certControllerEnabled/imageRepository
+# expanded to the upstream keys below.
+#
+# ESO 2.x serves external-secrets.io/v1 only (v1beta1 is no longer served:
+# crds.unsafeServeV1Beta1 stays false), the version okdp-lib and the charts render;
+# generators.external-secrets.io stays v1alpha1.
+installCRDs: true
+crds:
+  # The v1alpha1 conversion webhook is gone upstream (off by default since 1.0).
+  conversion:
+    enabled: false
+  # Kept on uninstall; deletion is also refused by the tools chart
+  # (protection.crdGroups: external-secrets.io).
+  annotations:
+    helm.sh/resource-policy: keep
+# Controllers labelled for the tools chart's deletion protection (former protected: true).
+commonLabels:
+  okdp.io/protected: "true"
+# Images: the chart's default registry is ghcr.io (the former oci.external-secrets.io
+# mirror, blocked by some corporate proxies, is no longer the default).
+webhook:
+  create: true
+certController:
+  create: true

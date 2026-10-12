@@ -1,0 +1,5 @@
+name: cnpg-postgresql
+project: cnpg-system
+service: cnpg-postgresql
+version: 18.3.0-1.0.0
+connections: []

@@ -1,0 +1,6 @@
+# Platform component 00-cert-manager: the OKDP package cert-manager (catalog/cert-manager,
+# sandbox-dependencies). cert-manager and its CRDs. The trust and issuers modules of the
+# KuboCD package are the components 10-cert-issuers (with trust-manager's Bundle CRD) and
+# 20-trust-bundle.
+certManager:
+  enabled: true

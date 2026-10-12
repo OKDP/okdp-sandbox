@@ -1,0 +1,5 @@
+name: storage
+project: default
+service: rustfs
+version: 1.0.0-1.0.0
+connections: []

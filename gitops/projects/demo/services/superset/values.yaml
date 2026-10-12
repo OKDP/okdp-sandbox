@@ -1,0 +1,14 @@
+metadataDb: demo-db-superset
+examplesDb: demo-db-superset-examples
+# Without a mapping every user lands in Public and Superset refuses all.
+oidcRoleMapping:
+  platform_admin: [Admin]
+  data_engineer: [Alpha, sql_lab]
+  data_scientist: [Alpha, sql_lab]
+  business_analyst: [Gamma]
+  data_steward: [Gamma, sql_lab]
+  auditor: [Gamma]
+datasources:
+  - {name: trino-bronze, trino: demo-trino, catalog: bronze}
+  - {name: trino-silver, trino: demo-trino, catalog: silver}
+  - {name: trino-gold, trino: demo-trino, catalog: gold}

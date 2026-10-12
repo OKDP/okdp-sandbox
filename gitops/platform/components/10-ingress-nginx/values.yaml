@@ -1,0 +1,7 @@
+# Platform component 10-ingress-nginx: the OKDP package ingress-nginx (catalog/ingress-nginx, sandbox-dependencies).
+# Controller Service: ingress-nginx-ingress-nginx-controller.ingress-nginx.svc.cluster.local
+# (the coredns-patch default). ingress-nginx is retired upstream: 4.15.1 is its final
+# release (no security fix will follow).
+mode: nodePort
+httpPort: 30080
+httpsPort: 30443

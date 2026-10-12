@@ -56,3 +56,11 @@ local/
 .render/
 .dump/
 .charts/
+
+# gitops e2e work directory (scripts/e2e-kind.sh)
+.e2e/
+
+# The compiled tree is never committed here: scripts/configure.sh --push compiles the
+# layout into the output repository on Forgejo (gitops/README.md, "Compiling").
+gitops/compiled/
+gitops/flux/components.yaml

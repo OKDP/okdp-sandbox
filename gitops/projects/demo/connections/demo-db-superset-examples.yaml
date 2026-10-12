@@ -1,0 +1,12 @@
+# description: Superset examples database
+connections:
+  demo-db-superset-examples:
+    contract: database-server
+    engine: postgresql
+    driver: org.postgresql.Driver
+    host: demo-pg-rw.demo.svc.cluster.local
+    port: 5432
+    dbName: superset_examples
+    sslMode: disable
+    secretRef:
+      name: creds-superset-examples-db

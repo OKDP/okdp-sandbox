@@ -1,0 +1,8 @@
+# Platform component 20-cnpg-postgresql: the OKDP package cnpg-postgresql (catalog/cnpg-postgresql, sandbox-dependencies).
+# Publishes the database-server output cnpg-system-cnpg-postgresql-keycloak (external-only
+# contract: 20-keycloak declares it as a connection).
+databases:
+- name: keycloak
+  owner:
+    username: keycloak
+    passwordSecret: creds-keycloak-db

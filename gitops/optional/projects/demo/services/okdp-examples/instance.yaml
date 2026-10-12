@@ -1,0 +1,6 @@
+name: okdp-examples
+project: demo
+service: okdp-examples
+version: 1.3.0-1.0.0
+connections:
+  - demo-storage

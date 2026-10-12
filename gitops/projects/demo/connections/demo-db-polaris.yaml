@@ -1,0 +1,12 @@
+# description: Polaris catalog database
+connections:
+  demo-db-polaris:
+    contract: database-server
+    engine: postgresql
+    driver: org.postgresql.Driver
+    host: demo-pg-rw.demo.svc.cluster.local
+    port: 5432
+    dbName: polaris
+    sslMode: disable
+    secretRef:
+      name: creds-polaris-db

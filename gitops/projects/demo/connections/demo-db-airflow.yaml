@@ -1,0 +1,12 @@
+# description: Airflow metadata database
+connections:
+  demo-db-airflow:
+    contract: database-server
+    engine: postgresql
+    driver: org.postgresql.Driver
+    host: demo-pg-rw.demo.svc.cluster.local
+    port: 5432
+    dbName: airflow
+    sslMode: disable
+    secretRef:
+      name: creds-airflow-db

@@ -1,0 +1,6 @@
+name: keycloak
+project: keycloak
+service: keycloak
+version: 7.3.2-1.0.0
+connections:
+  - keycloak-db

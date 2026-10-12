@@ -1,0 +1,12 @@
+db: demo-db-polaris
+storage: demo-storage
+s3SecretRef: creds-polaris-s3
+realm: sandbox
+# Polaris principals: Polaris does not authenticate Keycloak clients, it keeps its own
+# principals. adm lets the Keycloak user adm open the Polaris console (formerly created by
+# project-demo/60-polaris-catalog-job.yaml).
+principals:
+  - name: service-account-svc-polaris-api-admin
+    roles: [service_admin, catalog_admin]
+  - name: adm
+    roles: [service_admin, catalog_admin]

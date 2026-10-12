@@ -1,0 +1,69 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# Platform values: the first values layer of every OKDP release, under both engines.
+# Former KuboCD Context "platform" (.Context.X is now .Values.global.okdp.X).
+# The console service catalog is not here: see catalog.yaml.
+# Flux and Argo also publish this file as ConfigMap okdp-releases/okdp-platform-values
+# (key values.yaml), which the control plane server reads.
+global:
+  okdp:
+    ingress:
+      suffix: okdp.sandbox
+      className: nginx
+
+    # The 5 URLs are maintained by hand (changing the realm or the suffix means changing all five).
+    # clientId is the console's own client (okdp-ui), declared in the Keycloak realm
+    # (20-keycloak) whatever clientProvisioning says.
+    # clientProvisioning: how the services get their OAuth clients.
+    #   dcr (the sandbox default): each service registers its client in Keycloak with its
+    #     oidc-dcr Job (anonymous dynamic client registration, anonymousDCR in 20-keycloak)
+    #     and reads it from Secret <release>-<namespace>-dcr.
+    #   existing (the alternative): the clients are created in Keycloak beforehand
+    #     (20-keycloak clients) and their credentials put in Secrets creds-<release>-oauth2
+    #     (projects/demo/services/secrets); drop the dcr block.
+    oidc:
+      enabled: true
+      issuerUri: https://keycloak.okdp.sandbox/realms/master
+      clientId: okdp-ui
+      authUrl: https://keycloak.okdp.sandbox/realms/master/protocol/openid-connect/auth
+      tokenUrl: https://keycloak.okdp.sandbox/realms/master/protocol/openid-connect/token
+      jwksUri: https://keycloak.okdp.sandbox/realms/master/protocol/openid-connect/certs
+      userinfoUrl: https://keycloak.okdp.sandbox/realms/master/protocol/openid-connect/userinfo
+      displayName: keycloak
+      scope: "openid profile email groups"
+      usePKCE: true
+      # Self-signed sandbox certificate the server pod does not carry a CA for.
+      # SANDBOX ONLY: disables TLS verification of the OIDC provider. Must be false in
+      # production (give the pods the CA bundle instead, e.g. trust-manager's certs-bundle).
+      insecureSkipVerify: true
+      clientProvisioning: dcr
+      dcr:
+        registrationUrl: https://keycloak.okdp.sandbox/realms/master/clients-registrations/openid-connect
+        authMethod: anonymous
+
+    proxy:
+      httpProxy: ""
+      httpsProxy: ""
+      noProxy: ""
+
+    certificateIssuers:
+      selfSigned:
+        name: default-issuer
+
+    storageClass:
+      data: standard
+      workspace: standard

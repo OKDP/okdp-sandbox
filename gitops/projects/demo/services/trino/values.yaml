@@ -1,0 +1,27 @@
+s3SecretRef: creds-trino-s3
+# The medallion layout of okdp-examples: bronze is the hive catalog (the hive-metastore
+# instance demo-hive), silver and gold are warehouses of the Polaris instance demo-polaris
+# provisioned by okdp-examples (optional layer 3), which also creates the demo warehouse.
+hiveCatalogs:
+  - name: bronze
+    metastore: demo-hive
+    storage: demo-storage
+icebergCatalogs:
+  # Polaris credentials of the root principal (demo-polaris-root).
+  - name: iceberg
+    catalog: demo-polaris
+    storage: demo-storage
+    warehouse: demo
+    oidcSecretRef: demo-polaris-root
+  - name: silver
+    catalog: demo-polaris
+    storage: demo-storage
+    warehouse: silver
+    oidcSecretRef: demo-polaris-root
+  - name: gold
+    catalog: demo-polaris
+    storage: demo-storage
+    warehouse: gold
+    oidcSecretRef: demo-polaris-root
+# The reference OPA policy only knows named users, which the sandbox does not provision.
+enableOPA: false

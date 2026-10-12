@@ -1,0 +1,7 @@
+name: airflow
+project: demo
+service: airflow
+version: 3.2.1-1.0.0
+connections:
+  - demo-db-airflow
+  - demo-storage

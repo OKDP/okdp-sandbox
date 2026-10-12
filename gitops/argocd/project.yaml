@@ -1,0 +1,41 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# Argo CD entry point. Bootstrap once, from the okdp-sandbox checkout, with:
+#   kubectl apply -n argocd -f gitops/argocd/
+# then Application "okdp" (root.yaml) manages this directory from Git:
+# platform-values.yaml, components.yaml, services.yaml and projects.yaml. Every file
+# reads the output repository only: okdp-deployments in the mono topology (the
+# sources and the output), okdp-output in io and split; compiled/, flux/, argocd/ at
+# its root. scripts/configure.sh --push puts this directory there with the compiled
+# tree; scripts/configure.sh --topology rewrites the URLs.
+# Platform AppProject: the platform components and the entry point itself. The
+# services of each project use their own AppProject project-<p> (projects.yaml).
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: okdp
+  namespace: argocd
+spec:
+  description: OKDP platform components and the Argo CD entry point.
+  sourceRepos:
+    - "*"
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"

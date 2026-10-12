@@ -1,0 +1,4 @@
+db: demo-db-hive
+storage: demo-storage
+s3SecretRef: creds-hive-metastore-s3
+warehouseBucket: hive

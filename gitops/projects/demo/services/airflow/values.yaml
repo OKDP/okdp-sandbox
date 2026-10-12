@@ -1,0 +1,20 @@
+storage: demo-storage
+s3SecretRef: creds-examples-s3
+db: demo-db-airflow
+metadataSecret: creds-airflow-db
+oidcRoleMapping:
+  platform_admin: [Admin]
+  data_engineer: [Op]
+  data_scientist: [User]
+  business_analyst: [Viewer]
+  data_steward: [Viewer]
+  auditor: [Viewer]
+# The DAGs of okdp-examples.
+dagsGitSync:
+  enabled: true
+  repo: https://github.com/okdp/okdp-examples.git
+  branch: main
+  ref: main
+  depth: 1
+  subPath: airflow/dags
+  period: 60s

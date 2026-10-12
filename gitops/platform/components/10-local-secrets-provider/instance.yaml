@@ -1,0 +1,5 @@
+name: local-secrets-provider
+project: okdp-system
+service: local-secrets-provider
+version: 1.0.0-1.0.0
+connections: []

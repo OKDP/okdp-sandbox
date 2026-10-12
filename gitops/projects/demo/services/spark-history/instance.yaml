@@ -1,0 +1,6 @@
+name: spark-history
+project: demo
+service: spark-history-server
+version: 3.5.1-1.0.0
+connections:
+  - demo-storage
