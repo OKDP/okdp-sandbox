@@ -1,0 +1,37 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# The services of project <p> deploy only into namespace <p>, from the output
+# repository (the compiled umbrella charts and values) and the chart registries of
+# chartRepositories, and create no cluster-scoped resource (namespace.yaml creates
+# namespace <p>). Named project-<p>: a project directory cannot take the name of the
+# platform AppProject okdp. Every template expression is a quoted scalar, so the file
+# stays valid YAML (scripts/check.sh); without chartRepositories, the second source
+# pattern repeats the first.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: 'project-{{ required "name is set by the okdp-projects ApplicationSet" .Values.name }}'
+  namespace: '{{ .Release.Namespace }}'
+spec:
+  description: 'Services of the OKDP project {{ .Values.name }}.'
+  sourceRepos:
+    - '{{ required "repoURL is set by the okdp-projects ApplicationSet" .Values.repoURL }}'
+    - '{{ .Values.chartRepositories | default .Values.repoURL }}'
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: '{{ .Values.name }}'
+  clusterResourceWhitelist: []

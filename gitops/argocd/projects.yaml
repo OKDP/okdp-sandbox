@@ -1,0 +1,60 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# One Application okdp-project-<p> per compiled project, compiled/projects/<p>/ (the
+# compile writes it for every project), rendering the AppProject project-<p> from the
+# okdp-project chart (next to this file). Argo CD reads the output repository only.
+# <p> is the directory name, never a value read from a file of the project.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: okdp-projects
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: http://forgejo-http.forgejo.svc.cluster.local:3000/okdp/okdp-deployments.git
+        revision: main
+        directories:
+          - path: compiled/projects/*
+  template:
+    metadata:
+      name: 'okdp-project-{{ .path.basename }}'
+      # Not okdp.io/project: the console lists the services of a project by that label.
+      labels:
+        okdp.io/appproject: 'project-{{ .path.basename }}'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: okdp
+      source:
+        repoURL: http://forgejo-http.forgejo.svc.cluster.local:3000/okdp/okdp-deployments.git
+        targetRevision: main
+        path: argocd/okdp-project
+        helm:
+          releaseName: 'okdp-project-{{ .path.basename }}'
+          valuesObject:
+            name: '{{ .path.basename }}'
+            repoURL: http://forgejo-http.forgejo.svc.cluster.local:3000/okdp/okdp-deployments.git
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true

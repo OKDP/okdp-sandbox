@@ -1,0 +1,26 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# Set by the okdp-projects ApplicationSet: the project directory name (= namespace)
+# and the output repository (the compiled umbrella charts of the packages and the
+# compiled values).
+name: ""
+repoURL: ""
+# Argo CD source pattern of the chart registries the plain-chart services of the
+# project may come from (instance.yaml chart references without oci://, e.g.
+# ghcr.io/cloudnative-pg/charts/*). Empty: none, the packages are compiled into the
+# output repository.
+chartRepositories: ""
