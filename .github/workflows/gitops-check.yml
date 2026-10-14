@@ -1,0 +1,122 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
+# Checks the deployments repository layout (gitops/): shapes, connection contracts,
+# the layout compiles (okdp-gitops compile: every instance compiled with its package
+# of the service catalogs, its values checked against the upstream charts) into the
+# output tree scripts/configure.sh --push would push (never committed here),
+# kustomize builds, helm template of every compiled instance.
+#
+# okdp-gitops is built from okdp-control-plane-server, with okdp-compiler next to it
+# (its go.mod replaces it). The service catalogs of gitops/platform/catalog.yaml
+# (platform-charts, sandbox-dependencies) are cloned next to this repository at the
+# ref the catalog names, where scripts/check.sh reads them. The upstream charts of
+# the compiled umbrellas fill a chart cache (scripts/pull-charts.sh, from a first
+# compile): nothing OKDP is pulled from a registry.
+
+name: GitOps layout check
+
+on:
+  pull_request:
+    paths:
+      - "gitops/**"
+      - "scripts/**"
+      - ".github/workflows/gitops-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "gitops/**"
+      - "scripts/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  HELM_VERSION: v3.21.4   # same Helm 3 as OKDP/gh-workflows okdp-chart-ci.yml
+  # TODO(okdp-compiler): main, then a release, once the okdp-compiler branches land.
+  OKDP_CONTROL_PLANE_SERVER_REF: okdp-compiler
+  KUSTOMIZE_VERSION: v5.8.1
+  # sha256 of kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz, from the
+  # release's checksums.txt. Update both together.
+  KUSTOMIZE_SHA256: 029a7f0f4e1932c52a0476cf02a0fd855c0bb85694b82c338fc648dcb53a819d
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo ⚡️
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Clone okdp-control-plane-server, okdp-compiler and the service catalogs 📥
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "${OKDP_CONTROL_PLANE_SERVER_REF}" https://github.com/OKDP/okdp-control-plane-server.git ../okdp-control-plane-server
+          git clone --depth 1 https://github.com/OKDP/okdp-compiler.git ../okdp-compiler
+          # While the server's go.mod still replaces it.
+          if grep -q 'okdp-lib-chart' ../okdp-control-plane-server/go.mod; then
+            git clone --depth 1 https://github.com/OKDP/okdp-lib-chart.git ../okdp-lib-chart
+          fi
+          # The catalogs, at the ref gitops/platform/catalog.yaml names (yq is preinstalled).
+          yq -r '.repositories[] | [.name, .ref] | @tsv' gitops/platform/catalog.yaml \
+            | while IFS=$'\t' read -r name ref; do
+                git clone --quiet --single-branch --branch "${ref}" "https://github.com/OKDP/${name}.git" "../${name}"
+              done
+
+      - name: Set up Go 🛠️
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: ../okdp-control-plane-server/go.mod
+          cache: false
+
+      - name: Build okdp-gitops 🛠️
+        run: |
+          set -euo pipefail
+          (cd ../okdp-control-plane-server && go build -o "${RUNNER_TEMP}/bin/okdp-gitops" ./cmd/okdp-gitops)
+          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
+
+      - name: Set up helm 🛠️
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Fill the chart cache with the upstream charts 📥
+        run: |
+          set -euo pipefail
+          scripts/compile.sh --output "${RUNNER_TEMP}/output"
+          scripts/pull-charts.sh --output "${RUNNER_TEMP}/output" "${RUNNER_TEMP}/charts"
+
+      - name: Set up kustomize 🛠️
+        run: |
+          set -euo pipefail
+          tgz="kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          curl -sSfLo "${RUNNER_TEMP}/${tgz}" \
+            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/${tgz}"
+          echo "${KUSTOMIZE_SHA256}  ${RUNNER_TEMP}/${tgz}" | sha256sum -c -
+          tar -xzf "${RUNNER_TEMP}/${tgz}" -C "${RUNNER_TEMP}" kustomize
+          sudo install -m 0755 "${RUNNER_TEMP}/kustomize" /usr/local/bin/kustomize
+          kustomize version; helm version
+
+      - name: Check the layout ✅
+        # yq v4 and jq are preinstalled on ubuntu-latest.
+        run: scripts/check.sh --output "${RUNNER_TEMP}/output" --charts "${RUNNER_TEMP}/charts" --helm
