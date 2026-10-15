@@ -1,7 +1,7 @@
 # PostgreSQL of the demo project (former project-demo/30-postgres.yaml): one CNPG cluster
 # demo-pg, one database per service, each owned by its own role (credentials from
-# services/secrets). Each database is published as a database-server output; the
-# connections/demo-db-*.yaml files point at them.
+# services/secrets). Each database is published as a database-server output,
+# demo-pg-<database>, which the services reference by that name.
 databases:
   - name: hive
     owner: {username: hms, passwordSecret: creds-hive-metastore-db}

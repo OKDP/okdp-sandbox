@@ -66,7 +66,7 @@ secrets:
       S3_ACCESS_KEY: okdp-examples
       S3_SECRET_KEY: DiP4JtyptKQIVyEufZu2l74WIWYH5fK1tz6GrXgH
   # Owners of the demo project's databases (projects/demo/services/pg) and secretRef
-  # of its connections/demo-db-*.yaml. Here rather than in the project's secrets:
+  # of its database-server outputs. Here rather than in the project's secrets:
   # CloudNativePG creates a managed role without a password when its passwordSecret
   # does not exist yet, and does not come back to it when the Secret appears (unless
   # the Secret carries the label cnpg.io/reload), so they must exist before the

@@ -35,7 +35,7 @@ The platform ([`gitops/platform/components`](gitops/platform/components), one di
 | `20` identity, storage, databases | Keycloak and its PostgreSQL, RustFS or SeaweedFS (S3), **Forgejo** (the deployments repositories and the service catalogs), the CA trust bundle |
 | `30` control plane | OKDP Control Plane server and UI |
 
-The demo project ([`gitops/projects/demo`](gitops/projects/demo)): a PostgreSQL, the S3 store and the data services Hive Metastore, Polaris, Trino, Superset, Airflow, JupyterHub and Spark History Server, wired together by connection files.
+The demo project ([`gitops/projects/demo`](gitops/projects/demo)): a PostgreSQL, the S3 store and the data services Hive Metastore, Polaris, Trino, Superset, Airflow, JupyterHub and Spark History Server, wired together by the outputs they publish (the PostgreSQL databases) and connection files (the platform's S3 store).
 
 Optional ([`gitops/optional`](gitops/optional)): Vault (a secret backend), and the [okdp-examples](https://github.com/OKDP/okdp-examples) medallion lakehouse seed for the demo project.
 

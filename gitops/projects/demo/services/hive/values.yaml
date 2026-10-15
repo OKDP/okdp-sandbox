@@ -1,4 +1,4 @@
-db: demo-db-hive
+db: demo-pg-hive
 storage: demo-storage
 s3SecretRef: creds-hive-metastore-s3
 warehouseBucket: hive

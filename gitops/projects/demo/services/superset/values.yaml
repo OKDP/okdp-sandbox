@@ -1,5 +1,5 @@
-metadataDb: demo-db-superset
-examplesDb: demo-db-superset-examples
+metadataDb: demo-pg-superset
+examplesDb: demo-pg-superset-examples
 # Without a mapping every user lands in Public and Superset refuses all.
 oidcRoleMapping:
   platform_admin: [Admin]

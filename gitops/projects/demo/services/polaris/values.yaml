@@ -1,4 +1,4 @@
-db: demo-db-polaris
+db: demo-pg-polaris
 storage: demo-storage
 s3SecretRef: creds-polaris-s3
 realm: sandbox

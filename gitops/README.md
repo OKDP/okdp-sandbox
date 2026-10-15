@@ -248,8 +248,10 @@ Only what the user set (the console writes the submitted parameters): the parame
 of the package (its `config.schema.json`, the console's deployment form). Required;
 write `{}` when empty. Never put `global.okdp` or `connections` here. A parameter
 naming a connection (`x-okdp-connection-ref` in the schema) holds a connection file
-name, or the release name of another instance of the project (`demo-hive`): the
-instance then waits for it.
+name, the release name of another instance of the project (`demo-hive`, a contract
+with a naming convention), or the name of an output another instance of the project
+publishes (`demo-pg-hive`, an s3 or database-server output): the instance then waits
+for that instance.
 
 ### `upstream.<key>.yaml`
 

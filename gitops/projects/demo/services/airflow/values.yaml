@@ -1,6 +1,6 @@
 storage: demo-storage
 s3SecretRef: creds-examples-s3
-db: demo-db-airflow
+db: demo-pg-airflow
 metadataSecret: creds-airflow-db
 oidcRoleMapping:
   platform_admin: [Admin]
