@@ -1,5 +1,5 @@
 name: okdp-control-plane-server
 project: okdp-system
 service: okdp-control-plane-server
-version: 0.9.0-1.0.0
+version: 0.10.0-1.0.0
 connections: []
