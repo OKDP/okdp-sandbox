@@ -356,7 +356,7 @@ compiles (the format is fixed by the golden files of
 |---|---|
 | `compiled/.../<i>/Chart.yaml`, `instance.values.yaml` | a package: the umbrella chart (the package's `Chart.yaml`, its dependencies the upstream charts it renders, the OAuth client charts in `dcr` mode) and its values |
 | `.../okdp.objects.yaml`, `templates/okdp.yaml` | a package with objects of its own: the objects, rendered by the umbrella as written |
-| `.../okdp.instance.yaml` | a package that publishes something: its URL, usage and the connections it provides (what the console shows of the instance and offers to the others) |
+| `.../okdp.info.yaml` | a package that publishes something: its URL, usage and the connections it provides (what the console shows of the instance and offers to the others) |
 | `.../values.yaml` | a plain chart: the compiled values |
 | `.../application.yaml` | Argo CD: Application `argocd/<r>` (release `<r>`, namespace `<p>`), from the output repository `argocd/root.yaml` reads; a package's source the instance's directory with `instance.values.yaml`, a plain chart's its chart and the compiled `values.yaml`; its sync wave after the instances it waits for (and, for a component, its layer `<NN>`) |
 | `.../helmrelease.yaml` | Flux: HelmRelease `okdp-releases/<r>` (release `<r>`, namespace `<p>`); a package's chart built from GitRepository `okdp-gitops` at the instance's directory, a plain chart's from an `OCIRepository`; the values from the ConfigMap `values-<r>` alone; `dependsOn` the instances it waits for |
