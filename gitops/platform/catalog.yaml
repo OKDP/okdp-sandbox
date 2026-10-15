@@ -54,7 +54,7 @@ categories:
     services:
       - { name: jupyterhub, description: JupyterHub }
   - title: Workflows
-    icon: pi-cog
+    icon: pi-sitemap
     services:
       - { name: airflow, description: Apache Airflow }
   - title: Data Engineering
