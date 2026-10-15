@@ -21,8 +21,8 @@
 # output tree scripts/configure.sh --push would push (never committed here),
 # kustomize builds, helm template of every compiled instance.
 #
-# okdp-gitops is built from okdp-control-plane-server, with okdp-compiler next to it
-# (its go.mod replaces it). The service catalogs of gitops/platform/catalog.yaml
+# okdp-gitops is built from its repository, with okdp-compiler next to it (its go.mod
+# replaces it). The service catalogs of gitops/platform/catalog.yaml
 # (platform-charts, sandbox-dependencies) are cloned next to this repository at the
 # ref the catalog names, where scripts/check.sh reads them. The upstream charts of
 # the compiled umbrellas fill a chart cache (scripts/pull-charts.sh, from a first
@@ -52,8 +52,6 @@ defaults:
 
 env:
   HELM_VERSION: v3.21.4   # same Helm 3 as OKDP/gh-workflows okdp-chart-ci.yml
-  # TODO(okdp-compiler): main, then a release, once the okdp-compiler branches land.
-  OKDP_CONTROL_PLANE_SERVER_REF: okdp-compiler
   KUSTOMIZE_VERSION: v5.8.1
   # sha256 of kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz, from the
   # release's checksums.txt. Update both together.
@@ -68,15 +66,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Clone okdp-control-plane-server, okdp-compiler and the service catalogs 📥
+      - name: Clone okdp-gitops, okdp-compiler and the service catalogs 📥
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch "${OKDP_CONTROL_PLANE_SERVER_REF}" https://github.com/OKDP/okdp-control-plane-server.git ../okdp-control-plane-server
+          git clone --depth 1 https://github.com/OKDP/okdp-gitops.git ../okdp-gitops
           git clone --depth 1 https://github.com/OKDP/okdp-compiler.git ../okdp-compiler
-          # While the server's go.mod still replaces it.
-          if grep -q 'okdp-lib-chart' ../okdp-control-plane-server/go.mod; then
-            git clone --depth 1 https://github.com/OKDP/okdp-lib-chart.git ../okdp-lib-chart
-          fi
           # The catalogs, at the ref gitops/platform/catalog.yaml names (yq is preinstalled).
           yq -r '.repositories[] | [.name, .ref] | @tsv' gitops/platform/catalog.yaml \
             | while IFS=$'\t' read -r name ref; do
@@ -86,13 +80,13 @@ jobs:
       - name: Set up Go 🛠️
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version-file: ../okdp-control-plane-server/go.mod
+          go-version-file: ../okdp-gitops/go.mod
           cache: false
 
       - name: Build okdp-gitops 🛠️
         run: |
           set -euo pipefail
-          (cd ../okdp-control-plane-server && go build -o "${RUNNER_TEMP}/bin/okdp-gitops" ./cmd/okdp-gitops)
+          (cd ../okdp-gitops && go build -o "${RUNNER_TEMP}/bin/okdp-gitops" ./cmd/okdp-gitops)
           echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
 
       - name: Set up helm 🛠️

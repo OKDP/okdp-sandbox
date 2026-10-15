@@ -59,7 +59,7 @@
 #        configure.sh --push [--force] [--dry-run] [--work DIR] [--catalog NAME=SRC]...
 #        configure.sh --show
 # --catalog NAME=SRC: see scripts/compile.sh. Requires bash >= 4, yq v4; --push also
-# git, okdp-gitops (okdp-control-plane-server: make build-gitops; OKDP_GITOPS names
+# git, okdp-gitops (https://github.com/OKDP/okdp-gitops: make build; OKDP_GITOPS names
 # it, OKDP_GITOPS_ARGS adds arguments), curl, jq and kubectl.
 
 set -euo pipefail
@@ -153,7 +153,7 @@ push() {
   [[ -z "$(git -C "$ROOT" status --porcelain -- .)" ]] \
     || die "uncommitted changes in $ROOT: commit them first (--push sends HEAD)"
   command -v "${OKDP_GITOPS:-okdp-gitops}" >/dev/null \
-    || die "okdp-gitops is required to compile the layout (okdp-control-plane-server: make build-gitops; or set OKDP_GITOPS)"
+    || die "okdp-gitops is required to compile the layout (https://github.com/OKDP/okdp-gitops: make build; or set OKDP_GITOPS)"
   mono_check
   prefix="$(git -C "$ROOT" rev-parse --show-prefix)"; prefix="${prefix%/}"
   sha="$(git -C "$TOP" rev-parse --short HEAD)"

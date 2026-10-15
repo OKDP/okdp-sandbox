@@ -33,8 +33,9 @@
 # hand (io, split). The service catalogs of gitops/platform/catalog.yaml are cloned
 # next to this repository at their ref (full history of that branch: Forgejo refuses
 # a shallow push); nothing OKDP comes from a registry but the control plane images.
-# The control plane server is built from okdp-control-plane-server (it compiles what
-# it writes) and loaded into kind.
+# The control plane server is built from okdp-control-plane-server (with okdp-gitops,
+# whose compile checks what it writes) and loaded into kind; okdp-gitops is built from
+# its repository.
 
 name: Deploy validation (sandbox e2e, Flux and Argo CD)
 
@@ -111,15 +112,12 @@ jobs:
           sudo install -m 0755 "${RUNNER_TEMP}/kind" /usr/local/bin/kind
           kind version; helm version; flux version --client
 
-      - name: Clone okdp-control-plane-server, okdp-compiler and the service catalogs 📥
+      - name: Clone okdp-control-plane-server, okdp-gitops, okdp-compiler and the service catalogs 📥
         run: |
           set -euo pipefail
           git clone --depth 1 --branch "${OKDP_CONTROL_PLANE_SERVER_REF}" https://github.com/OKDP/okdp-control-plane-server.git ../okdp-control-plane-server
+          git clone --depth 1 https://github.com/OKDP/okdp-gitops.git ../okdp-gitops
           git clone --depth 1 https://github.com/OKDP/okdp-compiler.git ../okdp-compiler
-          # While the server's go.mod still replaces it.
-          if grep -q 'okdp-lib-chart' ../okdp-control-plane-server/go.mod; then
-            git clone --depth 1 https://github.com/OKDP/okdp-lib-chart.git ../okdp-lib-chart
-          fi
           # The catalogs, at the ref gitops/platform/catalog.yaml names, not shallow:
           # e2e-kind.sh pushes them to the cluster's Forgejo (yq is preinstalled).
           yq -r '.repositories[] | [.name, .ref] | @tsv' gitops/platform/catalog.yaml \
@@ -130,20 +128,18 @@ jobs:
       - name: Set up Go 🛠️
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version-file: ../okdp-control-plane-server/go.mod
+          go-version-file: ../okdp-gitops/go.mod
           cache: false
 
       - name: Build okdp-gitops and the control plane server image 🛠️
         run: |
           set -euo pipefail
-          (cd ../okdp-control-plane-server && go build -o "${RUNNER_TEMP}/bin/okdp-gitops" ./cmd/okdp-gitops)
+          (cd ../okdp-gitops && go build -o "${RUNNER_TEMP}/bin/okdp-gitops" ./cmd/okdp-gitops)
           echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
           # The build contexts the server's Dockerfile copies from.
-          contexts=(--build-context okdp-compiler=../okdp-compiler)
-          if grep -q 'from=okdp-lib' ../okdp-control-plane-server/Dockerfile; then
-            contexts+=(--build-context okdp-lib=../okdp-lib-chart)
-          fi
-          docker build -t "${E2E_SERVER_IMAGE}" "${contexts[@]}" ../okdp-control-plane-server
+          docker build -t "${E2E_SERVER_IMAGE}" \
+            --build-context okdp-compiler=../okdp-compiler --build-context okdp-gitops=../okdp-gitops \
+            ../okdp-control-plane-server
 
       - name: Deploy with Flux 🚀
         run: scripts/e2e-kind.sh up flux

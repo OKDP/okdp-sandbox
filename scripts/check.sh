@@ -41,8 +41,8 @@
 #
 # Usage: check.sh [--root DIR] [--output DIR] [--catalog NAME=SRC]... [--charts DIR]
 #                 [--helm]
-# Requires bash >= 4, yq v4, jq, git, okdp-gitops (okdp-control-plane-server: make
-# build-gitops; OKDP_GITOPS names it); optional: kustomize, helm.
+# Requires bash >= 4, yq v4, jq, git, okdp-gitops (https://github.com/OKDP/okdp-gitops:
+# make build; OKDP_GITOPS names it); optional: kustomize, helm.
 
 set -euo pipefail
 export LC_ALL=C
@@ -235,7 +235,7 @@ done
 step "the layout compiles (okdp-gitops compile, into ${OUTPUT:-a temporary output tree})"
 compiled=false
 if ! command -v "${OKDP_GITOPS:-okdp-gitops}" >/dev/null; then
-  fail "okdp-gitops is required (okdp-control-plane-server: make build-gitops; or set OKDP_GITOPS)"
+  fail "okdp-gitops is required (https://github.com/OKDP/okdp-gitops: make build; or set OKDP_GITOPS)"
 elif ! layout_compile "$OUT" >"$TMP/.compile.log" 2>&1; then
   sed 's/^/   /' "$TMP/.compile.log"
   fail "the layout does not compile"

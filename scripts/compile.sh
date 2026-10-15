@@ -39,8 +39,8 @@
 #
 # Usage: compile.sh [--root DIR] [--output DIR] [--catalog NAME=SRC]...
 #                   [--work DIR] [-- ARGS...]
-# Requires bash >= 4, yq v4, git, okdp-gitops (okdp-control-plane-server: make
-# build-gitops; OKDP_GITOPS names it).
+# Requires bash >= 4, yq v4, git, okdp-gitops (https://github.com/OKDP/okdp-gitops:
+# make build; OKDP_GITOPS names it).
 
 set -euo pipefail
 export LC_ALL=C
@@ -67,7 +67,7 @@ done
 
 command -v yq >/dev/null || { echo "compile: yq v4 is required" >&2; exit 2; }
 command -v "${OKDP_GITOPS:-okdp-gitops}" >/dev/null \
-  || { echo "compile: okdp-gitops is required (okdp-control-plane-server: make build-gitops; or set OKDP_GITOPS)" >&2; exit 2; }
+  || { echo "compile: okdp-gitops is required (https://github.com/OKDP/okdp-gitops: make build; or set OKDP_GITOPS)" >&2; exit 2; }
 
 # shellcheck source=lib/topology.sh
 source "$SCRIPTS/lib/topology.sh"

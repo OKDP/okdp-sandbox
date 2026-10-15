@@ -301,9 +301,8 @@ files, `values.yaml`; later layers win, maps merge deeply, lists are replaced, a
 
 Who compiles: the console, for what it writes (the compiled files land in the output
 repository with the commit of their sources); `okdp-gitops compile` for the layout of
-this directory (built from
-[okdp-control-plane-server](https://github.com/OKDP/okdp-control-plane-server):
-`make build-gitops`), the same code. `scripts/configure.sh --push` runs it on the
+this directory ([okdp-gitops](https://github.com/OKDP/okdp-gitops): `make build`), the
+same code. `scripts/configure.sh --push` runs it on the
 committed layout and pushes the result; `scripts/compile.sh` runs it on the layout as
 it is, into an output directory, never into this one (the output tree is the same in
 every topology: the output repository's content, at its root), with the catalogs read
@@ -496,7 +495,8 @@ scripts/lib/                      # shared by the scripts (topology, catalogs, F
   of the sources into the output tree DIR (a temporary directory without `--output`),
   the catalogs read from Git; see
   [Compiling](#compiling-from-the-sources-to-compiled). `okdp-gitops` (not a script:
-  built from okdp-control-plane-server, `make build-gitops`; `OKDP_GITOPS` names it).
+  [okdp-gitops](https://github.com/OKDP/okdp-gitops), `make build`; `OKDP_GITOPS` names
+  it).
 - `scripts/check.sh [--output DIR] [--catalog NAME=SRC]... [--charts DIR] [--helm]`:
   YAML syntax, file shapes (the catalog's repositories and menu, the instances'
   packages in the catalogs, `flux/` and `argocd/` reading the output repository of the

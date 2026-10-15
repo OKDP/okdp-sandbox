@@ -74,7 +74,7 @@ GitOps user ──────────────────────�
 - 16 GB RAM and 4 CPUs at least for the platform; the whole demo project needs about 32 GB.
 - [Docker](https://docs.docker.com/get-docker/) or a compatible container runtime, [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation), [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/), [Helm](https://helm.sh/docs/intro/install/) and `git`.
 - For Flux: the [Flux CLI](https://fluxcd.io/flux/installation/) (tested with v2.9.5). For Argo CD: nothing more (tested with v3.4.2).
-- To configure the sandbox and change the layout by hand: `okdp-gitops`, built from [okdp-control-plane-server](https://github.com/OKDP/okdp-control-plane-server) (`make build-gitops`), [yq](https://github.com/mikefarah/yq) v4, `curl` and `jq`. The scripts read the service catalogs from checkouts of [platform-charts](https://github.com/OKDP/platform-charts) and [sandbox-dependencies](https://github.com/OKDP/sandbox-dependencies) next to this repository when there are some (at the ref [`catalog.yaml`](gitops/platform/catalog.yaml) names), else from GitHub.
+- To configure the sandbox and change the layout by hand: `okdp-gitops` ([okdp-gitops](https://github.com/OKDP/okdp-gitops), `make build`), [yq](https://github.com/mikefarah/yq) v4, `curl` and `jq`. The scripts read the service catalogs from checkouts of [platform-charts](https://github.com/OKDP/platform-charts) and [sandbox-dependencies](https://github.com/OKDP/sandbox-dependencies) next to this repository when there are some (at the ref [`catalog.yaml`](gitops/platform/catalog.yaml) names), else from GitHub.
 
 ## Quick start
 
