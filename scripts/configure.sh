@@ -191,21 +191,29 @@ push() {
       for p in platform projects; do
         if [[ -d "$WORK/layout/$p" ]]; then cp -R "$WORK/layout/$p" "$out/"; fi
       done
+      forgejo_ci_workflow "$out"
       forgejo_ensure_repo "$owner" "$(mono_repo)" "OKDP deployments repository: the sources and the compiled tree (mono topology)"
+      forgejo_enable_actions "$owner" "$(mono_repo)"
       ;;
     io)
       part "$WORK/parts/$INPUT_REPO" "$prefix" platform projects
+      forgejo_ci_workflow "$WORK/parts/$INPUT_REPO"
       forgejo_ensure_repo "$owner" "$INPUT_REPO" "OKDP sources: platform/, projects/ (io topology)"
+      forgejo_enable_actions "$owner" "$INPUT_REPO"
       forgejo_push_tree "$WORK/parts/$INPUT_REPO" "$owner" "$INPUT_REPO" "$message" "${force[@]}"
       ;;
     split)
       part "$WORK/parts/$PLATFORM_REPO" "${prefix:+$prefix/}platform"
+      forgejo_ci_workflow "$WORK/parts/$PLATFORM_REPO"
       forgejo_ensure_repo "$owner" "$PLATFORM_REPO" "OKDP platform sources (split topology)"
+      forgejo_enable_actions "$owner" "$PLATFORM_REPO"
       forgejo_push_tree "$WORK/parts/$PLATFORM_REPO" "$owner" "$PLATFORM_REPO" "$message" "${force[@]}"
       for p in $(yq '.projects[].name' "$PROJECTS_FILE"); do
         [[ -d "$ROOT/projects/$p" ]] || die "platform/projects.yaml lists $p, projects/$p does not exist"
         part "$WORK/parts/$PROJECT_REPO_PREFIX$p" "${prefix:+$prefix/}projects/$p"
+        forgejo_ci_workflow "$WORK/parts/$PROJECT_REPO_PREFIX$p"
         forgejo_ensure_repo "$owner" "$PROJECT_REPO_PREFIX$p" "OKDP project $p (split topology)"
+        forgejo_enable_actions "$owner" "$PROJECT_REPO_PREFIX$p"
         forgejo_push_tree "$WORK/parts/$PROJECT_REPO_PREFIX$p" "$owner" "$PROJECT_REPO_PREFIX$p" "$message" "${force[@]}"
       done
       ;;

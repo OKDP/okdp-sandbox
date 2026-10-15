@@ -44,8 +44,8 @@ Optional ([`gitops/optional`](gitops/optional)): Vault (a secret backend), and t
 ```
 basic user ─► console UI ─► control-plane server ─(git commit)─┐
 GitOps user ────────────────────────────(git commit / PR)────► sources: platform/, projects/ (Forgejo)
-                                                               │
-   service catalogs (Git) ─► packages ─► compile (okdp-compiler) ┤
+                                                               │ each push: the CI (Forgejo Actions)
+   service catalogs (Git) ─► packages ─► okdp-gitops compile (okdp-compiler), runner 30-forgejo-runner
                                                                ▼
                          output: compiled/ (one umbrella chart and values file per instance), flux/, argocd/
                   Flux: HelmRelease (chart from Git) │ Argo CD: Application (path + values file)
@@ -54,7 +54,7 @@ GitOps user ──────────────────────�
 ```
 
 - Every component and service is an instance of a package of the service catalogs (or an upstream chart) with its values in Git: [`gitops/`](gitops) is the initial deployments layout, the sources and the entry points of the engines. Its [README](gitops/README.md) specifies every file.
-- Git, on the in-cluster Forgejo, is the only desired state. The console commits there; so can you. Each instance is compiled ([okdp-compiler](https://github.com/OKDP/okdp-compiler)) into an umbrella chart over the upstream charts of its service and the one values file it is installed with, `compiled/` of the output repository: by the console in the commit it writes, by `scripts/configure.sh --push` (`okdp-gitops compile`) for the layout of this repository, which it pushes compiled. Flux or Argo CD deploys `compiled/`. This repository holds no compiled file: only what bootstraps the sandbox.
+- Git, on the in-cluster Forgejo, is the only desired state. The console commits the sources there; so can you, a plain commit. Each instance is compiled ([okdp-compiler](https://github.com/OKDP/okdp-compiler)) into an umbrella chart over the upstream charts of its service and the one values file it is installed with, `compiled/` of the output repository, by [okdp-gitops](https://github.com/OKDP/okdp-gitops), which also writes the Flux and Argo CD files and their order: by the CI on each push to the sources (the workflow `.forgejo/workflows/okdp-gitops.yaml` of each repository of the sources, run by the Forgejo Actions runner [`30-forgejo-runner`](gitops/platform/components/30-forgejo-runner)), and by `scripts/configure.sh --push` for the layout of this repository, which it pushes compiled (the bootstrap: the runner is deployed from the output). A push that does not compile writes nothing: the engine keeps deploying the last output. Flux or Argo CD deploys `compiled/`. This repository holds no compiled file: only what bootstraps the sandbox.
 - On Forgejo, the layout lives in one deployments repository, `okdp-deployments` (`mono`), in an input and an output repository (`io`), or in a platform repository, one repository per project and an output repository (`split`): the **topology**, chosen with `scripts/configure.sh` ([Topologies](gitops/README.md#topologies)). Flux and Argo CD read the output repository only.
 - The packages come from Git, not from a chart registry: the catalogs [platform-charts](https://github.com/OKDP/platform-charts) and [sandbox-dependencies](https://github.com/OKDP/sandbox-dependencies) (`catalog/<service>/<version>/`, one directory per package version, and the contracts of the connections), copied to the in-cluster Forgejo, where the control plane server reads them ([Service catalogs](gitops/README.md#service-catalogs)). The upstream charts come from their own repositories.
 
@@ -62,6 +62,7 @@ GitOps user ──────────────────────�
 |---|---|
 | Catalog of the OKDP services and control plane packages | [`OKDP/platform-charts`](https://github.com/OKDP/platform-charts) |
 | Compiler of the instances (service definitions in YAML + CEL) | [`OKDP/okdp-compiler`](https://github.com/OKDP/okdp-compiler) |
+| Compile of the whole layout, the Flux and Argo CD files, the CI of the sources | [`OKDP/okdp-gitops`](https://github.com/OKDP/okdp-gitops) |
 | Contract schemas of the connections | the catalogs, `contracts/` |
 | Catalog of the third-party and bootstrap packages | [`OKDP/sandbox-dependencies`](https://github.com/OKDP/sandbox-dependencies) |
 | Notebooks, DAGs, and runnable examples | [`OKDP/okdp-examples`](https://github.com/OKDP/okdp-examples) |
@@ -207,8 +208,12 @@ git add -A gitops && git commit -m "chore: configure the sandbox"
 
 Then compile the committed layout and put it on Forgejo, with the service catalogs
 `okdp/platform-charts` and `okdp/sandbox-dependencies` (nothing is pushed when the
-layout does not compile; `scripts/compile.sh` shows the problems); for `split`,
-the script also gives the console a Forgejo token (Secret
+layout does not compile; `scripts/compile.sh` shows the problems). The script also
+puts the CI in the repositories of the sources (`.forgejo/workflows/okdp-gitops.yaml`)
+and registers its runner,
+[`30-forgejo-runner`](gitops/platform/components/30-forgejo-runner), in Forgejo: once
+the platform is up, every push to the sources is compiled into the output repository.
+For `split`, it also gives the console a Forgejo token (Secret
 `okdp-system/okdp-forgejo-token`) to create the repositories of new projects. It
 reaches Forgejo through a `kubectl port-forward`
 of the current context, as the admin `okdp-admin` / `okdp-sandbox-Passw0rd` (see the
@@ -346,11 +351,14 @@ to Keycloak.
 2. **The demo project** is deployed with the platform: `projects/demo` in Git, namespace
    `demo`. Its services appear in the console like the ones you deploy from it.
 3. **Deploy a service** from the console, or commit the same files: see
-   [gitops/README.md](gitops/README.md) (`instance.yaml`, `values.yaml`), commit, and
-   `scripts/configure.sh --push`, which compiles them and refuses to overwrite
-   what the console committed since. The console's commits show up in Forgejo
-   (https://forgejo.okdp.sandbox, **Sign in with keycloak**: `adm` and `alice` are site
-   admins): the sources, then the compiled files. The
+   [gitops/README.md](gitops/README.md) (`instance.yaml`, `values.yaml`), and push the
+   commit to the repository of the sources on Forgejo (`okdp/okdp-deployments` in
+   `mono`): the CI compiles it (the **Actions** tab of the repository) and the engine
+   deploys the output. From this repository, `scripts/configure.sh --push` puts HEAD
+   there, and refuses to overwrite what the console committed since. Everything shows
+   up in Forgejo (https://forgejo.okdp.sandbox, **Sign in with keycloak**: `adm` and
+   `alice` are site admins): the commits of the sources (the console's, yours), then
+   the CI's compile of the output (`okdp: compile`). The
    [okdp CLI](https://github.com/OKDP/okdp-control-plane-cli) does the same from a
    terminal: `okdp login https://okdp-ui.okdp.sandbox` (device flow or browser, the
    console client allows both; add `--insecure-skip-tls-verify` if the sandbox

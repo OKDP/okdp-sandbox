@@ -143,6 +143,15 @@ forgejo_ensure_repo() {
 
 forgejo_repo_url() { echo "$FORGEJO/$1/$2.git"; }
 
+# forgejo_enable_actions OWNER NAME: Forgejo Actions on for the repository (a
+# repository of the sources: its workflow is the CI), also when it was created before
+# Actions was enabled.
+forgejo_enable_actions() {
+  if $DRY_RUN; then dry "repository $1/$2: Actions enabled"; return; fi
+  forgejo_api PATCH "/repos/$1/$2" '{"has_actions": true}'
+  [[ "$FORGEJO_STATUS" == 200 ]] || forgejo_fail "cannot enable Actions in the repository $1/$2"
+}
+
 # forgejo_git ARGS...: git with the admin's credentials (GIT_ASKPASS), no credential
 # helper, and an identity for the commits it writes when none is configured.
 forgejo_git() {
@@ -172,29 +181,49 @@ forgejo_push_ref() {
 # forgejo_push_tree DIR OWNER NAME MESSAGE [--force]: makes the files of DIR the
 # content of branch main of OWNER/NAME: one commit on top of its main (none when
 # nothing changed), whose history is kept. MESSAGE starts with "okdp-sandbox ": when
-# the last commit of main does not (the console committed since the last push), the
-# push is refused, unless --force (the console's changes are then replaced).
+# main has, since its last such commit, a commit other than the CI's ("okdp: compile",
+# 30-forgejo-runner: the compile of what was pushed), someone committed since the last
+# push (the console, a person), and the push is refused, unless --force (their changes
+# are then replaced). A push that loses the race against the CI (the compile of the
+# sources pushed just before) is made again on top of the CI's commit.
 forgejo_push_tree() {
-  local dir="$1" url repo tree commit last parent=()
+  local dir="$1" url repo tree commit other attempt parent=()
   url="$(forgejo_repo_url "$2" "$3")"
   if $DRY_RUN; then dry "push $dir as the content of $2/$3 main ($(find "$dir" -type f | wc -l) files)"; return; fi
   repo="$WORK/git/$3"
-  rm -rf "$repo"; git init -q "$repo"
-  if forgejo_git -C "$repo" fetch -q "$url" "+refs/heads/main:refs/remotes/origin/main" 2>/dev/null; then
-    parent=(-p refs/remotes/origin/main)
-    last="$(git -C "$repo" log -1 --format=%s refs/remotes/origin/main)"
-    [[ "$last" == "okdp-sandbox "* || "${5:-}" == --force ]] \
-      || die "$2/$3 main has commits made elsewhere since the last push (\"$last\": the console?): bring them into this repository first, or --force to replace them"
-  fi
-  GIT_INDEX_FILE="$repo/.git/okdp.index" git -C "$dir" --git-dir="$repo/.git" --work-tree="$dir" add -A
-  tree="$(GIT_INDEX_FILE="$repo/.git/okdp.index" git --git-dir="$repo/.git" write-tree)"
-  if [[ ${#parent[@]} -gt 0 && "$(git -C "$repo" rev-parse 'refs/remotes/origin/main^{tree}')" == "$tree" ]]; then
-    echo "$2/$3: up to date"
-    return
-  fi
-  commit="$(forgejo_git -C "$repo" commit-tree "$tree" "${parent[@]}" -m "$4")"
-  forgejo_git -C "$repo" push -q "$url" "$commit:refs/heads/main"
-  echo "pushed $2/$3 main (${commit:0:12})"
+  for attempt in 1 2 3; do
+    rm -rf "$repo"; git init -q "$repo"; parent=()
+    if forgejo_git -C "$repo" fetch -q "$url" "+refs/heads/main:refs/remotes/origin/main" 2>/dev/null; then
+      parent=(-p refs/remotes/origin/main)
+      other="$(git -C "$repo" log --format=%s refs/remotes/origin/main \
+        | awk '/^okdp-sandbox / {exit} $0 != "okdp: compile" {print; exit}')"
+      [[ -z "$other" || "${5:-}" == --force ]] \
+        || die "$2/$3 main has commits made elsewhere since the last push (\"$other\": the console?): bring them into this repository first, or --force to replace them"
+    fi
+    GIT_INDEX_FILE="$repo/.git/okdp.index" git -C "$dir" --git-dir="$repo/.git" --work-tree="$dir" add -A
+    tree="$(GIT_INDEX_FILE="$repo/.git/okdp.index" git --git-dir="$repo/.git" write-tree)"
+    if [[ ${#parent[@]} -gt 0 && "$(git -C "$repo" rev-parse 'refs/remotes/origin/main^{tree}')" == "$tree" ]]; then
+      echo "$2/$3: up to date"
+      return
+    fi
+    commit="$(forgejo_git -C "$repo" commit-tree "$tree" "${parent[@]}" -m "$4")"
+    if forgejo_git -C "$repo" push -q "$url" "$commit:refs/heads/main"; then
+      echo "pushed $2/$3 main (${commit:0:12})"
+      return
+    fi
+    echo "$2/$3: main moved during the push (the CI?), pushing again on top of it" >&2
+    sleep 2
+  done
+  die "cannot push $2/$3 main: it keeps moving"
+}
+
+# forgejo_ci_workflow DIR: the CI of the sources in the repository whose content is DIR
+# (okdp-gitops workflow: okdp-gitops compile on each push, run by 30-forgejo-runner).
+# The output is at the root of its repository: in mono, the push of the compile itself
+# starts no run.
+forgejo_ci_workflow() {
+  mkdir -p "$1/.forgejo/workflows"
+  "${OKDP_GITOPS:-okdp-gitops}" workflow --branch main >"$1/.forgejo/workflows/okdp-gitops.yaml"
 }
 
 # forgejo_push_catalogs: copies each catalog of platform/catalog.yaml that lives on

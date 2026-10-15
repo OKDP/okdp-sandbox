@@ -7,8 +7,10 @@ the people and the console write the sources, a compile writes `compiled/`, and 
 engines deploy `compiled/`. `scripts/configure.sh --push` compiles the committed layout
 and puts the sources and the compiled tree on the sandbox's Forgejo, which holds the
 **only desired state** from then on: the console (through the control plane server)
-commits there, compiled, and Flux **or** Argo CD deploys it. The compiled tree is
-never in this repository. An instance names a **package** of a service catalog (a Git
+and the people commit the sources there, the **CI** of the sources compiles each push
+into the output ([okdp-gitops](https://github.com/OKDP/okdp-gitops), on the Forgejo
+Actions runner [`30-forgejo-runner`](platform/components/30-forgejo-runner/values.yaml)),
+and Flux **or** Argo CD deploys it. The compiled tree is never in this repository. An instance names a **package** of a service catalog (a Git
 repository, [below](#service-catalogs)), which
 [okdp-compiler](https://github.com/OKDP/okdp-compiler) compiles into an umbrella chart
 over the upstream charts of the service, with its values. Nothing OKDP is pulled from a
@@ -112,14 +114,19 @@ branch `main`):
 
   `okdp-gitops compile --config <file>` reads the same file (a `url` may also be a
   local directory, read and written in place).
-- A console change commits the sources (platform or project repository), then the
-  compiled files in the output repository, with the same message: two commits outside
-  mono. `okdp-gitops compile --check` fails while the output is stale.
+- A change, the console's or a person's, is a commit of the sources (platform or
+  project repository); the CI of that repository compiles it into the output
+  repository (`okdp: compile`, from the latest sources of every part), which the
+  engines deploy. A change that does not compile writes no output (the console
+  refuses it before it commits). `okdp-gitops compile --check` fails while the output
+  is stale. The CI runner (`30-forgejo-runner`) reads the same topology file, its
+  `topology` value (`scripts/configure.sh --topology` writes both).
 - `split`: `platform/projects.yaml` lists the projects (`projects: [{name: demo}]`, a
   project may override the `url`, `branch` or `path` of the template). The console
   creates a project's repository `okdp/okdp-project-<p>` through the Forgejo API (the
   token of Secret `okdp-forgejo-token`, mounted at `/etc/okdp/forgejo/token`), pushes
-  its `project.yaml` and adds it to `projects.yaml`.
+  its `project.yaml` and its CI (`.forgejo/workflows/okdp-gitops.yaml`), and adds it
+  to `projects.yaml`.
 
 **This directory holds the sources and the entry points of every topology**, never
 the compiled tree: the topology changes where each part is pushed, the URL of `flux/`
@@ -149,13 +156,18 @@ anonymously), copies the [service catalogs](#service-catalogs), then pushes:
 |---|---|---|---|
 | sources | `platform/`, `projects/` to `okdp-deployments` | `platform/`, `projects/` to `okdp-input` | `platform/` to `okdp-platform`, `projects/<p>/` to `okdp-project-<p>` (each project of `projects.yaml`) |
 | output | `compiled/`, `flux/`, `argocd/` next to them, in the same commit | `compiled/`, `flux/`, `argocd/` to `okdp-output` | the same |
+| CI | `.forgejo/workflows/okdp-gitops.yaml` (`okdp-gitops workflow`) at the root of each repository of the sources, its Actions enabled; the runner `okdp-gitops` registered for the organization `okdp` (`forgejo forgejo-cli actions register`, the secret of Secret `okdp-forgejo-runner`) | the same | the same |
 | token | | | a Forgejo access token of the admin for the server, in Secret `okdp-system/okdp-forgejo-token` (key `token`) |
 
 Each repository gets its part's files as one commit on top of its `main`
-(`okdp-sandbox <sha>: <subject>`); `--push` refuses when the console committed there
-since (bring its changes into this repository first), unless `--force`, which replaces
-them. `--dry-run` compiles, prints what would be done and keeps the parts it would
-push.
+(`okdp-sandbox <sha>: <subject>`); `--push` refuses when someone committed there since
+(the console, a person; the CI's compiles, `okdp: compile`, excepted: bring their
+changes into this repository first), unless `--force`, which replaces them. A push of
+the output that loses the race against the CI (which compiles the sources just pushed
+to the same tree) is made again on top of it. `--dry-run` compiles, prints what would
+be done and keeps the parts it would push. The output pushed this way bootstraps the
+sandbox (the runner is one of its components); from then on, the CI compiles each
+push of the sources.
 
 ## Service catalogs
 
@@ -299,14 +311,21 @@ A **plain chart** gets its values layers merged (`platform-values.yaml`, its con
 files, `values.yaml`; later layers win, maps merge deeply, lists are replaced, as with
 `helm -f a -f b`) into `values.yaml`.
 
-Who compiles: the console, for what it writes (the compiled files land in the output
-repository with the commit of their sources); `okdp-gitops compile` for the layout of
-this directory ([okdp-gitops](https://github.com/OKDP/okdp-gitops): `make build`), the
-same code. `scripts/configure.sh --push` runs it on the
-committed layout and pushes the result; `scripts/compile.sh` runs it on the layout as
-it is, into an output directory, never into this one (the output tree is the same in
-every topology: the output repository's content, at its root), with the catalogs read
-from Git ([Service catalogs](#service-catalogs)):
+Who compiles: `okdp-gitops compile` ([okdp-gitops](https://github.com/OKDP/okdp-gitops):
+`make build`), always the whole layout, from its sources:
+- the CI of the sources, on each push to a repository of the sources: its workflow
+  `.forgejo/workflows/okdp-gitops.yaml`, run by the Forgejo Actions runner
+  [`30-forgejo-runner`](platform/components/30-forgejo-runner/values.yaml)
+  (`okdp-gitops compile --config <its topology> --charts <its chart cache>`), commits
+  the output (`okdp: compile`); a push that does not compile writes nothing, and the
+  run fails (the **Actions** tab of the repository). The console commits the sources
+  only, once their compile passes;
+- `scripts/configure.sh --push` runs it on the committed layout and pushes the result
+  (the bootstrap);
+- `scripts/compile.sh` runs it on the layout as it is, into an output directory, never
+  into this one (the output tree is the same in every topology: the output
+  repository's content, at its root), with the catalogs read from Git
+  ([Service catalogs](#service-catalogs)):
 
 ```sh
 scripts/compile.sh                          # the layout compiles, or its problems
@@ -321,23 +340,21 @@ does not compile (an invalid `instance.yaml`, a package missing from the catalog
 missing connection file, a parameter the package refuses, a reference to an instance
 the project does not have) is reported whole, and nothing is written. The values are
 checked against each upstream chart's `values.schema.json` by the control plane
-server before it commits (its chart cache, `gitops.chartCacheDir`) and by
-`scripts/check.sh --helm` (Helm renders every compiled instance; `--charts DIR`, a
+server before it commits (its chart cache, `gitops.chartCacheDir`), by the CI (its
+`--charts` cache) and by `scripts/check.sh --helm` (Helm renders every compiled instance; `--charts DIR`, a
 cache filled by `scripts/pull-charts.sh`, spares it the network).
 
 ## Generated files
 
 Written by the compile into the output repository, byte for byte the same whoever
-compiles (the format is
-specified, with its golden files, in the
-[okdp-control-plane-server README](https://github.com/OKDP/okdp-control-plane-server#generated-files-byte-exact-format)).
+compiles (the format is fixed by the golden files of
+[okdp-gitops](https://github.com/OKDP/okdp-gitops), `gitops/testdata/golden`).
 
 | File | Content |
 |---|---|
 | `compiled/.../<i>/Chart.yaml`, `instance.values.yaml` | a package: the umbrella chart (the package's `Chart.yaml`, its dependencies the upstream charts it renders, the OAuth client charts in `dcr` mode) and its values |
 | `.../okdp.objects.yaml`, `templates/okdp.yaml` | a package with objects of its own: the objects, rendered by the umbrella as written |
 | `.../okdp.instance.yaml` | a package that publishes something: its URL, usage and the connections it provides (what the console shows of the instance and offers to the others) |
-| `.../okdp.dependencies.yaml` | a package referencing other instances: the instances it waits for (Flux `dependsOn`) |
 | `.../values.yaml` | a plain chart: the compiled values |
 | `.../application.yaml` | Argo CD: Application `argocd/<r>` (release `<r>`, namespace `<p>`), from the output repository `argocd/root.yaml` reads; a package's source the instance's directory with `instance.values.yaml`, a plain chart's its chart and the compiled `values.yaml`; its sync wave after the instances it waits for (and, for a component, its layer `<NN>`) |
 | `.../helmrelease.yaml` | Flux: HelmRelease `okdp-releases/<r>` (release `<r>`, namespace `<p>`); a package's chart built from GitRepository `okdp-gitops` at the instance's directory, a plain chart's from an `OCIRepository`; the values from the ConfigMap `values-<r>` alone; `dependsOn` the instances it waits for |
@@ -362,10 +379,11 @@ admission webhook or the CA bundle exists fails its install and its retry, then 
 
 ### What the server writes, per action
 
-Sources in the platform or project repository, compiled files in the output
-repository (the same repository in mono).
+Sources in the platform or project repository, one commit; the CI compiles it into
+the output repository (the same repository in mono), the server writes no compiled
+file.
 
-| action | sources | compiled/ |
+| action | sources (the server's commit) | compiled/ (the CI's compile of it) |
 |---|---|---|
 | deploy instance | `instance.yaml`, `values.yaml` | the instance's directory, the project kustomization |
 | edit parameters, upgrade (version), change connections | `values.yaml`, `instance.yaml` | the instance's directory |
@@ -443,7 +461,8 @@ umbrella chart, its dependencies fetched from their repositories),
 `targetRevision` = version) and the output repository as `ref: values`, its compiled
 `values.yaml`. `releaseName: <r>`; destination namespace `<p>` (`CreateNamespace=true`
 for the components). Its sync wave orders it: a component after the lower layers, an
-instance after the instances it waits for (`okdp.dependencies.yaml`). A service belongs
+instance after the instances its connections reference (okdp-gitops computes the
+waves from the compile of every instance). A service belongs
 to the AppProject `project-<p>` (Application `okdp-project-<p>`, chart
 `argocd/okdp-project`, one per `compiled/projects/<p>/` directory): sources limited to
 the output repository and the registries of its plain charts (`chartRepositories`),
@@ -487,10 +506,11 @@ scripts/lib/                      # shared by the scripts (topology, catalogs, F
   `optional/storage/<store>` and rewrites the `internalUrl` of the connection files
   pointing at the store; sets the [topology](#topologies). Without arguments on a
   terminal (or with `-i`) it asks, the current values being the defaults; `--show`
-  prints them. Edits the layout only. `configure.sh --push [--force] [--dry-run]` then
-  compiles the committed layout and puts it and the catalogs on the sandbox's Forgejo
-  ([Topologies](#topologies)). Needs yq v4; `--push` also git, okdp-gitops, curl, jq
-  and kubectl.
+  prints them; the topology is also the CI runner's (`30-forgejo-runner`). Edits the
+  layout only. `configure.sh --push [--force] [--dry-run]` then compiles the committed
+  layout and puts it, its CI and the catalogs on the sandbox's Forgejo, the CI runner
+  registered ([Topologies](#topologies)). Needs yq v4; `--push` also git, okdp-gitops,
+  curl, jq and kubectl.
 - `scripts/compile.sh [--output DIR] [--catalog NAME=SRC]...`: `okdp-gitops compile`
   of the sources into the output tree DIR (a temporary directory without `--output`),
   the catalogs read from Git; see
@@ -515,7 +535,9 @@ scripts/lib/                      # shared by the scripts (topology, catalogs, F
   from the catalogs. Needs yq v4 and helm.
 - `scripts/e2e-kind.sh up|push|down flux|argocd`: installs the layout on a throwaway kind
   cluster, through its Forgejo (`configure.sh --push`, the topology `E2E_TOPOLOGY`), with
-  the catalogs of `OKDP_CATALOGS` or next to this repository and the control plane images
-  of your choice (`E2E_SERVER_IMAGE`). See its header.
+  the catalogs of `OKDP_CATALOGS` or next to this repository and the control plane and
+  okdp-gitops images of your choice (`E2E_SERVER_IMAGE`, `E2E_GITOPS_IMAGE`); then a
+  plain commit of the sources, pushed to Forgejo, must be compiled by the CI and
+  deployed. See its header.
 - `scripts/compare-engines.sh`: compares the live objects of releases between a Flux
   cluster and an Argo CD cluster, ignoring engine-specific metadata. See its header.
