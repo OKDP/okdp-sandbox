@@ -156,6 +156,9 @@ topology="$(topology_current)"
   || fail "flux/ and argocd/ read $(entry_url), not the output repository of the $topology topology: scripts/configure.sh --topology $topology"
 [[ -z "$(entry_prefix)" ]] \
   || fail "flux/sync.yaml: the paths start with $(entry_prefix), the output is at the root of its repository (./flux, ./compiled/...)"
+if [[ -f "$RUNNER_VALUES" && "$(yq '.topology' "$RUNNER_VALUES")" != "$(topology_file "$topology")" ]]; then
+  fail "${RUNNER_VALUES#"$ROOT"/}: the CI runner's topology is not the repositories of the $topology topology: scripts/configure.sh --topology $topology"
+fi
 if [[ "$topology" == split ]]; then
   if [[ ! -f "$PROJECTS_FILE" ]]; then
     fail "platform/projects.yaml is missing (split topology: scripts/configure.sh --topology split)"

@@ -47,6 +47,11 @@ gitea:
       ALLOW_ONLY_EXTERNAL_REGISTRATION: true
     oauth2_client:
       ENABLE_AUTO_REGISTRATION: true
+    # Forgejo Actions: the CI of the sources, the workflow
+    # .forgejo/workflows/okdp-gitops.yaml of each repository of the sources, run by
+    # 30-forgejo-runner (registered by scripts/configure.sh --push).
+    actions:
+      ENABLED: true
 # Trust of the sandbox CA for the calls to Keycloak: the trust-manager bundle
 # certs-bundle (20-trust-bundle), next to the system CAs (SSL_CERT_DIR). Optional: it
 # does not exist yet when Forgejo is bootstrapped (README, step 3); Forgejo reads it at

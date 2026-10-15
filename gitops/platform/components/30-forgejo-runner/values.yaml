@@ -1,0 +1,21 @@
+# Platform component 30-forgejo-runner: the OKDP package forgejo-runner
+# (sandbox-dependencies catalog). The CI of the sources: a Forgejo Actions runner of
+# 20-forgejo, for the organization okdp, that runs the workflow okdp-gitops writes in
+# each repository of the sources (.forgejo/workflows/okdp-gitops.yaml): okdp-gitops
+# compile on each push, the compiled tree pushed to the output repository, which the
+# engines deploy. scripts/configure.sh --push registers it in Forgejo with the secret
+# of okdp-forgejo-runner, and puts the workflow in the repositories of the sources; it
+# writes to them with okdp-gitops-credentials (both of 10-local-secrets-provider).
+# The repositories of the layout (okdp-gitops --config): written by
+# scripts/configure.sh --topology, the repositories of the server's topology; mono:
+# one deployments repository.
+topology: |
+  platform: {url: "http://forgejo-http.forgejo.svc.cluster.local:3000/okdp/okdp-deployments.git", branch: main, path: platform}
+  projects: {url: "http://forgejo-http.forgejo.svc.cluster.local:3000/okdp/okdp-deployments.git", branch: main, path: "projects/{project}"}
+  output: {url: "http://forgejo-http.forgejo.svc.cluster.local:3000/okdp/okdp-deployments.git", branch: main, path: ""}
+# TODO(no-kubocd): temporary registry, revert to quay.io/okdp once the OKDP images are published there.
+# TODO(okdp-gitops): no okdp-gitops image is published yet: scripts/e2e-kind.sh builds
+# one (E2E_GITOPS_IMAGE).
+okdpGitopsImage:
+  repository: repo.alliage.io:8082/okdp/images/okdp-gitops
+  tag: 0.1.0

@@ -1,0 +1,5 @@
+name: forgejo-runner
+project: forgejo
+service: forgejo-runner
+version: 13.2.0-1.0.0
+connections: []

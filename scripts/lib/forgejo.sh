@@ -23,9 +23,11 @@
 # URL or on a command line). With DRY_RUN=true, nothing is called: each action is
 # printed, the parts are still built in $WORK.
 #
-# Requires curl, jq, kubectl (port-forward, the token Secret), git.
+# Requires curl, jq, kubectl (port-forward, the token Secret, the runner's
+# registration), git.
 
 FORGEJO_COMPONENT="$ROOT/platform/components/20-forgejo"
+SECRETS_VALUES="$ROOT/platform/components/10-local-secrets-provider/values.yaml"
 DRY_RUN="${DRY_RUN:-false}"
 
 dry() { echo "[dry-run] $*"; }
@@ -35,7 +37,8 @@ forgejo_init() {
   FORGEJO_USER="$(yq '.gitea.admin.username' "$FORGEJO_COMPONENT/values.yaml")"
   FORGEJO_PASSWORD="$(yq '.gitea.admin.password' "$FORGEJO_COMPONENT/values.yaml")"
   FORGEJO_NAMESPACE="$(yq '.project' "$FORGEJO_COMPONENT/instance.yaml")"
-  FORGEJO_SERVICE="$(yq '.fullnameOverride // "forgejo"' "$FORGEJO_COMPONENT/values.yaml")-http"
+  FORGEJO_DEPLOYMENT="$(yq '.fullnameOverride // "forgejo"' "$FORGEJO_COMPONENT/values.yaml")"
+  FORGEJO_SERVICE="$FORGEJO_DEPLOYMENT-http"
   FORGEJO_BODY="$WORK/forgejo.response"
   FORGEJO_ASKPASS="$WORK/askpass.sh"
   cat >"$FORGEJO_ASKPASS" <<'ASKPASS'
@@ -224,6 +227,24 @@ forgejo_push_catalogs() {
     if git -C "$src" show-ref -q --verify "refs/tags/$ref"; then target="refs/tags/$ref"; fi
     forgejo_push_ref "$src" "$commit" "$target" "$owner" "$repo" --force
   done < <(catalog_list)
+}
+
+# forgejo_register_runner OWNER: the CI runner of the sources (30-forgejo-runner),
+# registered in Forgejo for the organization OWNER with the label okdp-gitops: the
+# offline registration of forgejo-cli, in the Forgejo pod, with the secret of Secret
+# okdp-forgejo-runner (10-local-secrets-provider) the runner connects with. Registering
+# it again changes nothing.
+forgejo_register_runner() {
+  local secret
+  secret="$(yq '.secrets[] | select(.name == "okdp-forgejo-runner") | .data.secret' "$SECRETS_VALUES")"
+  [[ "$secret" =~ ^[0-9a-f]{40}$ ]] \
+    || die "${SECRETS_VALUES#"$ROOT"/}: Secret okdp-forgejo-runner, key secret: 40 hexadecimal characters"
+  if $DRY_RUN; then dry "runner okdp-gitops of $1 (label okdp-gitops): registered in Forgejo"; return; fi
+  kubectl -n "$FORGEJO_NAMESPACE" exec "deploy/$FORGEJO_DEPLOYMENT" -c forgejo -- \
+    forgejo forgejo-cli actions register --name okdp-gitops --scope "$1" --labels okdp-gitops \
+    --secret "$secret" >/dev/null \
+    || die "cannot register the CI runner in Forgejo (forgejo forgejo-cli actions register)"
+  echo "runner okdp-gitops of $1: registered"
 }
 
 # forgejo_token_secret NAMESPACE SECRET: a new access token of the admin for the

@@ -80,7 +80,8 @@ env:
   # TODO(okdp-compiler): main, then a release, once the okdp-compiler branches land.
   OKDP_CONTROL_PLANE_SERVER_REF: okdp-compiler
   E2E_SERVER_IMAGE: okdp-control-plane-server:e2e
-  E2E_LOAD_IMAGES: okdp-control-plane-server:e2e
+  E2E_GITOPS_IMAGE: okdp-gitops:e2e
+  E2E_LOAD_IMAGES: okdp-control-plane-server:e2e okdp-gitops:e2e
 
 jobs:
   deploy-validation:
@@ -131,12 +132,13 @@ jobs:
           go-version-file: ../okdp-gitops/go.mod
           cache: false
 
-      - name: Build okdp-gitops and the control plane server image 🛠️
+      - name: Build okdp-gitops, its image (the CI runner's) and the control plane server image 🛠️
         run: |
           set -euo pipefail
           (cd ../okdp-gitops && go build -o "${RUNNER_TEMP}/bin/okdp-gitops" ./cmd/okdp-gitops)
           echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
-          # The build contexts the server's Dockerfile copies from.
+          # The build contexts the Dockerfiles copy from.
+          docker build -t "${E2E_GITOPS_IMAGE}" --build-context okdp-compiler=../okdp-compiler ../okdp-gitops
           docker build -t "${E2E_SERVER_IMAGE}" \
             --build-context okdp-compiler=../okdp-compiler --build-context okdp-gitops=../okdp-gitops \
             ../okdp-control-plane-server

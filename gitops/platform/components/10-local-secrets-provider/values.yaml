@@ -15,12 +15,19 @@ secrets:
     data:
       accessKey: snu8yoP6QAlY0ne4
       secretKey: PNzBcmeLNEdR0oviwm04NQAicOrDH1Km
-  # Write access of the console (30-okdp-control-plane-server) to the deployments
-  # repositories served by 20-forgejo (same account as the Forgejo admin).
+  # Write access of the console (30-okdp-control-plane-server: the sources) and of the
+  # CI (30-forgejo-runner: the compiled tree) to the deployments repositories served by
+  # 20-forgejo (same account as the Forgejo admin).
   - name: okdp-gitops-credentials
     data:
       username: okdp-admin
       password: okdp-sandbox-Passw0rd
+  # The registration secret of the CI runner (30-forgejo-runner) in 20-forgejo, 40
+  # hexadecimal characters: scripts/configure.sh --push registers the runner with it
+  # (forgejo forgejo-cli actions register --secret), the runner connects with it.
+  - name: okdp-forgejo-runner
+    data:
+      secret: 95942bf34caf485de028c8bec1ff7f3f3c08715d
   # The Keycloak service-account client of the console's user and group management
   # (30-okdp-control-plane-server keycloak.credentialsSecret; client of 20-keycloak).
   - name: okdp-control-plane-keycloak

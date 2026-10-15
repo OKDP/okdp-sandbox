@@ -44,7 +44,8 @@
 #   installed, README step 3; current kubectl context, port-forward, or FORGEJO_URL):
 #   compiles it into the output tree (as scripts/compile.sh does; nothing is pushed
 #   when it does not compile), creates the organization okdp and the repositories of
-#   the topology (public), copies the service catalogs of platform/catalog.yaml (their
+#   the topology (public), registers the CI runner (30-forgejo-runner) for the
+#   organization, copies the service catalogs of platform/catalog.yaml (their
 #   ref, from --catalog, else the checkouts next to this repository, else GitHub),
 #   pushes each part, the sources then the output, as one commit on top of the
 #   repository's main (refused when the console committed there since the last push;
@@ -95,7 +96,7 @@ while [[ $# -gt 0 ]]; do
     --work) WORK_DIR="$2"; shift 2 ;;
     --catalog) CATALOGS+=("$2"); shift 2 ;;
     --root) ROOT="$(cd "$2" && pwd)"; shift 2 ;;
-    -h|--help) sed -n '18,63p' "$0"; exit 0 ;;
+    -h|--help) sed -n '18,64p' "$0"; exit 0 ;;
     *) echo "configure: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -181,6 +182,7 @@ push() {
   forgejo_init
   forgejo_connect
   forgejo_ensure_org "$owner"
+  forgejo_register_runner "$owner"
   forgejo_push_catalogs
 
   case "$CUR_TOPOLOGY" in
@@ -334,10 +336,14 @@ if [[ "$TOPOLOGY" != "$CUR_TOPOLOGY" ]]; then
   echo "topology: $CUR_TOPOLOGY -> $TOPOLOGY (${SERVER_VALUES#"$ROOT"/})"
   changed=true
 fi
-# The entry points and platform/projects.yaml follow the topology (also after a hand
-# edit of the server's values).
+# The entry points, the CI runner's topology and platform/projects.yaml follow the
+# topology (also after a hand edit of the server's values).
 if entry_points_retarget "$(output_url "$TOPOLOGY")"; then
   echo "  flux/, argocd/ -> $(entry_url)"
+  changed=true
+fi
+if runner_topology_set "$TOPOLOGY"; then
+  echo "  ${RUNNER_VALUES#"$ROOT"/}: topology $TOPOLOGY"
   changed=true
 fi
 if projects_file_set "$TOPOLOGY"; then

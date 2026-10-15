@@ -46,6 +46,8 @@ FORGEJO_TOKEN_SECRET=okdp-forgejo-token
 
 SERVER_COMPONENT="$ROOT/platform/components/30-okdp-control-plane-server"
 SERVER_VALUES="$SERVER_COMPONENT/values.yaml"
+# The CI of the sources: its topology value is the topology file of okdp-gitops.
+RUNNER_VALUES="$ROOT/platform/components/30-forgejo-runner/values.yaml"
 CATALOG_FILE="$ROOT/platform/catalog.yaml"
 PROJECTS_FILE="$ROOT/platform/projects.yaml"
 # This repository: the catalogs default to checkouts next to it.
@@ -119,12 +121,20 @@ topology_current() {
   fi
 }
 
-# topology_file io|split: the topology file of the server (GITOPS_CONFIG) and of
-# okdp-gitops --config, the repositories on the in-cluster Forgejo.
+# topology_file mono|io|split: the topology file of the server (GITOPS_CONFIG, io and
+# split) and of okdp-gitops --config (the CI runner's), the repositories on the
+# in-cluster Forgejo.
 topology_file() {
   local base owner
   base="$(forgejo_cluster_url)"; owner="$(forgejo_owner)"
   case "$1" in
+    mono)
+      cat <<EOF
+platform: {url: "$(mono_url)", branch: main, path: platform}
+projects: {url: "$(mono_url)", branch: main, path: "projects/{project}"}
+output: {url: "$(mono_url)", branch: main, path: ""}
+EOF
+      ;;
     io)
       cat <<EOF
 platform: {url: "$base/$owner/$INPUT_REPO.git", branch: main, path: platform}
@@ -165,6 +175,18 @@ topology_set() {
       ;;
   esac
   [[ "$(topology_current)" == "$1" ]] || die "could not set the topology $1 in ${SERVER_VALUES#"$ROOT"/}"
+}
+
+# runner_topology_set TOPOLOGY: the topology value of the CI runner's values
+# (30-forgejo-runner), the topology file of TOPOLOGY. Returns 1 when it already is.
+runner_topology_set() {
+  local want
+  [[ -f "$RUNNER_VALUES" ]] || return 1
+  want="$(topology_file "$1")"
+  [[ "$(yq '.topology' "$RUNNER_VALUES")" != "$want" ]] || return 1
+  W="$want" yq -i '.topology = strenv(W) + "\n" | .topology style="literal"' "$RUNNER_VALUES"
+  [[ "$(yq '.topology' "$RUNNER_VALUES")" == "$want" ]] \
+    || die "could not set the topology of ${RUNNER_VALUES#"$ROOT"/}"
 }
 
 # The output repository of a topology: compiled/, flux/, argocd/ at its root.

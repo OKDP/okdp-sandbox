@@ -28,7 +28,8 @@
 #   - scripts/configure.sh sets the control plane server's gitops.engine to the engine
 #     under test and the topology to E2E_TOPOLOGY;
 #   - E2E_SERVER_IMAGE and E2E_UI_IMAGE (repository:tag) replace the images of the
-#     control plane (load them with E2E_LOAD_IMAGES);
+#     control plane, E2E_GITOPS_IMAGE the okdp-gitops image of the CI runner
+#     (30-forgejo-runner) (load them with E2E_LOAD_IMAGES);
 #   - E2E_SKIP_PROJECTS=1 drops projects/ (platform only);
 #   - then the copy is committed; scripts/configure.sh --push compiles it.
 # The service packages are read from the catalogs of platform/catalog.yaml (Git, at
@@ -47,6 +48,7 @@
 #   E2E_TOPOLOGY  mono (default), io or split (scripts/configure.sh --topology)
 #   OKDP_CATALOGS "NAME=DIR|URL ..." where the catalogs are read from
 #   E2E_SERVER_IMAGE, E2E_UI_IMAGE   images of the control plane (repository:tag)
+#   E2E_GITOPS_IMAGE         the okdp-gitops image of the CI runner (repository:tag)
 #   OKDP_GITOPS   the okdp-gitops binary (default: okdp-gitops in PATH)
 #   E2E_LOAD_IMAGES          images loaded into the kind node (space separated)
 #   E2E_SKIP_PROJECTS        1: platform components only
@@ -57,7 +59,7 @@
 set -euo pipefail
 
 ACTION="${1:-}"; ENGINE="${2:-}"
-[[ "$ACTION" =~ ^(up|push|down)$ && "$ENGINE" =~ ^(flux|argocd)$ ]] || { sed -n '18,55p' "$0"; exit 2; }
+[[ "$ACTION" =~ ^(up|push|down)$ && "$ENGINE" =~ ^(flux|argocd)$ ]] || { sed -n '18,57p' "$0"; exit 2; }
 
 SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPTS/../gitops" && pwd)"
@@ -69,6 +71,7 @@ E2E_LOAD_IMAGES="${E2E_LOAD_IMAGES:-}"
 E2E_SKIP_PROJECTS="${E2E_SKIP_PROJECTS:-}"
 E2E_SERVER_IMAGE="${E2E_SERVER_IMAGE:-}"
 E2E_UI_IMAGE="${E2E_UI_IMAGE:-}"
+E2E_GITOPS_IMAGE="${E2E_GITOPS_IMAGE:-}"
 FLUX_VERSION="${FLUX_VERSION:-v2.9.5}"
 ARGOCD_VERSION="${ARGOCD_VERSION:-v3.4.2}"
 E2E_TIMEOUT="${E2E_TIMEOUT:-2400}"
@@ -99,6 +102,11 @@ prepare_copy() {
     REPO="${image%:*}" TAG="${image##*:}" yq -i '.imageRepository = strenv(REPO) | .imageTag = strenv(TAG)' \
       "$G/platform/components/30-okdp-control-plane-$c/values.yaml"
   done
+  if [[ -n "$E2E_GITOPS_IMAGE" ]]; then
+    REPO="${E2E_GITOPS_IMAGE%:*}" TAG="${E2E_GITOPS_IMAGE##*:}" \
+      yq -i '.okdpGitopsImage.repository = strenv(REPO) | .okdpGitopsImage.tag = strenv(TAG)' \
+      "$G/platform/components/30-forgejo-runner/values.yaml"
+  fi
   "$SCRIPTS/configure.sh" --root "$G" --engine "$ENGINE" --topology "$E2E_TOPOLOGY" </dev/null >/dev/null
   git -C "$COPY" init -q -b main
   git -C "$COPY" add -A
