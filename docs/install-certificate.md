@@ -1,5 +1,10 @@
 # Installing OKDP Sandbox Certificate
 
+> The sandbox CA ("OKDP Sandbox Self-Signed CA") can sign a certificate for any name,
+> and its key lives in the sandbox cluster. Prefer a browser profile dedicated to the
+> sandbox over the system store, and remove the certificate once you are done
+> ([Removing the certificate](#removing-the-certificate)).
+
 ## System Installation
 
 ### macOS
@@ -33,3 +38,31 @@ sudo update-ca-certificates
 
 ### Safari
 Uses the macOS system keychain (see macOS system installation above).
+
+## Removing the certificate
+
+Undo the installation above once the sandbox is deleted.
+
+### macOS
+```bash
+sudo security delete-certificate -c "OKDP Sandbox Self-Signed CA" /Library/Keychains/System.keychain
+```
+(or Keychain Access → "System" keychain → "OKDP Sandbox Self-Signed CA" → Delete)
+
+### Linux (Ubuntu/Debian)
+```bash
+sudo rm /usr/local/share/ca-certificates/okdp-sandbox-ca.crt
+sudo update-ca-certificates --fresh
+```
+
+### Windows
+In PowerShell as Administrator:
+```powershell
+Get-ChildItem Cert:\LocalMachine\Root |
+  Where-Object Subject -like "*OKDP Sandbox Self-Signed CA*" | Remove-Item
+```
+(or `certlm.msc` → Trusted Root Certification Authorities → Certificates → delete it)
+
+### Chrome / Firefox
+Same place as the import (Manage certificates / View Certificates → Authorities), select
+"OKDP Sandbox Self-Signed CA" (organization "OKDP") → Delete.
