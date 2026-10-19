@@ -11,7 +11,10 @@ gitops:
   branch: main
   # flux or argocd: set it to the engine that deploys this repository.
   engine: argocd
-  credentialsSecret: okdp-gitops-credentials
+  # The Forgejo user okdp-gitops, not an admin, which writes to the repositories of the
+  # topology only: scripts/configure.sh --push creates it and writes this Secret in
+  # the server's namespace (and the CI runner's), never in Git.
+  credentialsSecret: okdp-gitops-bot
   # The upstream charts of the instances, pulled for the checks of each compile.
   chartCacheDir: /var/cache/okdp/charts
 # User and group management through the Keycloak Admin API (URL and realm from the

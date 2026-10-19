@@ -49,10 +49,14 @@
 #   ref, from --catalog, else the checkouts next to this repository, else GitHub),
 #   pushes each part, the sources then the output, as one commit on top of the
 #   repository's main (refused when the console committed there since the last push;
-#   --force replaces the console's changes), and, split, creates an access token of
-#   the Forgejo admin for the server, in the Secret gitops.forgejoTokenSecret of its
-#   namespace. --dry-run compiles, prints what it would push and keeps the parts (in
-#   --work DIR, or a printed directory).
+#   --force replaces the console's changes), gives the console and the CI their own
+#   Forgejo account, okdp-gitops, not an admin, with write access to the repositories
+#   of the topology only (its password in their Secrets, in their namespaces), and,
+#   split, creates an access token of that account for the server, in the Secret
+#   gitops.forgejoTokenSecret of its namespace. It signs in to Forgejo as its admin,
+#   of the Secret gitea.admin.existingSecret of 20-forgejo (README, step 3).
+#   --dry-run compiles, prints what it would push and keeps the parts (in --work DIR,
+#   or a printed directory).
 #
 # Usage: configure.sh [-i|--interactive] [--engine flux|argocd]
 #                     [--storage seaweedfs|rustfs] [--topology mono|io|split]
@@ -96,7 +100,7 @@ while [[ $# -gt 0 ]]; do
     --work) WORK_DIR="$2"; shift 2 ;;
     --catalog) CATALOGS+=("$2"); shift 2 ;;
     --root) ROOT="$(cd "$2" && pwd)"; shift 2 ;;
-    -h|--help) sed -n '18,64p' "$0"; exit 0 ;;
+    -h|--help) sed -n '18,68p' "$0"; exit 0 ;;
     *) echo "configure: unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -146,7 +150,7 @@ part() {
 }
 
 push() {
-  local owner prefix sha message p force=() out
+  local owner prefix sha message p force=() out repos=()
   # shellcheck source=lib/forgejo.sh
   source "$SCRIPTS/lib/forgejo.sh"
   TOP="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null)" \
@@ -201,6 +205,7 @@ push() {
       forgejo_ensure_repo "$owner" "$INPUT_REPO" "OKDP sources: platform/, projects/ (io topology)"
       forgejo_enable_actions "$owner" "$INPUT_REPO"
       forgejo_push_tree "$WORK/parts/$INPUT_REPO" "$owner" "$INPUT_REPO" "$message" "${force[@]}"
+      repos+=("$INPUT_REPO")
       ;;
     split)
       part "$WORK/parts/$PLATFORM_REPO" "${prefix:+$prefix/}platform"
@@ -208,6 +213,7 @@ push() {
       forgejo_ensure_repo "$owner" "$PLATFORM_REPO" "OKDP platform sources (split topology)"
       forgejo_enable_actions "$owner" "$PLATFORM_REPO"
       forgejo_push_tree "$WORK/parts/$PLATFORM_REPO" "$owner" "$PLATFORM_REPO" "$message" "${force[@]}"
+      repos+=("$PLATFORM_REPO")
       for p in $(yq '.projects[].name' "$PROJECTS_FILE"); do
         [[ -d "$ROOT/projects/$p" ]] || die "platform/projects.yaml lists $p, projects/$p does not exist"
         part "$WORK/parts/$PROJECT_REPO_PREFIX$p" "${prefix:+$prefix/}projects/$p"
@@ -215,6 +221,7 @@ push() {
         forgejo_ensure_repo "$owner" "$PROJECT_REPO_PREFIX$p" "OKDP project $p (split topology)"
         forgejo_enable_actions "$owner" "$PROJECT_REPO_PREFIX$p"
         forgejo_push_tree "$WORK/parts/$PROJECT_REPO_PREFIX$p" "$owner" "$PROJECT_REPO_PREFIX$p" "$message" "${force[@]}"
+        repos+=("$PROJECT_REPO_PREFIX$p")
       done
       ;;
   esac
@@ -222,6 +229,8 @@ push() {
     forgejo_ensure_repo "$owner" "$OUTPUT_REPO" "OKDP compiled tree, read by Flux and Argo CD ($CUR_TOPOLOGY topology)"
   fi
   forgejo_push_tree "$out" "$owner" "$(output_repo "$CUR_TOPOLOGY")" "$message" "${force[@]}"
+  repos+=("$(output_repo "$CUR_TOPOLOGY")")
+  forgejo_bot "$owner" "$([[ "$CUR_TOPOLOGY" == split ]] && echo true || echo false)" "${repos[@]}"
   if [[ "$CUR_TOPOLOGY" == split ]]; then
     forgejo_token_secret "$(yq '.project' "$SERVER_COMPONENT/instance.yaml")" \
       "$(yq '.gitops.forgejoTokenSecret // ""' "$SERVER_VALUES")"

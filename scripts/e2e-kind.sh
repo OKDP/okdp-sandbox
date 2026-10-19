@@ -162,9 +162,17 @@ prepare_copy
 # with the values its compile gives (a plain chart without connection files: the
 # platform values, then the component's).
 c="$G/platform/components/20-forgejo"
+ns="$(yq '.project' "$c/instance.yaml")"
+admin="$(yq '.gitea.admin.existingSecret' "$c/values.yaml")"
+# The admin account, a random password (README, step 3), kept when the cluster is reused.
+if ! kubectl -n "$ns" get secret "$admin" >/dev/null 2>&1; then
+  kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n' \
+    | kubectl -n "$ns" create secret generic "$admin" --from-literal=username=okdp-admin --from-file=password=/dev/stdin
+fi
 log "installing Forgejo (bootstrap of the 20-forgejo component)"
 helm upgrade --install "$(yq '.project + "-" + .name' "$c/instance.yaml")" "$(yq '.chart' "$c/instance.yaml")" \
-  --version "$(yq '.version' "$c/instance.yaml")" -n "$(yq '.project' "$c/instance.yaml")" --create-namespace \
+  --version "$(yq '.version' "$c/instance.yaml")" -n "$ns" --create-namespace \
   -f "$G/platform/platform-values.yaml" -f "$c/values.yaml" --wait --timeout 10m
 push_copy
 

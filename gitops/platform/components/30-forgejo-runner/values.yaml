@@ -3,9 +3,13 @@
 # 20-forgejo, for the organization okdp, that runs the workflow okdp-gitops writes in
 # each repository of the sources (.forgejo/workflows/okdp-gitops.yaml): okdp-gitops
 # compile on each push, the compiled tree pushed to the output repository, which the
-# engines deploy. scripts/configure.sh --push registers it in Forgejo with the secret
-# of okdp-forgejo-runner, and puts the workflow in the repositories of the sources; it
-# writes to them with okdp-gitops-credentials (both of 10-local-secrets-provider).
+# engines deploy. scripts/configure.sh --push registers it in Forgejo and puts the
+# workflow in the repositories of the sources. It writes the Secrets below in the
+# runner's namespace only, never in Git: the registration secret, random, and the
+# credentials of okdp-gitops, a Forgejo user that is not an admin and writes to the
+# repositories of the topology only (the console's account too).
+registrationSecret: {name: okdp-runner-registration, key: secret}
+credentialsSecret: okdp-gitops-bot
 # The repositories of the layout (okdp-gitops --config): written by
 # scripts/configure.sh --topology, the repositories of the server's topology; mono:
 # one deployments repository.

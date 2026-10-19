@@ -124,7 +124,8 @@ branch `main`):
 - `split`: `platform/projects.yaml` lists the projects (`projects: [{name: demo}]`, a
   project may override the `url`, `branch` or `path` of the template). The console
   creates a project's repository `okdp/okdp-project-<p>` through the Forgejo API (the
-  token of Secret `okdp-forgejo-token`, mounted at `/etc/okdp/forgejo/token`), pushes
+  token of Secret `okdp-forgejo-token`, of the user `okdp-gitops`, mounted at
+  `/etc/okdp/forgejo/token`), pushes
   its `project.yaml` and its CI (`.forgejo/workflows/okdp-gitops.yaml`), and adds it
   to `projects.yaml`.
 
@@ -148,16 +149,18 @@ removes `platform/projects.yaml`. `--show` prints the topology and its repositor
 [`scripts/compile.sh`](#compiling-from-the-sources-to-compiled) does (nothing is
 pushed when it does not compile), and puts it on Forgejo, through a `kubectl
 port-forward` of the current context (or `FORGEJO_URL`), with the admin account of
-[`20-forgejo`](platform/components/20-forgejo/values.yaml): it creates the organization
-`okdp` and the repositories (public: the engines and the console read them
-anonymously), copies the [service catalogs](#service-catalogs), then pushes:
+[`20-forgejo`](platform/components/20-forgejo/values.yaml) (Secret
+`forgejo/okdp-forgejo-admin`, README step 3): it creates the organization `okdp` and
+the repositories (public: the engines and the console read them anonymously), copies
+the [service catalogs](#service-catalogs), then pushes:
 
 | | mono | io | split |
 |---|---|---|---|
 | sources | `platform/`, `projects/` to `okdp-deployments` | `platform/`, `projects/` to `okdp-input` | `platform/` to `okdp-platform`, `projects/<p>/` to `okdp-project-<p>` (each project of `projects.yaml`) |
 | output | `compiled/`, `flux/`, `argocd/` next to them, in the same commit | `compiled/`, `flux/`, `argocd/` to `okdp-output` | the same |
-| CI | `.forgejo/workflows/okdp-gitops.yaml` (`okdp-gitops workflow`) at the root of each repository of the sources, its Actions enabled; the runner `okdp-gitops` registered for the organization `okdp` (`forgejo forgejo-cli actions register`, the secret of Secret `okdp-forgejo-runner`) | the same | the same |
-| token | | | a Forgejo access token of the admin for the server, in Secret `okdp-system/okdp-forgejo-token` (key `token`) |
+| CI | `.forgejo/workflows/okdp-gitops.yaml` (`okdp-gitops workflow`) at the root of each repository of the sources, its Actions enabled; the runner `okdp-gitops` registered for the organization `okdp` (`forgejo forgejo-cli actions register`, a random secret, kept in Secret `forgejo/okdp-runner-registration`) | the same | the same |
+| writer | the user `okdp-gitops`, not an admin, in the team `okdp-gitops` that writes to `okdp-deployments`; its random password in Secret `okdp-gitops-bot` of `okdp-system` (the console) and `forgejo` (the CI runner) | the same, writing to `okdp-input` and `okdp-output` | the same, writing to `okdp-platform`, the `okdp-project-<p>` and `okdp-output`, and allowed to create repositories |
+| token | | | a Forgejo access token of `okdp-gitops` for the server, in Secret `okdp-system/okdp-forgejo-token` (key `token`) |
 
 Each repository gets its part's files as one commit on top of its `main`
 (`okdp-sandbox <sha>: <subject>`); `--push` refuses when someone committed there since

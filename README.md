@@ -14,10 +14,14 @@ The sandbox is for a single workstation, not a shared or reachable environment:
 
 - It ships **published demo credentials**: Keycloak admin `admin` / `admin`, console user
   `adm` / `adm` (and the other demo users and client secrets of
-  [`20-keycloak`](gitops/platform/components/20-keycloak/values.yaml)), Forgejo `okdp-admin` /
-  `okdp-sandbox-Passw0rd` (the deployments repositories are public, and whoever can push to
-  them controls the cluster), and, with the optional Vault, the dev-mode root token `root`.
-  Never reuse them, and never reuse these values outside the sandbox.
+  [`20-keycloak`](gitops/platform/components/20-keycloak/values.yaml)), and, with the
+  optional Vault, the dev-mode root token `root`. Never reuse them, and never reuse these
+  values outside the sandbox.
+- The Forgejo credentials are generated on your cluster, never committed: the admin's
+  (step 3), and those of `okdp-gitops`, the account the console and the CI write to the
+  deployments repositories with (not an admin; its Secret exists only in the namespaces
+  of the console and of the CI runner). Whoever can push to the deployments
+  repositories still controls the cluster.
 - **Do not expose it beyond localhost.** The kind port mappings below listen on
   `127.0.0.1` only; keep it that way (no `0.0.0.0`, no port forwarding from other hosts).
 - The sandbox CA can issue a certificate for any name. If you trust it (step 6),
@@ -183,9 +187,13 @@ Forgejo holds the deployments repositories, the compiled tree among them, and th
 service catalogs: the engine reads them, the console writes to them. It is the platform
 component [`20-forgejo`](gitops/platform/components/20-forgejo); install it once with
 the same release name and values (the platform values, then the component's, as its
-compile layers them), the engine takes it over afterwards:
+compile layers them), the engine takes it over afterwards. Its admin account comes from
+a Secret you create first, with a random password:
 
 ```sh
+kubectl create namespace forgejo
+head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n' | kubectl -n forgejo create secret generic \
+  okdp-forgejo-admin --from-literal=username=okdp-admin --from-file=password=/dev/stdin
 helm upgrade --install forgejo-forgejo oci://code.forgejo.org/forgejo-helm/forgejo --version 17.1.7 \
   -n forgejo --create-namespace --wait \
   -f gitops/platform/platform-values.yaml -f gitops/platform/components/20-forgejo/values.yaml
@@ -213,15 +221,28 @@ puts the CI in the repositories of the sources (`.forgejo/workflows/okdp-gitops.
 and registers its runner,
 [`30-forgejo-runner`](gitops/platform/components/30-forgejo-runner), in Forgejo: once
 the platform is up, every push to the sources is compiled into the output repository.
-For `split`, it also gives the console a Forgejo token (Secret
+The console and the CI write to the repositories as `okdp-gitops`, a Forgejo user the
+script creates, not an admin, with write access to the repositories of the topology
+only; it writes its password, random, to Secret `okdp-gitops-bot` in the namespaces of
+the console (`okdp-system`) and of the CI runner (`forgejo`), and the runner's
+registration secret to `forgejo/okdp-runner-registration`, nowhere else. For `split`,
+it also gives the console a Forgejo token of `okdp-gitops` (Secret
 `okdp-system/okdp-forgejo-token`) to create the repositories of new projects. It
-reaches Forgejo through a `kubectl port-forward`
-of the current context, as the admin `okdp-admin` / `okdp-sandbox-Passw0rd` (see the
-component's values); `--dry-run` shows what it would do:
+reaches Forgejo through a `kubectl port-forward` of the current context, as the admin
+of Secret `forgejo/okdp-forgejo-admin`; `--dry-run` shows what it would do:
 
 ```sh
 scripts/configure.sh --push
 ```
+
+The Forgejo admin's password, for its web UI:
+`kubectl -n forgejo get secret okdp-forgejo-admin -o jsonpath='{.data.password}' | base64 -d`.
+A sandbox installed before these Secrets existed (its Forgejo admin password and the
+console's credentials were committed): `configure.sh --push` gives the admin a new
+password, in `okdp-forgejo-admin`, and the console and the CI their own account; the
+engine then removes the old Secrets `okdp-gitops-credentials` and `okdp-forgejo-runner`
+from every namespace. Remove the old runner left in Forgejo (Site administration,
+Actions, Runners: the offline `okdp-gitops`).
 
 Then choose **one** engine (Flux and Argo CD read the output repository).
 

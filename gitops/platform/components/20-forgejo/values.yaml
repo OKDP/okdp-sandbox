@@ -7,11 +7,11 @@
 # http://forgejo-http.forgejo.svc.cluster.local:3000/okdp/<repository>.git.
 # scripts/configure.sh --push creates the organization and the repositories (public:
 # the engines and the console read them anonymously) and pushes them, compiled; Flux or
-# Argo CD read the output repository, the console writes them (okdp-gitops-credentials).
+# Argo CD read the output repository. The console and the CI write to the repositories
+# of the topology as okdp-gitops, a user configure.sh --push creates, not an admin
+# (okdp-gitops-bot of 30-okdp-control-plane-server and 30-forgejo-runner).
 # Bootstrapped once with helm, with the platform values then these (see README), then
 # managed by the engine like any component. Web UI: https://forgejo.okdp.sandbox.
-# Sandbox credentials, assumed as such (same as okdp-gitops-credentials). The admin is
-# not named okdp: a user and an organization cannot share a name.
 fullnameOverride: forgejo
 test: {enabled: false}
 persistence:
@@ -20,9 +20,13 @@ persistence:
   claimName: forgejo-data
 # The chart keeps the gitea key for the Forgejo settings.
 gitea:
+  # The admin account: keys username and password of this Secret of the namespace,
+  # created before Forgejo with a random password (README, step 3), never committed.
+  # The chart sets that password on the account at each start (passwordMode
+  # keepUpdated). The admin is not named okdp: a user and an organization cannot share
+  # a name.
   admin:
-    username: okdp-admin
-    password: okdp-sandbox-Passw0rd
+    existingSecret: okdp-forgejo-admin
     email: okdp@okdp.io
   # Sign-in with Keycloak (the realm's client forgejo, 20-keycloak): its OAuth source is
   # created once the platform is up (README, after step 4; scripts/e2e-kind.sh), not
