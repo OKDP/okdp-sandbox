@@ -1,0 +1,20 @@
+# Platform component 20-trust-bundle: the OKDP package cert-manager (catalog/cert-manager, sandbox-dependencies).
+# The CA bundle, validated by trust-manager's webhook (10-cert-issuers must run first).
+# Its sources are the issuers listed below (by name only: they are created by 10-cert-issuers).
+certManager:
+  enabled: false
+protected: false
+trust:
+  bundle:
+    enabled: true
+    name: certs-bundle
+    target:
+      configMap:
+        enabled: true
+        key: root-certs.pem
+      secret:
+        enabled: true
+        key: ca.crt
+issuers:
+  selfSignedClusterIssuers:
+  - name: default-issuer

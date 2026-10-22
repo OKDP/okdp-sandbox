@@ -1,0 +1,67 @@
+# Platform component 20-storage: the OKDP package rustfs (sandbox-dependencies), the S3
+# store of the sandbox in place of seaweedfs. Hosts storage-default[-api].okdp.sandbox;
+# in-cluster endpoint http://default-storage-svc.default.svc.cluster.local:9000.
+# Publishes the s3 output default-storage with secretRef creds-seaweedfs-s3
+# (10-local-secrets-provider; the name is kept so that nothing downstream changes).
+# Parked here while inactive: scripts/configure.sh --storage rustfs swaps it into
+# platform/components/20-storage.
+# The sandbox password below is a sandbox value, assumed as such.
+rootSecretKey: sandbox-rustfs-root
+consoleHost: storage-default
+apiHost: storage-default-api
+outputSecretRef: creds-seaweedfs-s3
+# Buckets and grants of the demo project (projects/demo), as for seaweedfs. The grant
+# Secrets come from 10-local-secrets-provider (replicated to this namespace).
+buckets:
+  - {name: hive, anonymousRead: true}
+  # spark-history writes into event-logs.
+  - {name: spark-events, anonymousRead: true, paths: [event-logs]}
+  - {name: lakehouse, anonymousRead: true}
+  - {name: bronze, anonymousRead: true}
+  - {name: silver, anonymousRead: true}
+  - {name: gold, anonymousRead: true}
+grants:
+  # The store admin identity, consumed by the projects' s3 connection files.
+  - principal: platformAdmin
+    credentialsSecret: {name: creds-seaweedfs-s3, accessKeyKey: accessKey, secretKeyKey: secretKey}
+    actions: [Admin]
+  # bronze holds the external table locations the metastore validates and lists,
+  # hive its own warehouse.
+  - principal: hiveMetastore
+    credentialsSecret: {name: creds-hive-metastore-s3, accessKeyKey: accessKey, secretKeyKey: secretKey}
+    actions: [Read, Write, List]
+    buckets: [hive, bronze]
+  - principal: trino
+    credentialsSecret: {name: creds-trino-s3, accessKeyKey: accessKey, secretKeyKey: secretKey}
+    actions: [Read, Write, List, Admin]
+  - principal: jupyterHub
+    credentialsSecret: {name: creds-jupyterhub-s3, accessKeyKey: accessKey, secretKeyKey: secretKey}
+    actions: [Read, Write, List]
+    buckets: [bronze, silver, gold]
+  - principal: sparkHistory
+    credentialsSecret: {name: creds-spark-history-s3, accessKeyKey: accessKey, secretKeyKey: secretKey}
+    actions: [Read, Write, List]
+    buckets: [spark-events]
+  - principal: polaris
+    credentialsSecret: {name: creds-polaris-s3, accessKeyKey: accessKey, secretKeyKey: secretKey}
+    actions: [Read, Write, List, Admin]
+    sts: true
+  - principal: examples
+    credentialsSecret: {name: creds-examples-s3, accessKeyKey: accessKey, secretKeyKey: secretKey}
+    actions: [Admin, Read, Write, List]
+# Console sign-in (Keycloak, platform OIDC): the groups claim carries the user's
+# effective realm roles (20-keycloak), and RustFS refuses the login unless every one of
+# them names a policy, the default roles included. The buckets are anonymously
+# readable anyway.
+oidcPolicies:
+  - {name: platform_admin, actions: [Admin]}
+  - {name: data_engineer, actions: [Read, List, Write]}
+  - {name: data_scientist, actions: [Read, List, Write], buckets: [silver, gold]}
+  - {name: business_analyst, actions: [Read, List], buckets: [gold]}
+  - {name: data_steward, actions: [Read, List]}
+  - {name: auditor, actions: [Read, List]}
+  - {name: polaris_service_admin, actions: [Read, List]}
+  - {name: polaris_catalog_admin, actions: [Read, List]}
+  - {name: default-roles-master, actions: [Read, List]}
+  - {name: offline_access, actions: [Read, List]}
+  - {name: uma_authorization, actions: [Read, List]}

@@ -1,0 +1,54 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# A merge patch of ConfigMap argocd/argocd-cm, applied once at bootstrap (not a
+# resource of the entry point: kubectl apply -f gitops/argocd/ does not read this
+# directory):
+#   kubectl -n argocd patch configmap argocd-cm --type merge \
+#     --patch-file gitops/argocd/bootstrap/argocd-cm-patch.yaml
+# The health of an Application is its own status: the apps of apps (components.yaml,
+# services.yaml) then apply a sync wave once the Applications of the previous waves
+# are Healthy, the layer ordering of the platform components (Argo CD assesses no
+# health of Applications by default).
+# Sign-in with Keycloak: the realm's public client argocd (20-keycloak), the PKCE flow
+# of the UI and of argocd login --sso, no client secret. The issuer's certificate is not
+# checked: the sandbox CA does not exist yet when this patch is applied (as the control
+# plane server's oidc.insecureSkipVerify); argocd-server reads that setting at startup
+# only, restart it after the patch (kubectl -n argocd rollout restart deployment
+# argocd-server). The groups claim (the realm roles) gives the Argo CD role,
+# argocd-rbac-cm-patch.yaml. The local admin stays.
+data:
+  url: https://argocd.okdp.sandbox
+  oidc.config: |
+    name: Keycloak
+    issuer: https://keycloak.okdp.sandbox/realms/master
+    clientID: argocd
+    enablePKCEAuthentication: true
+    requestedScopes: ["openid", "profile", "email", "groups"]
+  oidc.tls.insecure.skip.verify: "true"
+  resource.customizations.health.argoproj.io_Application: |
+    hs = {}
+    hs.status = "Progressing"
+    hs.message = ""
+    if obj.status ~= nil then
+      if obj.status.health ~= nil then
+        hs.status = obj.status.health.status
+        if obj.status.health.message ~= nil then
+          hs.message = obj.status.health.message
+        end
+      end
+    end
+    return hs

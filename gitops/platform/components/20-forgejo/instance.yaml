@@ -1,0 +1,6 @@
+name: forgejo
+project: forgejo
+service: forgejo
+chart: oci://code.forgejo.org/forgejo-helm/forgejo
+version: 17.1.7
+connections: []

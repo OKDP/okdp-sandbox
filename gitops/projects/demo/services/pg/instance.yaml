@@ -1,0 +1,5 @@
+name: pg
+project: demo
+service: cnpg-postgresql
+version: 18.3.0-1.0.0
+connections: []

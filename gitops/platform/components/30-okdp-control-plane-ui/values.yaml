@@ -1,0 +1,5 @@
+# Platform component 30-okdp-control-plane-ui: the OKDP package okdp-control-plane-ui
+# (platform-charts), https://okdp-ui.okdp.sandbox. Issuer and client come from the
+# platform values; /api goes to okdp-system-okdp-control-plane-server.
+# TODO(no-kubocd): temporary registry, revert to quay.io/okdp once the OKDP images are published there.
+imageRepository: repo.alliage.io:8082/okdp/images/okdp-control-plane-ui

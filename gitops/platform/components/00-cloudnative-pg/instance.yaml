@@ -1,0 +1,6 @@
+name: cloudnative-pg
+project: cnpg-system
+service: cloudnative-pg
+chart: oci://ghcr.io/cloudnative-pg/charts/cloudnative-pg
+version: 0.29.1
+connections: []

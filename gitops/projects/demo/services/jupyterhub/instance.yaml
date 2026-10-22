@@ -1,0 +1,6 @@
+name: jupyterhub
+project: demo
+service: jupyterhub
+version: 4.4.2-1.0.0
+connections:
+  - demo-storage

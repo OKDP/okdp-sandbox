@@ -1,0 +1,5 @@
+name: superset
+project: demo
+service: superset
+version: 6.0.0-1.0.0
+connections: []

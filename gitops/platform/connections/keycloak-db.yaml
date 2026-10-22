@@ -1,0 +1,15 @@
+# description: Keycloak database on the platform PostgreSQL (20-cnpg-postgresql)
+# The database-server output cnpg-system-cnpg-postgresql-keycloak of 20-cnpg-postgresql.
+# creds-keycloak-db (username, password) is replicated to every namespace by
+# 10-local-secrets-provider.
+connections:
+  keycloak-db:
+    contract: database-server
+    engine: postgresql
+    driver: org.postgresql.Driver
+    host: cnpg-system-cnpg-postgresql-rw.cnpg-system.svc.cluster.local
+    port: 5432
+    dbName: keycloak
+    sslMode: disable
+    secretRef:
+      name: creds-keycloak-db

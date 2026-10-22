@@ -1,0 +1,5 @@
+name: spark-rbac
+project: default
+service: spark-rbac
+version: 1.0.1-1.0.0
+connections: []

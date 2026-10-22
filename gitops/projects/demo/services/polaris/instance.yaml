@@ -1,0 +1,6 @@
+name: polaris
+project: demo
+service: polaris
+version: 1.3.0-incubating-1.0.0
+connections:
+  - demo-storage

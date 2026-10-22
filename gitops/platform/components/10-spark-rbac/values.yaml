@@ -1,0 +1,3 @@
+# Platform component 10-spark-rbac: the OKDP package spark-rbac (catalog/spark-rbac, platform-charts).
+# The spark ServiceAccount and Role of the default namespace (former Release spark-rbac).
+{}

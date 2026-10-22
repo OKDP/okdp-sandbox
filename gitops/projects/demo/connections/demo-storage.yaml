@@ -1,0 +1,11 @@
+# description: Platform S3 store, shared with this project
+# The s3 output default-storage of the platform component 20-storage.
+connections:
+  demo-storage:
+    contract: s3
+    apiUrl: https://storage-default-api.okdp.sandbox
+    internalUrl: http://default-storage-svc.default.svc.cluster.local:9000
+    region: us-east-1
+    pathStyle: true
+    secretRef:
+      name: creds-seaweedfs-s3

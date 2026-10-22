@@ -1,0 +1,4 @@
+# Platform component 20-vault: the OKDP package vault (catalog/vault, sandbox-dependencies).
+# Optional: move this directory to platform/components/ (then run okdp-gitops compile).
+# Optional (was clusters/sandbox/optional/vault). Dev mode: sandbox only.
+dev: true

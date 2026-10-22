@@ -1,0 +1,193 @@
+# Optional layer 3 of the sandbox: the okdp-examples NYC-taxi medallion lakehouse seed
+# (one idempotent Job: bronze data into S3, external tables on the bronze catalog, Polaris
+# catalogs, roles and principals through polaris-admin). Move this directory to
+# projects/demo/services/ (then run okdp-gitops compile), or deploy okdp-examples from
+# the console. It also creates the Polaris catalog "demo" behind the Trino catalog
+# "iceberg" (formerly clusters/sandbox/project-demo/60-polaris-catalog-job.yaml).
+storage: demo-storage
+s3SecretRef: creds-examples-s3
+trino: demo-trino
+trinoOidcSecretRef: creds-examples-oauth2-trino
+polaris: demo-polaris
+polarisRealms:
+  realms:
+    - name: sandbox
+      catalogs:
+        - name: demo
+          type: INTERNAL
+          properties:
+            default-base-location: s3://lakehouse/demo
+          storageConfigInfo:
+            storageType: S3
+            allowedLocations:
+              - s3://lakehouse/demo
+            endpoint: $S3_ENDPOINT
+            endpointInternal: $S3_ENDPOINT
+            stsEndpoint: $S3_ENDPOINT
+            pathStyleAccess: true
+            stsUnavailable: false
+            region: us-east-1
+            roleArn: arn:aws:iam::000000000000:role/S3WriteRole
+        - name: silver
+          type: INTERNAL
+          properties:
+            default-base-location: s3://silver/
+          storageConfigInfo:
+            storageType: S3
+            allowedLocations:
+              - "s3://silver/"
+            endpoint: "$S3_ENDPOINT"
+            endpointInternal: "$S3_ENDPOINT"
+            stsEndpoint: "$S3_ENDPOINT"
+            pathStyleAccess: true
+            stsUnavailable: false
+            region: "dummy"
+            roleArn: "arn:aws:iam::000000000000:role/S3WriteRole"
+        - name: gold
+          type: INTERNAL
+          properties:
+            default-base-location: s3://gold/
+          storageConfigInfo:
+            storageType: S3
+            allowedLocations:
+              - "s3://gold/"
+            endpoint: "$S3_ENDPOINT"
+            endpointInternal: "$S3_ENDPOINT"
+            stsEndpoint: "$S3_ENDPOINT"
+            pathStyleAccess: true
+            stsUnavailable: false
+            region: "dummy"
+            roleArn: "arn:aws:iam::000000000000:role/S3WriteRole"
+      catalogRoles:
+        # Reference roles of the upstream example: reader, contributor,
+        # and a metadata administrator. Grants are catalog-wide.
+        - name: catalog_contributor
+          grants:
+            - onCatalogs: [demo, silver, gold]
+              privileges:
+                - CATALOG_READ_PROPERTIES
+                - NAMESPACE_CREATE
+                - NAMESPACE_LIST
+                - NAMESPACE_READ_PROPERTIES
+                - TABLE_CREATE
+                - TABLE_LIST
+                - TABLE_READ_PROPERTIES
+                - TABLE_WRITE_PROPERTIES
+                - TABLE_READ_DATA
+                - TABLE_WRITE_DATA
+                - VIEW_CREATE
+                - VIEW_LIST
+                - VIEW_READ_PROPERTIES
+                - VIEW_WRITE_PROPERTIES
+        - name: catalog_reader
+          grants:
+            - onCatalogs: [demo, silver, gold]
+              privileges:
+                - CATALOG_READ_PROPERTIES
+                - NAMESPACE_LIST
+                - NAMESPACE_READ_PROPERTIES
+                - TABLE_LIST
+                - TABLE_READ_PROPERTIES
+                - TABLE_READ_DATA
+                - VIEW_LIST
+                - VIEW_READ_PROPERTIES
+        - name: data_administrator
+          grants:
+            - onCatalogs: [demo, silver, gold]
+              privileges:
+                - CATALOG_READ_PROPERTIES
+                - CATALOG_WRITE_PROPERTIES
+                - NAMESPACE_CREATE
+                - NAMESPACE_LIST
+                - NAMESPACE_READ_PROPERTIES
+                - NAMESPACE_WRITE_PROPERTIES
+                - NAMESPACE_DROP
+                - TABLE_LIST
+                - TABLE_READ_PROPERTIES
+                - TABLE_WRITE_PROPERTIES
+                - TABLE_DROP
+                - VIEW_LIST
+                - VIEW_READ_PROPERTIES
+                - VIEW_WRITE_PROPERTIES
+                - VIEW_DROP
+                - POLICY_CREATE
+                - POLICY_READ
+                - POLICY_WRITE
+                - POLICY_LIST
+                - POLICY_DROP
+                - CATALOG_ATTACH_POLICY
+                - CATALOG_DETACH_POLICY
+      principalRoles:
+        - name: business_analyst
+          catalogRoles:
+            - catalog_reader
+        - name: data_scientist
+          catalogRoles:
+            - catalog_reader
+        - name: data_steward
+          catalogRoles:
+            - catalog_reader
+            - data_administrator
+        - name: data_engineer
+          catalogRoles:
+            - catalog_contributor
+            - data_administrator
+        - name: auditor
+          catalogRoles:
+            - catalog_reader
+        - name: platform_admin
+          catalogRoles:
+            - catalog_contributor
+            - data_administrator
+        # Admin-plane roles referenced by tokens and principals: Polaris
+        # requires them to exist even with no catalogRoles here.
+        - name: service_admin
+          catalogRoles: []
+        - name: catalog_admin
+          catalogRoles: []
+      principals:
+        - name: bob
+          principalRoles:
+            - data_engineer
+        - name: mark
+          principalRoles:
+            - data_scientist
+        - name: nina
+          principalRoles:
+            - business_analyst
+        - name: grace
+          principalRoles:
+            - data_steward
+        - name: alice
+          principalRoles:
+            - platform_admin
+            - service_admin
+            - catalog_admin
+        - name: eve
+          principalRoles:
+            - auditor
+        - name: adm
+          principalRoles:
+            - platform_admin
+            - service_admin
+            - catalog_admin
+        - name: service-account-svc-trino-polaris-writer
+          principalRoles:
+            - platform_admin
+            - service_admin
+            - catalog_admin
+        - name: service-account-svc-spark-etl-polaris-writer
+          principalRoles:
+            - data_engineer
+            - data_scientist
+            - business_analyst
+        # The principal the seed Job itself authenticates as, through the
+        # Keycloak client carried by the credentialsSecret.
+        - name: service-account-svc-polaris-api-admin
+          principalRoles:
+            - service_admin
+            - catalog_admin
+          credentialsSecret:
+            name: creds-polaris-oauth2-admin-okdp-sandbox
+            clientIdKey: client_id
+            clientSecretKey: client_secret

@@ -1,0 +1,6 @@
+# Platform component 00-spark-operator: the OKDP package spark-operator (catalog/spark-operator, platform-charts).
+# Former Release spark-operator (namespace spark-operator).
+jobNamespaces: [""]  # every namespace, for sandbox simplicity
+metricsEnabled: true
+podMonitorEnabled: false
+webhookEnabled: true

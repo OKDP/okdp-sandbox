@@ -1,0 +1,8 @@
+# Platform component 10-dns-server: the OKDP package dns-server (catalog/dns-server, sandbox-dependencies).
+# Former Release dns-server (dnsmasq), now CoreDNS: *.<suffix> -> target, the other names
+# forwarded; UDP and TCP on the node port.
+target: 127.0.0.1
+nodePort: 30053
+forwarders:
+  - 8.8.8.8
+  - 8.8.4.4

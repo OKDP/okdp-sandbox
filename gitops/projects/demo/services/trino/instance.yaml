@@ -1,0 +1,6 @@
+name: trino
+project: demo
+service: trino
+version: 480.0.0-1.0.0
+connections:
+  - demo-storage

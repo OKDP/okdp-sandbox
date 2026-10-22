@@ -1,0 +1,3 @@
+# Platform component 10-coredns-patch: the OKDP package coredns-patch (catalog/coredns-patch, sandbox-dependencies).
+# Patches the kube-system CoreDNS (fixed names in kube-system: install once).
+ingressService: ingress-nginx-ingress-nginx-controller.ingress-nginx.svc.cluster.local

@@ -1,0 +1,90 @@
+# Platform component 20-forgejo: the upstream Forgejo chart. The Git repositories of the
+# sandbox, in the organization okdp: the deployments repositories of the topology (mono:
+# okdp/okdp-deployments; io: okdp/okdp-input and okdp/okdp-output; split:
+# okdp/okdp-platform, okdp/okdp-project-<p> and okdp/okdp-output), the only place the
+# compiled tree lives, and the service catalogs (okdp/platform-charts,
+# okdp/sandbox-dependencies), at
+# http://forgejo-http.forgejo.svc.cluster.local:3000/okdp/<repository>.git.
+# scripts/configure.sh --push creates the organization and the repositories (public:
+# the engines and the console read them anonymously) and pushes them, compiled; Flux or
+# Argo CD read the output repository. The console and the CI write to the repositories
+# of the topology as okdp-gitops, a user configure.sh --push creates, not an admin
+# (okdp-gitops-bot of 30-okdp-control-plane-server and 30-forgejo-runner).
+# Bootstrapped once with helm, with the platform values then these (see README), then
+# managed by the engine like any component. Web UI: https://forgejo.okdp.sandbox.
+fullnameOverride: forgejo
+test: {enabled: false}
+persistence:
+  enabled: true
+  size: 2Gi
+  claimName: forgejo-data
+# The chart keeps the gitea key for the Forgejo settings.
+gitea:
+  # The admin account: keys username and password of this Secret of the namespace,
+  # created before Forgejo with a random password (README, step 3), never committed.
+  # The chart sets that password on the account at each start (passwordMode
+  # keepUpdated). The admin is not named okdp: a user and an organization cannot share
+  # a name.
+  admin:
+    existingSecret: okdp-forgejo-admin
+    email: okdp@okdp.io
+  # Sign-in with Keycloak (the realm's client forgejo, 20-keycloak): its OAuth source is
+  # created once the platform is up (README, after step 4; scripts/e2e-kind.sh), not
+  # here (gitea.oauth): the chart creates or updates it in an init container at every
+  # start, which then needs Keycloak up and its CA trusted (no Forgejo, the GitOps
+  # server, without Keycloak, and none at the bootstrap). A user is created at the first
+  # sign-in; okdp-admin stays a local account (scripts/configure.sh --push, the control
+  # plane server's token).
+  config:
+    database: {DB_TYPE: sqlite3}
+    session: {PROVIDER: memory}
+    cache: {ADAPTER: memory}
+    queue: {TYPE: level}
+    server:
+      ROOT_URL: https://forgejo.okdp.sandbox/
+    repository:
+      # A push to a missing repository of the organization creates it, public.
+      ENABLE_PUSH_CREATE_ORG: true
+      DEFAULT_PUSH_CREATE_PRIVATE: false
+    # No local sign-up: accounts come from Keycloak.
+    service:
+      ALLOW_ONLY_EXTERNAL_REGISTRATION: true
+    oauth2_client:
+      ENABLE_AUTO_REGISTRATION: true
+    # Forgejo Actions: the CI of the sources, the workflow
+    # .forgejo/workflows/okdp-gitops.yaml of each repository of the sources, run by
+    # 30-forgejo-runner (registered by scripts/configure.sh --push).
+    actions:
+      ENABLED: true
+# Trust of the sandbox CA for the calls to Keycloak: the trust-manager bundle
+# certs-bundle (20-trust-bundle), next to the system CAs (SSL_CERT_DIR). Optional: it
+# does not exist yet when Forgejo is bootstrapped (README, step 3); Forgejo reads it at
+# startup, so it is restarted once the platform is up (README, after step 4). The chart
+# sets deployment.env on the init containers too, the mount is the main container's
+# only: they make no call to Keycloak.
+deployment:
+  env:
+    - name: SSL_CERT_DIR
+      value: /etc/okdp-ca
+extraVolumes:
+  - name: certs-bundle
+    configMap:
+      name: certs-bundle
+      optional: true
+extraContainerVolumeMounts:
+  - name: certs-bundle
+    mountPath: /etc/okdp-ca
+    readOnly: true
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: default-issuer
+  hosts:
+    - host: forgejo.okdp.sandbox
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: forgejo-tls
+      hosts: [forgejo.okdp.sandbox]

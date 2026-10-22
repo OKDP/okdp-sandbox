@@ -1,0 +1,5 @@
+name: dns-server
+project: dns-server
+service: dns-server
+version: 1.47.1-1.0.0
+connections: []

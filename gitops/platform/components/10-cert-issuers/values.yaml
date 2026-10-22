@@ -1,0 +1,25 @@
+# Platform component 10-cert-issuers: the OKDP package cert-manager (catalog/cert-manager,
+# sandbox-dependencies). trust-manager, its Bundle CRD and the cluster issuers: the same
+# package as 00-cert-manager, in the same
+# namespace (trust-manager reads the CA secrets there). Former Release cert-manager, modules
+# trust and issuers.
+certManager:
+  enabled: false
+trust:
+  enabled: true
+  bundle:
+    name: certs-bundle
+    target:
+      secret:
+        enabled: true
+issuers:
+  enabled: true
+  selfSignedClusterIssuers:
+  - name: default-issuer
+    certificate:
+      commonName: OKDP Sandbox Self-Signed CA
+      organization: OKDP
+      country: FR
+      validity: 8760h
+      algorithm: ECDSA
+      size: 256

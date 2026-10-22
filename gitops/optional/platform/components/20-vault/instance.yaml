@@ -1,0 +1,5 @@
+name: vault
+project: vault
+service: vault
+version: 0.34.1-1.0.0
+connections: []

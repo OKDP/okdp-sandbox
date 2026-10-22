@@ -1,0 +1,7 @@
+storage: demo-storage
+s3SecretRef: creds-spark-history-s3
+roleMapping:
+  admin_groups: [platform_admin]
+  history_admin_groups: [platform_admin, auditor]
+  modify_groups: [platform_admin, data_engineer]
+  view_groups: [platform_admin, data_engineer, data_scientist, data_steward, business_analyst]

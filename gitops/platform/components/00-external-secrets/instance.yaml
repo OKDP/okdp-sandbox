@@ -1,0 +1,6 @@
+name: external-secrets
+project: external-secrets
+service: external-secrets
+chart: oci://ghcr.io/external-secrets/charts/external-secrets
+version: 2.11.0
+connections: []

@@ -1,0 +1,5 @@
+name: trust-bundle
+project: cert-manager
+service: cert-manager
+version: 1.21.2-1.0.0
+connections: []

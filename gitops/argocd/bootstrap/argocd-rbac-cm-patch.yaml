@@ -1,0 +1,28 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# A merge patch of ConfigMap argocd/argocd-rbac-cm, applied once at bootstrap with
+# argocd-cm-patch.yaml:
+#   kubectl -n argocd patch configmap argocd-rbac-cm --type merge \
+#     --patch-file gitops/argocd/bootstrap/argocd-rbac-cm-patch.yaml
+# The roles of the users signed in with Keycloak, from the groups claim of their ID
+# token (the realm roles, 20-keycloak): platform_admin (adm, alice) is admin, every
+# other user read-only.
+data:
+  policy.csv: |
+    g, platform_admin, role:admin
+  policy.default: role:readonly
+  scopes: "[groups]"

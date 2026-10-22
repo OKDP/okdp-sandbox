@@ -1,0 +1,126 @@
+# PySpark connections were the KuboCD parameter "connections", now sparkConnections.
+# The ${suffix} and ${storage.apiUrl} placeholders are replaced by the package
+# (catalog/jupyterhub README): an instance value holds no {{ (okdp-compile refuses it).
+storage: demo-storage
+s3SecretRef: creds-jupyterhub-s3
+fileBrowserLocations:
+  - {name: bronze, uri: 's3://bronze'}
+  - {name: silver, uri: 's3://silver'}
+  - {name: gold, uri: 's3://gold'}
+# The PySpark kernel gets nothing by default: without these the notebooks
+# reach neither the object store nor the Polaris catalogs.
+pyspark: [lakehouse, silver, gold]
+sparkConnections:
+  - name: lakehouse
+    s3SecretRef: creds-examples-s3
+    properties: |
+      spark.hadoop.fs.s3a.endpoint=${storage.apiUrl}
+      spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+      spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+      spark.hadoop.fs.s3a.access.key=$(S3_ACCESS_KEY)
+      spark.hadoop.fs.s3a.secret.key=$(S3_SECRET_KEY)
+      spark.hadoop.fs.s3a.path.style.access=true
+      spark.hadoop.fs.s3a.connection.maximum=100
+      spark.hadoop.fs.s3a.connection.ssl.enabled=true
+      spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+  - name: silver
+    properties: |
+      spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      spark.sql.catalog.silver=org.apache.iceberg.spark.SparkCatalog
+      spark.sql.catalog.silver.type=rest
+      spark.sql.catalog.silver.warehouse=silver
+      spark.sql.catalog.silver.uri=https://polaris-demo.${suffix}/api/catalog
+      spark.sql.catalog.silver.oauth2-server-uri=https://keycloak.${suffix}/realms/master/protocol/openid-connect/token
+      spark.sql.catalog.silver.scope=profile
+      spark.sql.catalog.silver.rest.auth.type=oauth2
+      spark.sql.catalog.silver.token-refresh-enabled=true
+      spark.sql.catalog.silver.header.X-Iceberg-Access-Delegation=vended-credentials
+      spark.sql.catalog.silver.io-impl=org.apache.iceberg.io.ResolvingFileIO
+      spark.sql.catalog.silver.header.Polaris-Realm=sandbox
+      spark.sql.catalog.silver.client.region=us-east-1
+      spark.sql.catalog.silver.s3.region=us-east-1
+  - name: gold
+    properties: |
+      spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      spark.sql.catalog.gold=org.apache.iceberg.spark.SparkCatalog
+      spark.sql.catalog.gold.type=rest
+      spark.sql.catalog.gold.warehouse=gold
+      spark.sql.catalog.gold.uri=https://polaris-demo.${suffix}/api/catalog
+      spark.sql.catalog.gold.oauth2-server-uri=https://keycloak.${suffix}/realms/master/protocol/openid-connect/token
+      spark.sql.catalog.gold.scope=profile
+      spark.sql.catalog.gold.rest.auth.type=oauth2
+      spark.sql.catalog.gold.token-refresh-enabled=true
+      spark.sql.catalog.gold.header.X-Iceberg-Access-Delegation=vended-credentials
+      spark.sql.catalog.gold.io-impl=org.apache.iceberg.io.ResolvingFileIO
+      spark.sql.catalog.gold.header.Polaris-Realm=sandbox
+      spark.sql.catalog.gold.client.region=us-east-1
+      spark.sql.catalog.gold.s3.region=us-east-1
+# Without allowed_groups the hub answers 403 to everyone.
+oidcRoleMapping:
+  allowed_groups: [platform_admin, data_engineer, data_scientist, business_analyst, data_steward]
+  admin_groups: [platform_admin]
+welcomeNotebook: |
+  {
+    "cells": [
+      {
+        "cell_type": "markdown",
+        "id": "127ae6f0",
+        "metadata": {},
+        "source": [
+          "# 👋 Welcome to OKDP Examples\n",
+          "\n",
+          "This workspace contains hands-on examples and ready-to-run workflows for the **[Open Kubernetes Data Platform (OKDP)](https://okdp.io)**.\n",
+          "\n",
+          "You’ll be able to explore:\n",
+          "\n",
+          "- **[SeaweedFS](https://github.com/seaweedfs/seaweedfs)** for S3-compatible object storage\n",
+          "- **[Hive Metastore](https://hive.apache.org/)** for table/catalog metadata\n",
+          "- **[Trino](https://trino.io/)** for interactive SQL queries\n",
+          "- **[Jupyter](https://jupyter.org/)** for notebooks and analysis\n",
+          "- **[Apache Superset](https://superset.apache.org/)** for dashboards and visualizations\n",
+          "\n",
+          "---\n",
+          "\n",
+          "## 🚀 Get started\n",
+          "\n",
+          "Click the link below to **download or update** the [okdp-examples](https://github.com/OKDP/okdp-examples) repository directly into your JupyterLab workspace.\n",
+          "\n",
+          "> Tip: If you already cloned it before, this will **pull the latest changes**.\n",
+          "\n",
+          "[✅ Sync OKDP Examples](https://jupyterhub-demo.${suffix}/hub/user-redirect/git-pull?repo=https://github.com/okdp/okdp-examples&branch=main&urlpath=lab/tree/okdp-examples/notebooks/index.ipynb)\n",
+          "\n",
+          "---\n",
+          "\n",
+          "## 🧭 What’s inside the repo\n",
+          "\n",
+          "- **Helm-driven workflows** to download public datasets and upload them to S3 (SeaweedFS)\n",
+          "- **Trino SQL** examples to create external tables and sync partitions\n",
+          "- **Jupyter notebooks** to query Trino (SQLAlchemy + native SQL)\n",
+          "- Optional **Superset** workflows for visualization\n",
+          "\n",
+          "If you get stuck, open the repo’s [README](https://github.com/OKDP/okdp-examples) and follow the step-by-step instructions.\n"
+        ]
+      }
+    ],
+    "metadata": {
+      "kernelspec": {
+        "display_name": "Python 3 (ipykernel)",
+        "language": "python",
+        "name": "python3"
+      },
+      "language_info": {
+        "codemirror_mode": {
+          "name": "ipython",
+          "version": 3
+        },
+        "file_extension": ".py",
+        "mimetype": "text/x-python",
+        "name": "python",
+        "nbconvert_exporter": "python",
+        "pygments_lexer": "ipython3",
+        "version": "3.12.12"
+      }
+    },
+    "nbformat": 4,
+    "nbformat_minor": 5
+  }
