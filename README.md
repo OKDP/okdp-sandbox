@@ -83,6 +83,9 @@ GitOps user ──────────────────────�
 
 ## Quick start
 
+The steps below install the sandbox with a GitOps engine. To install it with Helm only,
+without Flux, Argo CD, Forgejo or the console, see [manual-install.md](docs/manual-install.md).
+
 ### 1. Clone this repository
 
 ```sh
