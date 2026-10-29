@@ -324,7 +324,7 @@ kubectl top nodes
 > kubectl delete $(kubectl get release -n kubocd-system -o name) -n kubocd-system
 > ```
 >
-> This will delete all KuboCD `Release` resources in the `kubocd-system` namespace.
+> This requests deletion of all KuboCD `Release` resources in the `kubocd-system` namespace. The webhook refuses deletion of protected releases and releases whose package protection is not yet known.
 >
 > During upgrade command, you may see errors like:
 >
@@ -334,6 +334,8 @@ kubectl top nodes
 > ```
 >
 > These errors can be safely ignored. The affected releases are **system-protected components** managed by the platform and have a **separate upgrade lifecycle**.
+>
+> If the error says the controller has not computed protection yet, wait for reconciliation and retry. An empty `status.printProtected` means protection is not yet known. To deliberately override package protection, set `spec.protected: false` on that Release before deleting it.
 >
 > Pull the latest updates locally before starting the upgrade.
 > 
