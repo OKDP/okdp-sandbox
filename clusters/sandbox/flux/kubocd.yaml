@@ -27,7 +27,7 @@ spec:
     operation: copy
   url: oci://quay.io/kubocd/charts/kubocd-ctrl
   ref:
-    tag: v0.3.2
+    tag: v0.4.2
 
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
@@ -74,7 +74,7 @@ spec:
     controller:
       enabled: true
       replicaCount: 1
-      # Connections are gated in v0.3.2.
+      # Connection reconciliation is disabled by default.
       featureGates:
         connections: true
       logger:

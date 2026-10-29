@@ -1,5 +1,5 @@
 [![Flux](https://img.shields.io/badge/flux-latest-purple.svg)](https://fluxcd.io/)
-[![KuboCD](https://img.shields.io/badge/kubocd-v0.3.2-green.svg)](https://github.com/kubocd/kubocd)&ensp;&ensp;
+[![KuboCD](https://img.shields.io/badge/kubocd-v0.4.2-green.svg)](https://github.com/kubocd/kubocd)&ensp;&ensp;
 [![Kubernetes](https://img.shields.io/badge/kubernetes-1.28+-blue.svg)](https://kubernetes.io/)
 [![Kind](https://img.shields.io/badge/kind-latest-orange.svg)](https://kind.sigs.k8s.io/)&ensp;&ensp;
 [![License Apache2](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
