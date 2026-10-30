@@ -318,31 +318,36 @@ kubectl top nodes
 #### Deploy/Upgrade OKDP platform components
 
 > 💡 **Upgrade note**  
-> To upgrade the OKDP platform components, run:
+> Upgrade existing Releases in place. No deletion is needed, including for protected components.
+> Before starting, update your local manifests. Ensure the `kubocd-webhooks` package `v0.4.3-1.1.0` is published.
+>
+> First, upgrade the controller to v0.4.3. Wait for the HelmRelease to be Ready and the v0.4.3 rollout to complete:
 >
 > ```bash
-> kubectl delete $(kubectl get release -n kubocd-system -o name) -n kubocd-system
+> kubectl apply -f clusters/sandbox/flux/kubocd.yaml
+> kubectl -n kubocd wait --for=jsonpath='{.spec.template.spec.containers[0].image}'=quay.io/kubocd/exec/kubocd:v0.4.3 deploy/kubocd-ctrl-controller --timeout=600s
+> kubectl -n flux-system wait --for=condition=Ready helmrelease/kubocd-controller --timeout=600s
+> kubectl -n kubocd rollout status deploy/kubocd-ctrl-controller --timeout=600s
 > ```
 >
-> This requests deletion of all KuboCD `Release` resources in the `kubocd-system` namespace. The webhook refuses deletion of protected releases and releases whose package protection is not yet known.
+> If a wait fails, stop and fix the controller upgrade before going further.
 >
-> During upgrade command, you may see errors like:
+> Then apply the contracts, contexts and platform Releases, including webhooks:
 >
+> ```bash
+> kubectl apply -f clusters/sandbox/contracts/
+> kubectl apply --server-side -f clusters/sandbox/contexts/
+> kubectl apply -f clusters/sandbox/releases/
 > ```
+>
+> If you deliberately delete a Release, the webhook refuses deletion of protected releases and releases whose package protection is not yet known. For example:
+>
+> ```text
 > Error from server (Forbidden): admission webhook "vrelease-v1alpha1.kb.io" denied the request: release cert-manager is protected
 > Error from server (Forbidden): admission webhook "vrelease-v1alpha1.kb.io" denied the request: release kubocd-webhooks is protected
 > ```
 >
-> These errors can be safely ignored. The affected releases are **system-protected components** managed by the platform and have a **separate upgrade lifecycle**.
->
 > If the error says the controller has not computed protection yet, wait for reconciliation and retry. An empty `status.printProtected` means protection is not yet known. To deliberately override package protection, set `spec.protected: false` on that Release before deleting it.
->
-> Pull the latest updates locally before starting the upgrade.
-> 
-> ```bash
-> git pull --rebase
-> ```
->
 
 
 ##### Deploy/Upgrade the sandbox default context:
