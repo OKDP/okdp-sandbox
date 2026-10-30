@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.2.0](https://github.com/OKDP/okdp-sandbox/compare/v1.1.0...v1.2.0) (2026-10-30)
+
+
+### Features
+
+* **kubocd:** move the controller and the webhooks to v0.4.3 ([a369373](https://github.com/OKDP/okdp-sandbox/commit/a3693730c90502f9cbd43839a89f2f5d6f861621))
+* **kubocd:** upgrade the controller and the webhooks to v0.4.2 ([864343b](https://github.com/OKDP/okdp-sandbox/commit/864343b230d91a41171a0d91f04ba0ec4bd62a7d))
+* **optional:** replace vault with openbao ([41a0c67](https://github.com/OKDP/okdp-sandbox/commit/41a0c675f3be51a8c455c7069db785bfd0c55aa9))
+
+
+### Bug Fixes
+
+* **project-demo:** move airflow to 3.2.1-1.0.2 ([0b14525](https://github.com/OKDP/okdp-sandbox/commit/0b1452549630241a5fcb019a2a194f748add62eb))
+
+
+### Reverts
+
+* keep airflow on 3.2.1-1.0.1 in project-demo ([af89fd1](https://github.com/OKDP/okdp-sandbox/commit/af89fd1e09e98b438a7db223fe19ee9dfb8f0028))
+
 ## [1.1.0](https://github.com/OKDP/okdp-sandbox/compare/v1.0.0...v1.1.0) (2026-10-05)
 
 
