@@ -39,6 +39,7 @@ spec:
     s3SecretRef: creds-hive-metastore-s3
     warehouseBucket: hive
   targetNamespace: demo
+  protected: false
 ---
 apiVersion: kubocd.kubotal.io/v1alpha1
 kind: Release
@@ -67,6 +68,7 @@ spec:
       - name: service-account-svc-polaris-api-admin
         roles: [service_admin, catalog_admin]
   targetNamespace: demo
+  protected: false
 ---
 apiVersion: kubocd.kubotal.io/v1alpha1
 kind: Release
@@ -116,6 +118,7 @@ spec:
     enableOPA: false
     # Superset reaches the coordinator through the internal service, in HTTP.
   targetNamespace: demo
+  protected: false
 ---
 apiVersion: kubocd.kubotal.io/v1alpha1
 kind: Release
@@ -149,6 +152,7 @@ spec:
       - { name: trino-silver, trino: kcd-demo-trino-endpoint, catalog: silver }
       - { name: trino-gold,   trino: kcd-demo-trino-endpoint, catalog: gold   }
   targetNamespace: demo
+  protected: false
 ---
 apiVersion: kubocd.kubotal.io/v1alpha1
 kind: Release
@@ -188,6 +192,7 @@ spec:
       subPath: airflow/dags
       period: 60s
   targetNamespace: demo
+  protected: false
 ---
 apiVersion: kubocd.kubotal.io/v1alpha1
 kind: Release
@@ -330,6 +335,7 @@ spec:
         "nbformat_minor": 5
       }
   targetNamespace: demo
+  protected: false
 ---
 apiVersion: kubocd.kubotal.io/v1alpha1
 kind: Release
@@ -356,3 +362,4 @@ spec:
       modify_groups: [platform_admin, data_engineer]
       view_groups: [platform_admin, data_engineer, data_scientist, data_steward, business_analyst]
   targetNamespace: demo
+  protected: false

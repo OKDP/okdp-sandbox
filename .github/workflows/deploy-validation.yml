@@ -43,6 +43,9 @@ on:
       - "clusters/**"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 defaults:
   run:
     shell: bash
@@ -56,6 +59,24 @@ jobs:
 
       - name: Checkout repo ⚡️
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate Kustomizations and release manifest list ✅
+        run: |
+          set -euo pipefail
+          for dir in clusters/sandbox/contexts clusters/sandbox/releases clusters/sandbox/gitops; do
+            echo "Building Kustomize directory: ${dir}"
+            kubectl kustomize "${dir}" >/dev/null
+          done
+
+          # Verify clusters/sandbox/releases/Kustomization matches *.yaml exactly.
+          actual="$(find clusters/sandbox/releases -maxdepth 1 -type f -name '*.yaml' -exec basename {} \; | sort)"
+          declared="$(awk '/^resources:/{in_res=1; next} in_res && /^[^[:space:]#]/{in_res=0} in_res && /^[[:space:]]*-[[:space:]]*/{sub(/^[[:space:]]*-[[:space:]]*/, ""); sub(/[[:space:]]*(#.*)?$/, ""); print}' clusters/sandbox/releases/Kustomization | sort)"
+          if ! diff -u <(printf '%s\n' "${actual}") <(printf '%s\n' "${declared}"); then
+            echo "ERROR: clusters/sandbox/releases/Kustomization does not match *.yaml files in clusters/sandbox/releases/" >&2
+            exit 1
+          fi
 
       - name: Free up disk space 📦
         uses: okdp/gh-workflows/.github/actions/free-disk-space@v1
