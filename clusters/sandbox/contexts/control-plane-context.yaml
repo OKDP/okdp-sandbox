@@ -1,0 +1,60 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# The Control Plane Context. Read only by the Control Plane server (not used
+# by KuboCD Releases), and updated by the console when editing the service
+# catalog. Once modified outside kubectl, re-applying this file with
+# --server-side conflicts on serviceCatalog unless --force-conflicts is passed
+# (which overwrites the catalog with the values in this file). In GitOps mode
+# (persistenceMode: git), the Control Plane Git repository owns
+# contexts/control-plane.yaml and Flux reconciles it onto the cluster.
+apiVersion: kubocd.kubotal.io/v1alpha1
+kind: Context
+metadata:
+  name: control-plane
+  namespace: okdp-system
+spec:
+  context:
+    serviceCatalog:
+      defaultRepository: quay.io/okdp/platform-packages
+      # Console sidebar, one section per entry, in this order. A service sits in
+      # the section it is listed under. Icons are PrimeIcons names.
+      categories:
+        - title: Data Catalog
+          icon: pi-database
+          services:
+            - { name: hive-metastore, versions: ["4.0.1-1.0.1"], default: "4.0.1-1.0.1", description: Hive metastore }
+            - { name: polaris, versions: ["1.3.0-incubating-2.0.0"], default: "1.3.0-incubating-2.0.0", description: Apache Polaris Iceberg catalog }
+        - title: Interactive Query
+          icon: pi-bolt
+          services:
+            - { name: trino, versions: ["480.0.0-1.0.1"], default: "480.0.0-1.0.1", description: Trino }
+        - title: SQL & BI
+          icon: pi-chart-bar
+          services:
+            - { name: superset, versions: ["6.0.0-1.1.0"], default: "6.0.0-1.1.0", description: Superset }
+        - title: Notebooks
+          icon: pi-book
+          services:
+            - { name: jupyterhub, versions: ["4.3.3-1.0.1"], default: "4.3.3-1.0.1", description: JupyterHub }
+        - title: Data Engineering
+          icon: pi-cog
+          services:
+            - { name: airflow, versions: ["3.2.1-1.0.1"], default: "3.2.1-1.0.1", description: Apache Airflow }
+        - title: Spark
+          icon: pi-bolt
+          services:
+            - { name: spark-history-server, versions: ["3.5.1-1.0.1"], default: "3.5.1-1.0.1", description: Spark History Server }

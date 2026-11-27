@@ -4,6 +4,8 @@
 [![Kind](https://img.shields.io/badge/kind-latest-orange.svg)](https://kind.sigs.k8s.io/)&ensp;&ensp;
 [![License Apache2](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 
+> **Sandbox modes:** **Kubernetes (default)** | [GitOps mode](docs/gitops.md)
+
 OKDP Sandbox is a hands-on environment for deploying, testing, and exploring the [OKDP](https://okdp.io) ecosystem on a local Kubernetes cluster.
 
 It deploys the platform foundations (identity, object storage, SQL, secrets, ingress) and the OKDP Control Plane on a local cluster. Data services (Spark jobs, notebooks, SQL querying, dashboards) are then instantiated per project through the Control Plane. See [What is included](#what-is-included-in-the-sandbox) for the full component list.
@@ -48,11 +50,12 @@ This repository owns the **single-cluster sandbox deployment**. It describes how
 
 - `clusters/sandbox/flux/` : Flux bootstrap of the KuboCD controller (`kubocd.yaml`)
 - `clusters/sandbox/releases/` : KuboCD `Release` manifests (what gets installed, which package tag, which parameters)
-- `clusters/sandbox/contexts/` : the platform `Context` (in `okdp-system`, whose namespace is declared at the top of the file) and the `kubocd-system` one that keeps the platform Releases on hand-declared OIDC clients
+- `clusters/sandbox/contexts/` : the `okdp-system` namespace (`00-namespace.yaml`, applied first), the `platform` and `control-plane` Contexts it holds (see [below](#the-platform-and-control-plane-contexts)), and the `platform-services` Context in `kubocd-system` (`kubocd-system-context.yaml`) that keeps the platform Releases on hand-declared OIDC clients
 - `clusters/sandbox/contracts/` : the KuboCD `ClusterContract` files, applied before the contexts
-- `clusters/sandbox/optional/` : components the platform can run on but does not need, applied by hand only, see [its README](clusters/sandbox/optional/README.md)
+- `clusters/sandbox/gitops/` : Kustomize overlay to deploy the Control Plane in GitOps mode (`persistenceMode: git`), see [docs/gitops.md](docs/gitops.md)
+- `clusters/sandbox/optional/` : optional components and workflows not applied by default, see [its README](clusters/sandbox/optional/README.md)
 - `clusters/sandbox/project-demo/` : the demo project and its example workloads (layers 2 and 3), see [its README](clusters/sandbox/project-demo/README.md)
-- `docs/` : deployment guides (DNS, certificates)
+- `docs/` : deployment guides (GitOps, DNS, certificates)
 
 The **packages themselves** (the KuboCD packages bundled as OCI artifacts) live in dedicated repositories, split by ownership, OKDP core versus the third-party dependencies OKDP does not own and are consumed here from the registry. This repository never builds packages, it only deploys published ones.
 
@@ -65,6 +68,51 @@ The **packages themselves** (the KuboCD packages bundled as OCI artifacts) live 
 | Control Plane web UI | [`OKDP/okdp-control-plane-ui`](https://github.com/OKDP/okdp-control-plane-ui) |
 | Control Plane backend server (API) | [`OKDP/okdp-control-plane-server`](https://github.com/OKDP/okdp-control-plane-server) |
 | Single-cluster sandbox deployment (this repository) | `OKDP/okdp-sandbox` |
+
+## The platform and control-plane Contexts
+
+`okdp-system` holds two Contexts, both applied from `clusters/sandbox/contexts/`:
+
+| Context | File | Carries | Read by | Written by |
+|---|---|---|---|---|
+| `platform` | `platform-context.yaml` | `ingress`, `oidc`, `proxy`, `certificateIssuers`, `storageClass` | every Release (it is the KuboCD default Context), the Control Plane server | the operator |
+| `control-plane` | `control-plane-context.yaml` | `serviceCatalog` (`defaultRepository`, `categories`) | the Control Plane server only (not used by KuboCD Releases) | the console, or Git in [GitOps mode](docs/gitops.md) |
+
+`control-plane-context.yaml` defines the initial service catalog. Once the
+console or Git changes that catalog, re-applying the directory
+with `kubectl apply --server-side -f clusters/sandbox/contexts/` causes a
+field-manager conflict on `serviceCatalog` unless `--force-conflicts` is passed
+(which overwrites the catalog with the values in this file).
+
+## Sandbox modes: Kubernetes vs GitOps
+
+<p align="center">
+  <img src="docs/assets/gitops-paths.svg" alt="OKDP Sandbox modes: Kubernetes vs GitOps" />
+</p>
+
+You can run the OKDP Sandbox (sandbox prerequisites and OKDP Control Plane) in
+one of two modes, and switch between them without stopping running workloads
+(see
+[Switching back to Kubernetes mode](docs/gitops.md#switching-back-to-kubernetes-mode)):
+
+1. **Kubernetes mode (default, [Quick start](#quick-start) below).** Installs
+   the sandbox prerequisites and the OKDP Control Plane with `kubectl` (at
+   [Deploy/Upgrade OKDP components](#deployupgrade-okdp-components)) and stores
+   the service catalog and projects directly in Kubernetes. No Git repository is
+   required (Flux is still installed locally because KuboCD builds on it).
+2. **GitOps mode ([docs/gitops.md](docs/gitops.md)).** Flux reconciles the
+   sandbox prerequisites and the Control Plane installation from Git, while the
+   Control Plane commits the service catalog and projects to Git (using the
+   optional in-cluster Gitea server out of the box, or your own Git server,
+   with an option for
+   [Control Plane-only GitOps](docs/gitops.md#control-plane-only-gitops)).
+
+In both modes, you create and manage projects in the OKDP console to deploy data
+services from the catalog. Once deployed, the
+[demo project](clusters/sandbox/project-demo/README.md)
+(`clusters/sandbox/project-demo/`) also appears in the console: it is managed
+directly in Kubernetes mode, or imported into Git in
+[GitOps mode](clusters/sandbox/project-demo/README.md#running-in-gitops-mode).
 
 ## Prerequisites
 
@@ -81,6 +129,16 @@ The **packages themselves** (the KuboCD packages bundled as OCI artifacts) live 
 - [Flux CLI v2.7.5](https://fluxcd.io/flux/installation/)
 
 ## Quick start
+
+> ℹ️ **Which steps to follow:**
+> - **Kubernetes mode (default):** follow Steps 1 to 5 below.
+> - **Full GitOps:** complete `1. Clone`, `2. Kind`, `Install Flux` and
+>   `Install metrics-server` below, then continue at
+>   [docs/gitops.md](docs/gitops.md#before-you-start).
+> - **Control Plane-only GitOps:** follow below up to
+>   [Deploy/Upgrade the sandbox contexts](#deployupgrade-the-sandbox-contexts),
+>   then continue at
+>   [Control Plane-only GitOps](docs/gitops.md#control-plane-only-gitops).
 
 The sandbox deployment files live in this repository under `clusters/sandbox/`.
 
@@ -173,8 +231,8 @@ kind create cluster --config "$env:TEMP\okdp-sandbox-config.yaml"
 > - **helm-controller**: manages Helm releases declaratively
 > - **notification-controller**: handles alerts and automation triggers
 >
->  In this setup, Flux controllers manage resources locally and are **not connected to a Git repository**.  
-> Manifests are applied manually with `kubectl`, so **no Git access is required**.
+> In the default Kubernetes mode, Flux controllers manage resources locally and are **not connected to a Git repository**.  
+> Manifests are applied manually with `kubectl`, so **no Git access is required** (in [GitOps mode](docs/gitops.md), Flux reconciles them from Git).
 > </details>
 
 ```sh
@@ -241,43 +299,6 @@ kubectl -n flux-system wait --for=condition=Available deploy \
   -l app.kubernetes.io/part-of=flux --timeout=300s
 ```
 
-#### Install KuboCD (Flux extension)
-> <details>
-> <summary>ℹ️ <strong>What is KuboCD?</strong></summary>
->
-> ℹ️ [KuboCD](https://www.kubocd.io/) is the continuous delivery layer built on top of **Flux**.  
-> It manages platform components and applications **declaratively**, providing a higher-level CD abstraction for GitOps workflows.
-> </details>
-
-```sh
-kubectl apply -f clusters/sandbox/flux/kubocd.yaml
-```
-
-##### Wait for KuboCD to be installed before continuing:
-
-1. Wait for Flux to finish installing KuboCD chart:
-
-```sh
-kubectl -n flux-system wait --for=condition=Ready helmrelease/kubocd-controller --timeout=300s
-```
-
-2. Wait for KuboCD CRDs to be registered:
-
-```sh
-kubectl wait --for=condition=Established --timeout=300s \
-  crd/contexts.kubocd.kubotal.io \
-  crd/releases.kubocd.kubotal.io \
-  crd/configs.kubocd.kubotal.io \
-  crd/clustercontracts.kubocd.kubotal.io \
-  crd/connections.kubocd.kubotal.io
-```
-
-3. Wait for KuboCD controller to be up:
-
-```sh
-kubectl -n kubocd wait --for=condition=Available deploy/kubocd-ctrl-controller --timeout=300s
-```
-
 #### Install metrics-server
 
 ```sh
@@ -315,6 +336,50 @@ kubectl top nodes
 > 💡 `kubectl top nodes` may still report `metrics not available yet` for a few seconds
 > after the API becomes available, until the first scrape completes. Re-run it if so.
 
+> ℹ️ **Running Full GitOps?**
+> Stop here on this page and continue with
+> [docs/gitops.md](docs/gitops.md#step-1-start-the-in-cluster-git-server),
+> where Flux reconciles the sandbox prerequisites and the Control Plane
+> installation from Git. For **Kubernetes mode** or **Control Plane-only GitOps**,
+> continue below.
+
+#### Install KuboCD (Flux extension)
+> <details>
+> <summary>ℹ️ <strong>What is KuboCD?</strong></summary>
+>
+> ℹ️ [KuboCD](https://www.kubocd.io/) is the continuous delivery layer built on top of **Flux**.
+> It manages platform components and applications **declaratively**, providing a higher-level CD abstraction for GitOps workflows.
+> </details>
+
+```sh
+kubectl apply -f clusters/sandbox/flux/kubocd.yaml
+```
+
+##### Wait for KuboCD to be installed before continuing:
+
+1. Wait for Flux to finish installing KuboCD chart:
+
+```sh
+kubectl -n flux-system wait --for=condition=Ready helmrelease/kubocd-controller --timeout=300s
+```
+
+2. Wait for KuboCD CRDs to be registered:
+
+```sh
+kubectl wait --for=condition=Established --timeout=300s \
+  crd/contexts.kubocd.kubotal.io \
+  crd/releases.kubocd.kubotal.io \
+  crd/configs.kubocd.kubotal.io \
+  crd/clustercontracts.kubocd.kubotal.io \
+  crd/connections.kubocd.kubotal.io
+```
+
+3. Wait for KuboCD controller to be up:
+
+```sh
+kubectl -n kubocd wait --for=condition=Available deploy/kubocd-ctrl-controller --timeout=300s
+```
+
 #### Deploy/Upgrade OKDP platform components
 
 > 💡 **Upgrade note**  
@@ -332,13 +397,20 @@ kubectl top nodes
 >
 > If a wait fails, stop and fix the controller upgrade before going further.
 >
-> Then apply the contracts, contexts and platform Releases, including webhooks:
+> Then apply the contracts, contexts and platform Releases, including webhooks
+> (in GitOps mode, commit and push updates to your Git repository, or run
+> `kubectl apply -k clusters/sandbox/gitops` instead of `releases/` when keeping
+> prerequisites on `kubectl`):
 >
 > ```bash
 > kubectl apply -f clusters/sandbox/contracts/
-> kubectl apply --server-side -f clusters/sandbox/contexts/
+> kubectl apply --server-side -k clusters/sandbox/contexts
+> kubectl -n okdp-system get context control-plane >/dev/null 2>&1 \
+>   || kubectl apply --server-side -f clusters/sandbox/contexts/control-plane-context.yaml
 > kubectl apply -f clusters/sandbox/releases/
 > ```
+>
+> *(If you previously customized `Context/platform` with `kubectl patch` for a custom domain or proxy, fold those edits into `clusters/sandbox/contexts/platform-context.yaml` and pass `--force-conflicts` on the `-k clusters/sandbox/contexts` line.)*
 >
 > If you deliberately delete a Release, the webhook refuses deletion of protected releases and releases whose package protection is not yet known. For example:
 >
@@ -350,7 +422,7 @@ kubectl top nodes
 > If the error says the controller has not computed protection yet, wait for reconciliation and retry. An empty `status.printProtected` means protection is not yet known. To deliberately override package protection, set `spec.protected: false` on that Release before deleting it.
 
 
-##### Deploy/Upgrade the sandbox default context:
+##### Deploy/Upgrade the sandbox contexts:
 
 > <details>
 > <summary>ℹ️ <strong>What is KuboCD Context?</strong></summary>
@@ -373,8 +445,12 @@ kubectl top nodes
 
 ```sh
 kubectl apply -f clusters/sandbox/contracts/
-kubectl apply --server-side -f clusters/sandbox/contexts/
+kubectl apply --server-side -k clusters/sandbox/contexts
+kubectl -n okdp-system get context control-plane >/dev/null 2>&1 \
+  || kubectl apply --server-side -f clusters/sandbox/contexts/control-plane-context.yaml
 ```
+
+*(The `Kustomization` files in `clusters/sandbox/contexts/` and `clusters/sandbox/releases/` omit the `.yaml` extension so `kubectl apply -f` skips them while `kubectl apply -k` and Flux still recognize them.)*
 
 ##### Configure a custom ingress domain for OKDP Services (Optional)
 
@@ -435,14 +511,20 @@ spec:
 
 ##### Deploy/Upgrade OKDP components:
 
+- **Default Kubernetes mode:** run the command below (`clusters/sandbox/releases/`).
+- **Control Plane-only GitOps** *(when prerequisites above were applied with `kubectl`)*:
+  do not run the command below. Follow
+  [Control Plane-only GitOps](docs/gitops.md#control-plane-only-gitops)
+  (`kubectl apply -k clusters/sandbox/gitops`) instead, then return to
+  [4. DNS Setup](#4-dns-setup).
+
 ```sh
 kubectl apply -f clusters/sandbox/releases/
 ```
 
-> ℹ️ **Installing optional components:**
-> 
-> The directory [clusters/sandbox/optional](clusters/sandbox/optional) is deliberately excluded from that apply. It contains components that are supported by the platform but are not required, including KubAuth, SeaweedFS, and OpenBao.  
-> To install an optional component, see [clusters/sandbox/optional/README.md](clusters/sandbox/optional/README.md) for its purpose and configuration.
+> ℹ️ **Optional components:**
+>
+> The directory [clusters/sandbox/optional](clusters/sandbox/optional) is deliberately excluded from that apply. It holds optional components the platform supports but does not need, each described in [clusters/sandbox/optional/README.md](clusters/sandbox/optional/README.md).
 
 ##### Verify and monitor release deployment status
 

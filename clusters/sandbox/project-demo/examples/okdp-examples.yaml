@@ -209,3 +209,4 @@ spec:
                 clientIdKey: client_id
                 clientSecretKey: client_secret
   targetNamespace: demo
+  protected: false

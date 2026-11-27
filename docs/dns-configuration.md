@@ -98,7 +98,7 @@ Resolve-DnsName okdp-ui.okdp.sandbox
 
 Add the following entries to your `/etc/hosts` file for each service that will be deployed:
 ```
-127.0.0.1 keycloak.okdp.sandbox kad.okdp.sandbox okdp-server.okdp.sandbox okdp-ui.okdp.sandbox 
+127.0.0.1 keycloak.okdp.sandbox kad.okdp.sandbox okdp-server.okdp.sandbox okdp-ui.okdp.sandbox git.okdp.sandbox
 ```
 
 **Important**: Always use a single line for all hostnames pointing to 127.0.0.1. Having multiple lines with the same IP address (127.0.0.1) can cause DNS resolution problems.

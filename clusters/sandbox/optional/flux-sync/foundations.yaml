@@ -1,0 +1,75 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+# Reconciles KuboCD, ClusterContracts and platform-owned Contexts from
+# GitRepository/okdp-platform (created in Step 3 of docs/gitops.md).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: okdp-kubocd
+  namespace: flux-system
+  labels:
+    okdp.io/flux-sync: sandbox
+spec:
+  interval: 5m
+  retryInterval: 15s
+  sourceRef:
+    kind: GitRepository
+    name: okdp-platform
+  path: ./clusters/sandbox/flux
+  prune: true
+  wait: true
+  timeout: 10m
+  deletionPolicy: Orphan
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: okdp-contracts
+  namespace: flux-system
+  labels:
+    okdp.io/flux-sync: sandbox
+spec:
+  interval: 5m
+  retryInterval: 15s
+  dependsOn:
+    - name: okdp-kubocd
+  sourceRef:
+    kind: GitRepository
+    name: okdp-platform
+  path: ./clusters/sandbox/contracts
+  prune: true
+  wait: false
+  deletionPolicy: Orphan
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: okdp-contexts
+  namespace: flux-system
+  labels:
+    okdp.io/flux-sync: sandbox
+spec:
+  interval: 5m
+  retryInterval: 15s
+  dependsOn:
+    - name: okdp-contracts
+  sourceRef:
+    kind: GitRepository
+    name: okdp-platform
+  path: ./clusters/sandbox/contexts
+  prune: true
+  wait: false
+  deletionPolicy: Orphan

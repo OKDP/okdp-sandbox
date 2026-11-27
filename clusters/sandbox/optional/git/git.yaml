@@ -1,0 +1,319 @@
+#
+# Copyright 2026 The OKDP Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+
+# WARNING: Local sandbox only. This in-cluster Gitea server uses static demo
+# credentials and plain HTTP inside the cluster. Never deploy it on a shared,
+# staging or production cluster.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: git
+---
+# WARNING: Static local sandbox credentials only. Never deploy this Secret on a
+# shared cluster. The account of the Git server is reset from this Secret at
+# each start. Flux and the Control Plane authenticate with okdp-platform-git
+# (flux-system) and okdp-control-plane-git (okdp-system), created with
+# flux create secret git (see docs/gitops.md).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: git-credentials
+  namespace: git
+type: Opaque
+stringData:
+  username: okdp
+  password: okdp-sandbox
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: git-bootstrap
+  namespace: git
+data:
+  start.sh: |
+    #!/bin/sh
+    # Starts Gitea with one account and one private, empty repository,
+    # both taken from the environment. Safe to run on every restart.
+    set -eu
+
+    case "$GIT_USERNAME" in
+      ''|*[!A-Za-z0-9._-]*|-*) echo "invalid GIT_USERNAME" >&2; exit 1 ;;
+    esac
+    case "$GIT_REPOSITORY" in
+      ''|*[!A-Za-z0-9._-]*|-*) echo "invalid GIT_REPOSITORY" >&2; exit 1 ;;
+    esac
+
+    /usr/local/bin/docker-setup.sh
+    gitea -c "$GITEA_APP_INI" migrate
+
+    if gitea -c "$GITEA_APP_INI" admin user list | awk 'NR > 1 { print $2 }' | grep -Fqx -- "$GIT_USERNAME"; then
+      gitea -c "$GITEA_APP_INI" admin user change-password \
+        --username="$GIT_USERNAME" --password="$GIT_PASSWORD" --must-change-password=false
+    else
+      gitea -c "$GITEA_APP_INI" admin user create \
+        --username="$GIT_USERNAME" --password="$GIT_PASSWORD" \
+        --email="$GIT_USERNAME@okdp.sandbox" --must-change-password=false
+    fi
+
+    gitea -c "$GITEA_APP_INI" web &
+    pid=$!
+    # Stay alive until Gitea has shut down: dumb-init exits with its direct child.
+    trap 'kill -TERM "$pid" 2>/dev/null || true' TERM INT
+
+    until curl -fsS -o /dev/null http://localhost:3000/api/healthz; do
+      kill -0 "$pid" 2>/dev/null || exit 1
+      sleep 1
+    done
+
+    basic_auth=$(printf '%s:%s' "$GIT_USERNAME" "$GIT_PASSWORD" | base64 | tr -d '\r\n')
+    code=$(printf 'header = "Authorization: Basic %s"\n' "$basic_auth" | curl -sS -m 15 -o /dev/null -w '%{http_code}' \
+      -K - -H 'Content-Type: application/json' \
+      -d "{\"name\":\"$GIT_REPOSITORY\",\"private\":true,\"default_branch\":\"main\"}" \
+      http://localhost:3000/api/v1/user/repos || true)
+    unset basic_auth
+    code=${code:-000}
+    case "$code" in
+      201) echo "created repository $GIT_USERNAME/$GIT_REPOSITORY" ;;
+      409) echo "repository $GIT_USERNAME/$GIT_REPOSITORY already exists" ;;
+      *)
+        echo "repository creation failed (HTTP $code)" >&2
+        kill -TERM "$pid" 2>/dev/null || true
+        wait "$pid" 2>/dev/null || true
+        exit 1
+        ;;
+    esac
+    mkdir -p "$GITEA_TEMP"
+    touch "$GITEA_TEMP/repository-ready"
+
+    set +e
+    wait "$pid"
+    rc=$?
+    while kill -0 "$pid" 2>/dev/null; do
+      wait "$pid"
+      rc=$?
+    done
+    exit "$rc"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: git-data
+  namespace: git
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: git
+  namespace: git
+  labels:
+    app.kubernetes.io/name: git
+spec:
+  replicas: 1
+  # The data volume is ReadWriteOnce and SQLite takes a file lock.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: git
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: git
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gitea
+          image: docker.io/gitea/gitea:28.4.0-rootless
+          command: ["/usr/bin/dumb-init", "--", "/bin/sh", "/bootstrap/start.sh"]
+          env:
+            - name: GIT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: git-credentials
+                  key: username
+            - name: GIT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: git-credentials
+                  key: password
+            - name: GIT_REPOSITORY
+              value: okdp-sandbox
+            # Keeps app.ini, and the secrets Gitea generates into it, on the volume.
+            - name: GITEA_APP_INI
+              value: /var/lib/gitea/custom/conf/app.ini
+            - name: GITEA_TEMP
+              value: /tmp/gitea
+            - name: GITEA__security__INSTALL_LOCK
+              value: "true"
+            - name: GITEA__server__ROOT_URL
+              value: https://git.okdp.sandbox/
+            - name: GITEA__server__HTTP_PORT
+              value: "3000"
+            - name: GITEA__server__DISABLE_SSH
+              value: "true"
+            - name: GITEA__server__OFFLINE_MODE
+              value: "true"
+            - name: GITEA__database__DB_TYPE
+              value: sqlite3
+            - name: GITEA__repository__DEFAULT_BRANCH
+              value: main
+            - name: GITEA__service__DISABLE_REGISTRATION
+              value: "true"
+            - name: GITEA__service__REQUIRE_SIGNIN_VIEW
+              value: "true"
+            - name: GITEA__session__COOKIE_SECURE
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 3000
+          startupProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - test -f "$GITEA_TEMP/repository-ready" && curl -fsS -m 2 -o /dev/null http://localhost:3000/api/healthz
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: bootstrap
+              mountPath: /bootstrap
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/gitea
+            - name: tmp
+              mountPath: /tmp
+            - name: etc-gitea
+              mountPath: /etc/gitea
+      volumes:
+        - name: bootstrap
+          configMap:
+            name: git-bootstrap
+        - name: data
+          persistentVolumeClaim:
+            claimName: git-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 128Mi
+        - name: etc-gitea
+          emptyDir:
+            sizeLimit: 128Mi
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: git-ingress
+  namespace: git
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: git
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: flux-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: okdp-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: git
+  namespace: git
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: git
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+# Browser UI on the default sandbox domain (okdp.sandbox). Accepted before
+# ingress-nginx and cert-manager are installed, and served automatically once
+# they become Ready.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: git
+  namespace: git
+  annotations:
+    cert-manager.io/cluster-issuer: default-issuer
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - git.okdp.sandbox
+      secretName: git-tls
+  rules:
+    - host: git.okdp.sandbox
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: git
+                port:
+                  number: 80

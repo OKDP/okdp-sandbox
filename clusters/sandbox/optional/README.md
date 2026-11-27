@@ -1,8 +1,8 @@
 # Optional components
 
-Nothing in this directory is applied by the sandbox install. Each subdirectory
-holds a component the platform can run on but does not need, so applying one is
-a deliberate act with consequences worth reading first.
+Nothing in this directory is applied by the default sandbox install. Each
+subdirectory holds an optional component or workflow, so applying one is a
+deliberate act with consequences worth reading first.
 
 ## kubauth
 
@@ -38,7 +38,7 @@ in `admin.yaml` before doing anything you would regret.
 
 ### Point the Control Plane at it
 
-Three keys, all of them needed, in the single `platform` Context in
+Three keys, all of them needed, in the `platform` Context in
 `okdp-system`. Each was checked on the sandbox: with any one missing, the
 screens stay empty or unavailable.
 
@@ -163,3 +163,11 @@ kubectl -n kubocd-system wait --for=jsonpath='{.status.phase}'=READY release/ope
 ```sh
 kubectl delete release openbao -n kubocd-system
 ```
+
+## git
+
+A Gitea server inside the cluster ([git/README.md](git/README.md)), providing the local `okdp/okdp-sandbox` repository and `https://git.okdp.sandbox` web UI used by the copy-paste walkthrough in [docs/gitops.md](../../../docs/gitops.md).
+
+## flux-sync
+
+Flux manifests ([flux-sync/README.md](flux-sync/README.md)) that reconcile the sandbox prerequisites and the OKDP Control Plane installation from Git instead of applying them manually with `kubectl`. See [docs/gitops.md](../../../docs/gitops.md).
